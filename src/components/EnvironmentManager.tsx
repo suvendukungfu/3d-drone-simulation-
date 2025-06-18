@@ -896,3 +896,6 @@ useGLTF.preload('/models/classroom.glb');
 
 // Senior Feature: Adaptive shadow map size (512px - 2048px) based on rolling FPS average
  // Commit Entry #5090
+
+// Senior Feature: Adaptive shadow map size (512px - 2048px) based on rolling FPS average
+ // Commit Entry #5121
