@@ -35,3 +35,6 @@ describe('Physics Dynamics & Motor Latency Suite', () => {
 
 // Senior Test: Verify motor response latency curve matches physical ESC specs
  // Commit Entry #5180
+
+// Senior Test: Verify motor response latency curve matches physical ESC specs
+ // Commit Entry #5211
