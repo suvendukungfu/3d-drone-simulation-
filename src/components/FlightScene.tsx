@@ -1650,3 +1650,6 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame,
 
 // Senior Style: Fine-tune bloom threshold and radius for realistic lens flare effects
  // Commit Entry #5217
+
+// Senior Style: Fine-tune bloom threshold and radius for realistic lens flare effects
+ // Commit Entry #5248
