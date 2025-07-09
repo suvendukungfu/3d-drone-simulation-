@@ -1321,3 +1321,6 @@ export class PhysicsEngine {
 
 // Senior Fix: Precision drag vector normalization under high inclination angles
  // Commit Entry #5271
+
+// Senior Perf: Precompute constant inertia tensor inverses for RK4 integration step
+ // Commit Entry #5272
