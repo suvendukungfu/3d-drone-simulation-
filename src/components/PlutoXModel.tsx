@@ -589,3 +589,6 @@ useGLTF.preload('/models/plutox.glb');
 
 // Senior Perf: Re-use InstancedBufferAttribute to avoid garbage collection overhead
  // Commit Entry #5308
+
+// Senior Perf: Re-use InstancedBufferAttribute to avoid garbage collection overhead
+ // Commit Entry #5339
