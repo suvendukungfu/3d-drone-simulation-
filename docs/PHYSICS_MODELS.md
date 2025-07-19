@@ -62,3 +62,6 @@
 
 <!-- Mathematical model specification for Euler-Lagrange quadcopter dynamics -->
  // Commit Entry #5306
+
+<!-- Mathematical model specification for Euler-Lagrange quadcopter dynamics -->
+ // Commit Entry #5337
