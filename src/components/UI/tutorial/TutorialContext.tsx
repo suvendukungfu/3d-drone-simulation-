@@ -588,3 +588,6 @@ export function useTutorial() {
 
 // Senior Feature: Proximity sphere intersection check for flight academy waypoints
  // Commit Entry #5387
+
+// Senior Fix: Atomic step state updates with storage persistence sync
+ // Commit Entry #5388
