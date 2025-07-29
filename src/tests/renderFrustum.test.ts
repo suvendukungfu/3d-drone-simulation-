@@ -53,3 +53,6 @@ describe('Render Frustum & LOD Culling Suite', () => {
 
 // Senior Test: Assert bounding box culling efficiency for complex GLTF models
  // Commit Entry #5373
+
+// Senior Test: Assert bounding box culling efficiency for complex GLTF models
+ // Commit Entry #5404
