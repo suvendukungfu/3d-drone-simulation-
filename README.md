@@ -34,6 +34,54 @@ An interactive, high-fidelity 3D hardware simulation and educational training pl
 
 ---
 
+## 📊 Architecture & Data Flow
+
+Below is a architectural overview of how user interaction, state management, audio generation, and the 3D graphics rendering pipeline connect within the application:
+
+```mermaid
+graph TD
+    subgraph UI ["React UI Overlays (DOM)"]
+        HUD["Diagnostic HUD"]
+        LWF["Learning Workflow"]
+        CIP["Component Info Panel"]
+        IO["Intro Overlay"]
+    end
+
+    subgraph Store ["State Management"]
+        ZS["Zustand Store (useDroneStore)"]
+    end
+
+    subgraph Audio ["Sound Engine"]
+        SC["Sound Controller (Web Audio API)"]
+    end
+
+    subgraph Canvas3D ["3D WebGL Canvas (R3F/Three.js)"]
+        Scene["Scene Canvas Container"]
+        Model["PlutoX Model Component"]
+        Props["Spinning Propellers Mesh"]
+        Hotspots["Floating Hotspots Annotations"]
+    end
+
+    %% Interactions
+    User((User)) -->|Interact| HUD
+    User -->|Select Part / Orbit Rotate| Scene
+    
+    HUD -->|Toggle Motor / Change Mode| ZS
+    LWF -->|Proceed Step| ZS
+    CIP -->|Close / Select| ZS
+    
+    ZS -->|Active Motors & RPMs| Props
+    ZS -->|Selected / Hovered Part| Model
+    ZS -->|Telemetric State (Active Motors, RPMs)| SC
+    
+    SC -->|Generate dynamic motor hum (variable pitch)| User
+    Scene -->|Render viewport update| User
+    HUD -->|Read RPM / Status| ZS
+    CIP -->|Read part details| ZS
+```
+
+---
+
 ## 🛠️ Technology Stack
 
 - **Core**: React 18 (TypeScript) & Vite
