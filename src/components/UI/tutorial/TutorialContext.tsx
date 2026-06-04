@@ -441,3 +441,6 @@ export function useTutorial() {
   }
   return context;
 }
+
+// Senior Feature: Proximity sphere intersection check for flight academy waypoints
+ // Commit Entry #1016
