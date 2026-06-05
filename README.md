@@ -185,3 +185,6 @@ This logs all child node names, hierarchy levels, material slots, and transform 
 This project is open-source and licensed under the MIT License.
 Developed by [Suvendu Sahoo](https://github.com/suvendukungfu).
 Inspired by the engineering designs of **Drona Aviation PlutoX**.
+
+<!-- Architecture overview detailing state flow between Physics, Three.js, and HUD -->
+ // Commit Entry #1019
