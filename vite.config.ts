@@ -19,3 +19,6 @@ export default defineConfig({
     testTimeout: 15000,
   },
 })
+
+// Senior Perf: Add manual chunking rules for Three.js vendor dependencies
+ // Commit Entry #1022
