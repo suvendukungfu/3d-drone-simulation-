@@ -1,0 +1,75 @@
+import * as THREE from 'three';
+
+export interface RigidBodyState {
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  quaternion: THREE.Quaternion;
+  angularVelocity: THREE.Vector3; // in body frame
+}
+
+export interface DroneSensorData {
+  gyro: THREE.Vector3;          // rad/s, body frame
+  accel: THREE.Vector3;         // m/s^2, body frame, includes gravity
+  mag: THREE.Vector3;           // normalized body magnetic field
+  baroAltitude: number;         // m, above ground
+  calibrationProgress: number;  // 0 to 1
+  isCalibrated: boolean;
+  hasError: boolean;
+}
+
+export interface PIDGains {
+  kp: number;
+  ki: number;
+  kd: number;
+  iMax: number;
+  dFilterHz: number;
+}
+
+export interface PIDControllerState {
+  integral: THREE.Vector3;
+  prevError: THREE.Vector3;
+  prevDerivative: THREE.Vector3;
+}
+
+export interface FlightControlStick {
+  throttle: number;             // 0 to 1, accumulated (stays where left)
+  yaw: number;                  // -1 to 1, springs back to 0
+  pitch: number;                // -1 to 1, springs back to 0
+  roll: number;                 // -1 to 1, springs back to 0
+}
+
+export interface TelemetryData {
+  isArmed: boolean;
+  flightMode: 'stabilize' | 'althold' | 'failsafe';
+  altitude: number;
+  verticalSpeed: number;
+  speed: number;
+  pitch: number;                // degrees
+  roll: number;                 // degrees
+  yaw: number;                  // degrees
+  heading: number;              // degrees (0-360)
+  motorRPMs: [number, number, number, number];
+  battery: number;              // 0 to 100
+  flightTime: number;           // seconds
+  sensorError: boolean;
+  calibrationActive: boolean;
+}
+
+export interface Checkpoint {
+  id: string;
+  position: [number, number, number];
+  radius: number;
+  passed: boolean;
+}
+
+export interface MissionDef {
+  title: string;
+  description: string;
+  objectives: string[];
+  checkObjective: (
+    orchestrator: any,
+    currentStep: number,
+    state: any
+  ) => boolean[];
+  checkpoints?: Checkpoint[];
+}
