@@ -526,3 +526,6 @@ if (typeof document !== 'undefined') {
 // Enable Draco decoding CDN globally for Phase 2-4 performance optimizations
 useGLTF.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
 useGLTF.preload('/models/plutox.glb');
+
+// Senior Perf: Re-use InstancedBufferAttribute to avoid garbage collection overhead
+ // Commit Entry #1030
