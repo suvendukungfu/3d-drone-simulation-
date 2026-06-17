@@ -1,3 +1,25 @@
+/**
+ * PhysicsEngine.ts
+ * ────────────────
+ * RK4-integrated rigid body dynamics for the PlutoX Nano quadcopter.
+ *
+ * Physics Model:
+ *   - 6-DOF rigid body: 3 translational + 3 rotational degrees of freedom.
+ *   - Quaternion-based orientation (avoids gimbal lock).
+ *   - Motor forces computed from throttle commands (0–1) × max thrust per motor.
+ *   - X-configuration motor layout with correct CW/CCW reaction torques.
+ *   - Ground effect model: thrust boost when altitude < 0.30 m.
+ *   - Linear and angular aerodynamic drag.
+ *   - Boundary constraints with elastic rebound and friction.
+ *
+ * Motor Layout (viewed from above):
+ *   Motor 0 (FL): CCW   Motor 1 (FR): CW
+ *   Motor 2 (RL): CW    Motor 3 (RR): CCW
+ *
+ * Integration Method:
+ *   4th-order Runge-Kutta (RK4) for both position/velocity and orientation.
+ *   This provides O(h⁴) accuracy per step, far superior to Euler integration.
+ */
 import * as THREE from 'three';
 import { RigidBodyState } from './types';
 
