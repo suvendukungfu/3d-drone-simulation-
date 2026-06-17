@@ -831,7 +831,9 @@ function App() {
       </AnimatePresence>
 
       {/* 7. HOME SCREEN MAIN NAVIGATION HUB */}
-      <IntroOverlay />
+      <AnimatePresence>
+        {currentMode === 'home' && <IntroOverlay />}
+      </AnimatePresence>
 
       {/* Decorative top-edge accent line */}
       <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-blue-500/25 to-transparent pointer-events-none z-10" />

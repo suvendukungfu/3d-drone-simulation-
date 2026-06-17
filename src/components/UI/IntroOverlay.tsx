@@ -30,8 +30,6 @@ export function IntroOverlay() {
     return () => clearInterval(interval);
   }, [currentMode]);
 
-  if (currentMode !== 'home') return null;
-
   const handleEnterFlightSim = () => {
     setFlightSimModalOpen(true);
   };
@@ -62,7 +60,13 @@ export function IntroOverlay() {
   const appLinkStatus = useDroneStore((state) => state.appLinkStatus);
 
   return (
-    <div className="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-6 overflow-hidden select-none font-sans text-white">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.4 }}
+      className="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-6 overflow-hidden select-none font-sans text-white"
+    >
       
       {/* 1. HOLOGRAPHIC CRT INTERACTIVE OVERLAY EFFECTS */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.25)_50%,rgba(0,0,0,0.3)_50%)] bg-[size:100%_4px] pointer-events-none opacity-25 mix-blend-overlay" />
@@ -358,7 +362,7 @@ export function IntroOverlay() {
         )}
       </AnimatePresence>
 
-    </div>
+    </motion.div>
   );
 }
 
