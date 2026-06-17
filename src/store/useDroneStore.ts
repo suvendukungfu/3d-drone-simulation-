@@ -21,6 +21,19 @@ const syncHashFromState = (mode: string, missionIndex: number) => {
   }
 };
 
+const getSafeTheme = (): 'light' | 'dark' => {
+  if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
+    return window.localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+  }
+  return 'light';
+};
+
+const setSafeTheme = (theme: 'light' | 'dark') => {
+  if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
+    window.localStorage.setItem('theme', theme);
+  }
+};
+
 export type AppMode = 'home' | 'explore' | 'inspect' | 'learning' | 'flight';
 export type CameraView = 'orbit' | 'inspect' | 'top' | 'bottom' | 'left' | 'right' | 'front' | 'back';
 export type FlightCameraView = 'chase' | 'fpv' | 'orbit';
@@ -219,6 +232,9 @@ interface DroneState {
   setFlightSimModalOpen: (open: boolean) => void;
   isARActive: boolean;
   setARActive: (active: boolean) => void;
+  theme: 'light' | 'dark';
+  setTheme: (theme: 'light' | 'dark') => void;
+  toggleTheme: () => void;
 }
 
 export const useDroneStore = create<DroneState>((set, get) => ({
@@ -232,6 +248,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   unlockedLevels: [true, false, false, false, false],
   isFlightSimModalOpen: false,
   isARActive: false,
+  theme: getSafeTheme(),
   
   cameraView: 'orbit',
   autoRotate: true,
@@ -706,8 +723,34 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   setARActive: (active) => {
     sound.playClick();
     set({ isARActive: active });
+  },
+  setTheme: (theme) => {
+    setSafeTheme(theme);
+    if (typeof window !== 'undefined' && document.documentElement) {
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+    set({ theme });
+  },
+  toggleTheme: () => {
+    sound.playClick();
+    const nextTheme = get().theme === 'light' ? 'dark' : 'light';
+    get().setTheme(nextTheme);
   }
 }));
+
+// Apply initial theme from localStorage on load
+if (typeof window !== 'undefined' && document.documentElement) {
+  const initialTheme = getSafeTheme();
+  if (initialTheme === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+}
 
 // Fluctuates RPM of active diagnostic motors in Explore mode
 if (typeof window !== 'undefined' && typeof (globalThis as any).vitest === 'undefined' && (globalThis as any).process?.env?.NODE_ENV !== 'test') {

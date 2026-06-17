@@ -12,7 +12,7 @@ import { SimulatorOrchestrator } from './utils/drone/SimulatorOrchestrator';
 import { Checkpoint } from './utils/drone/types';
 import { 
   Layers, Info, ShieldAlert, Wrench, Activity, ChevronRight, 
-  Eye, Cpu, Power, CheckCircle, RefreshCcw, Gamepad2 
+  Eye, Cpu, Power, CheckCircle, RefreshCcw, Gamepad2, Sun, Moon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProgress } from '@react-three/drei';
@@ -74,8 +74,14 @@ function App() {
   const setMode = useDroneStore((state) => state.setMode);
   const startLearning = useDroneStore((state) => state.startLearning);
   const selectMission = useDroneStore((state) => state.selectMission);
+  const theme = useDroneStore((state) => state.theme);
+  const toggleTheme = useDroneStore((state) => state.toggleTheme);
+  const isDark = theme === 'dark';
 
   const selectedData = selectedComponent ? droneComponents[selectedComponent] : null;
+
+  const btnActiveStyle = 'bg-blue-550/10 border-blue-500 text-blue-600 shadow-[0_4px_12px_rgba(59,130,246,0.08)] dark:bg-blue-950/40 dark:border-blue-500 dark:text-blue-400';
+  const btnInactiveStyle = 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-850 dark:hover:text-white';
 
   // Determine if a motor or propeller is selected to inject educational STEM highlights
   const isPropSelected = selectedComponent === 'propellerA' || selectedComponent === 'propellerB';
@@ -225,7 +231,7 @@ function App() {
   };
 
   return (
-    <div className="w-full h-full relative overflow-hidden bg-[#070a13] font-sans antialiased text-white select-none flex">
+    <div className="w-full h-full relative overflow-hidden bg-[#F8FAFC] dark:bg-[#070a13] font-sans antialiased text-slate-800 dark:text-white select-none flex">
       <ARSimulator />
       <LearningWorkflow />
       
@@ -235,28 +241,28 @@ function App() {
           <motion.div
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-[#070a13] z-50 flex flex-col items-center justify-center p-6"
+            className="absolute inset-0 bg-[#F8FAFC] dark:bg-[#070a13] z-50 flex flex-col items-center justify-center p-6"
           >
             <div className="max-w-md w-full flex flex-col items-center text-center space-y-6">
-              <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-[0_0_20px_rgba(0,163,255,0.15)] animate-pulse">
+              <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-500 dark:text-blue-400 shadow-[0_0_20px_rgba(0,163,255,0.15)] animate-pulse">
                 <Cpu className="w-8 h-8" />
               </div>
               <div className="space-y-2">
-                <h2 className="text-xl font-bold uppercase tracking-wider text-white">Loading Drone Laboratory</h2>
-                <p className="text-xs text-slate-500 font-mono uppercase tracking-widest">
+                <h2 className="text-xl font-bold uppercase tracking-wider text-slate-850 dark:text-white">Loading Drone Laboratory</h2>
+                <p className="text-xs text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest">
                   Retrieving high-res Pluto X GLB Asset
                 </p>
               </div>
               
               {/* Progress Slider */}
-              <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-800">
+              <div className="w-full bg-slate-205 dark:bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
                 <div 
                   className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 />
               </div>
               
-              <span className="text-sm font-mono text-blue-400 font-bold">{Math.round(progress)}% Complete</span>
+              <span className="text-sm font-mono text-blue-600 dark:text-blue-400 font-bold">{Math.round(progress)}% Complete</span>
             </div>
           </motion.div>
         )}
@@ -281,19 +287,19 @@ function App() {
               exit={{ width: 0, opacity: 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 120 }}
               style={{ overflow: 'hidden' }}
-              className="h-full pt-16 bg-slate-950/80 backdrop-blur-md border-r border-slate-800/80 z-10 flex flex-col justify-between shrink-0"
+              className="h-full pt-16 bg-white/95 dark:bg-slate-950/80 backdrop-blur-md border-r border-slate-200 dark:border-slate-800/80 z-10 flex flex-col justify-between shrink-0"
             >
-              <div className="w-[320px] p-5 h-full flex flex-col justify-between overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
+              <div className="w-[320px] p-5 h-full flex flex-col justify-between overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
                 <div className="space-y-4">
                   {/* Mode Switcher Tabs */}
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 flex bg-slate-100 p-1 rounded-lg border border-slate-200 text-[10px] font-bold uppercase tracking-wider">
+                    <div className="flex-1 flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border border-slate-205 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider">
                       <button
                         onClick={() => setMode('explore')}
                         className={`flex-1 py-1.5 rounded transition ${
                           currentMode === 'explore'
                             ? 'bg-blue-600 text-white shadow shadow-blue-500/10'
-                            : 'text-slate-500 hover:text-slate-800'
+                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
                         }`}
                       >
                         Explorer
@@ -303,7 +309,7 @@ function App() {
                         className={`flex-1 py-1.5 rounded transition ${
                           currentMode === 'learning'
                             ? 'bg-amber-600 text-white shadow shadow-amber-500/10'
-                            : 'text-slate-500 hover:text-slate-800'
+                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
                         }`}
                       >
                         Training
@@ -311,7 +317,7 @@ function App() {
                     </div>
                     <button 
                       onClick={handleResetAll}
-                      className="p-2 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-950 hover:bg-slate-200 transition shrink-0"
+                      className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition shrink-0"
                       title="Reset Workspace"
                     >
                       <RefreshCcw className="w-3.5 h-3.5" />
@@ -328,9 +334,7 @@ function App() {
                       <button
                         onClick={() => setCameraView('orbit')}
                         className={`col-span-2 py-2 rounded-lg border transition ${
-                          cameraView === 'orbit' 
-                            ? 'bg-blue-550/10 border-blue-500 text-blue-600 shadow-[0_4px_12px_rgba(59,130,246,0.08)]' 
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850'
+                          cameraView === 'orbit' ? btnActiveStyle : btnInactiveStyle
                         }`}
                       >
                         Free Orbit Look
@@ -338,9 +342,7 @@ function App() {
                       <button
                         onClick={() => setCameraView('top')}
                         className={`py-2 rounded-lg border transition ${
-                          cameraView === 'top' 
-                            ? 'bg-blue-550/10 border-blue-500 text-blue-600' 
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850'
+                          cameraView === 'top' ? btnActiveStyle : btnInactiveStyle
                         }`}
                       >
                         Top View
@@ -348,9 +350,7 @@ function App() {
                       <button
                         onClick={() => setCameraView('bottom')}
                         className={`py-2 rounded-lg border transition ${
-                          cameraView === 'bottom' 
-                            ? 'bg-blue-550/10 border-blue-500 text-blue-600' 
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850'
+                          cameraView === 'bottom' ? btnActiveStyle : btnInactiveStyle
                         }`}
                       >
                         Bottom View
@@ -358,9 +358,7 @@ function App() {
                       <button
                         onClick={() => setCameraView('left')}
                         className={`py-2 rounded-lg border transition ${
-                          cameraView === 'left' 
-                            ? 'bg-blue-550/10 border-blue-500 text-blue-600' 
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850'
+                          cameraView === 'left' ? btnActiveStyle : btnInactiveStyle
                         }`}
                       >
                         Left Side
@@ -368,9 +366,7 @@ function App() {
                       <button
                         onClick={() => setCameraView('right')}
                         className={`py-2 rounded-lg border transition ${
-                          cameraView === 'right' 
-                            ? 'bg-blue-550/10 border-blue-500 text-blue-600' 
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850'
+                          cameraView === 'right' ? btnActiveStyle : btnInactiveStyle
                         }`}
                       >
                         Right Side
@@ -378,9 +374,7 @@ function App() {
                       <button
                         onClick={() => setCameraView('front')}
                         className={`py-2 rounded-lg border transition ${
-                          cameraView === 'front' 
-                            ? 'bg-blue-550/10 border-blue-500 text-blue-600' 
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850'
+                          cameraView === 'front' ? btnActiveStyle : btnInactiveStyle
                         }`}
                       >
                         Front Nose
@@ -388,9 +382,7 @@ function App() {
                       <button
                         onClick={() => setCameraView('back')}
                         className={`py-2 rounded-lg border transition ${
-                          cameraView === 'back' 
-                            ? 'bg-blue-550/10 border-blue-500 text-blue-600' 
-                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850'
+                          cameraView === 'back' ? btnActiveStyle : btnInactiveStyle
                         }`}
                       >
                         Back Tail
@@ -401,15 +393,15 @@ function App() {
                       onClick={toggleAutoRotate}
                       className={`w-full py-2 border rounded-lg text-xs font-bold uppercase tracking-wider transition ${
                         autoRotate
-                          ? 'bg-emerald-50 border-emerald-500 text-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.08)]'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-[0_4px_12px_rgba(16,185,129,0.08)]'
+                          : btnInactiveStyle
                       }`}
                     >
                       Auto Rotate View: {autoRotate ? 'ON' : 'OFF'}
                     </button>
-
+ 
                     {/* Environment & VR Views */}
-                    <div className="pt-3 border-t border-slate-250 space-y-2.5">
+                    <div className="pt-3 border-t border-slate-205 dark:border-slate-800 space-y-2.5">
                       <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
                         <Layers className="w-3.5 h-3.5 text-blue-500" />
                         Immersive Modes
@@ -419,8 +411,8 @@ function App() {
                           onClick={toggleImmersiveMode}
                           className={`py-2 px-1 rounded-lg border transition flex flex-col items-center justify-center gap-0.5 ${
                             immersiveMode 
-                              ? 'bg-blue-50 border-blue-500 text-blue-600 shadow-[0_4px_12px_rgba(59,130,246,0.08)]' 
-                              : 'bg-slate-550 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850'
+                              ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-600 dark:text-blue-400 shadow-[0_4px_12px_rgba(59,130,246,0.08)]' 
+                              : btnInactiveStyle
                           }`}
                           title="Cinematic 360° Free Look (Hides HUD)"
                         >
@@ -431,8 +423,8 @@ function App() {
                           onClick={toggleVrMode}
                           className={`py-2 px-1 rounded-lg border transition flex flex-col items-center justify-center gap-0.5 ${
                             vrMode 
-                              ? 'bg-purple-50 border-purple-500 text-purple-650 shadow-[0_4px_12px_rgba(168,85,247,0.08)]' 
-                              : 'bg-slate-550 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850'
+                              ? 'bg-purple-50 dark:bg-purple-950/35 border-purple-500 text-purple-650 dark:text-purple-400 shadow-[0_4px_12px_rgba(168,85,247,0.08)]' 
+                              : btnInactiveStyle
                           }`}
                           title="Stereoscopic VR Split-screen Mode"
                         >
@@ -444,7 +436,7 @@ function App() {
                   </div>
 
                   {/* SECTION B: Motor Demonstrator Systems */}
-                  <div className="space-y-3 pt-4 border-t border-slate-200">
+                  <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
                     <div className="flex justify-between items-center">
                       <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
                         <Power className="w-3.5 h-3.5 text-blue-500" />
@@ -454,8 +446,8 @@ function App() {
                         onClick={() => setShowRotationDirections(!showRotationDirections)}
                         className={`px-2 py-0.5 rounded border text-[9px] font-bold transition ${
                           showRotationDirections
-                            ? 'bg-orange-50 border-orange-500 text-orange-600'
-                            : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800'
+                            ? 'bg-orange-50 border-orange-500 text-orange-600 dark:bg-orange-950/30 dark:border-orange-500 dark:text-orange-400'
+                            : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-450 dark:hover:text-white'
                         }`}
                       >
                         Directions
@@ -474,15 +466,15 @@ function App() {
                               onClick={() => toggleMotor(id)}
                               className={`flex-1 flex justify-between items-center px-3.5 py-2.5 rounded-lg border text-xs font-bold uppercase transition ${
                                 active 
-                                  ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-[0_4px_12px_rgba(249,115,22,0.08)]' 
-                                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850'
+                                  ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-[0_4px_12px_rgba(249,115,22,0.08)] dark:bg-orange-950/30 dark:border-orange-500 dark:text-orange-400' 
+                                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-850 dark:hover:text-white'
                               }`}
                             >
                               <span>Motor {index + 1} ({cornerNames[index]})</span>
                               <span className="text-[9px] font-mono opacity-80">{active ? 'RUNNING' : 'STOPPED'}</span>
                             </button>
                             {active && (
-                              <div className="w-16 text-center font-mono text-[10px] text-orange-600 border border-orange-200 bg-orange-50 py-1.5 rounded">
+                              <div className="w-16 text-center font-mono text-[10px] text-orange-600 border border-orange-200 bg-orange-50 dark:text-orange-400 dark:border-orange-900/40 dark:bg-orange-950/35 py-1.5 rounded">
                                 {rpm} RPM
                               </div>
                             )}
@@ -500,7 +492,7 @@ function App() {
                       </button>
                       <button
                         onClick={stopAllMotors}
-                        className="py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold uppercase rounded-lg transition"
+                        className="py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 dark:border-slate-800 dark:text-slate-350 text-xs font-bold uppercase rounded-lg transition"
                       >
                         Kill All
                       </button>
@@ -508,11 +500,11 @@ function App() {
                   </div>
 
                   {/* SECTION C: Component Legend */}
-                  <div className="space-y-2 pt-4 border-t border-slate-200">
+                  <div className="space-y-2 pt-4 border-t border-slate-200 dark:border-slate-800">
                     <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                       Component Registry
                     </h3>
-                    <div className="space-y-1 max-h-52 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200">
+                    <div className="space-y-1 max-h-52 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
                       {Object.values(droneComponents).map((comp) => {
                         const isHovered = hoveredComponent === comp.id;
                         const isSelected = selectedComponent === comp.id;
@@ -525,14 +517,14 @@ function App() {
                             onClick={() => selectComponent(isSelected ? null : comp.id)}
                             className={`w-full text-left px-3 py-1.5 rounded text-[11px] font-semibold uppercase tracking-wider transition-all flex items-center justify-between border ${
                               isSelected
-                                ? 'bg-blue-50 border-blue-500 text-blue-600 font-bold'
+                                ? 'bg-blue-50 border-blue-500 text-blue-600 font-bold dark:bg-blue-950/40 dark:border-blue-500 dark:text-blue-400'
                                 : isHovered
-                                  ? 'bg-slate-50 border-slate-200 text-slate-800'
-                                  : 'border-transparent text-slate-500 hover:text-slate-700'
+                                  ? 'bg-slate-50 border-slate-200 text-slate-800 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200'
+                                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-slate-300'
                             }`}
                           >
                             <span>{comp.name}</span>
-                            <ChevronRight className={`w-3 h-3 transition-transform ${isSelected ? 'rotate-90 text-blue-550' : 'text-slate-400'}`} />
+                            <ChevronRight className={`w-3 h-3 transition-transform ${isSelected ? 'rotate-90 text-blue-550 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600'}`} />
                           </button>
                         );
                       })}
@@ -542,7 +534,7 @@ function App() {
                 </div>
 
                 {/* Brand Credit */}
-                <div className="text-[8px] font-mono text-slate-400 uppercase tracking-widest pt-4 border-t border-slate-200">
+                <div className="text-[8px] font-mono text-slate-400 uppercase tracking-widest pt-4 border-t border-slate-200 dark:border-slate-800">
                   Telemetry Link Status: Secure
                 </div>
               </div>
@@ -552,7 +544,7 @@ function App() {
       </AnimatePresence>
 
       {/* 3. CENTER: 3D Scene Viewport (Conditional between Lab inspection vs Pilot simulator) */}
-      <div className="flex-1 h-full relative z-0 flex bg-[#070a13]">
+      <div className={`flex-1 h-full relative z-0 flex ${isDark ? 'bg-[#070a13]' : 'bg-[#F8FAFC]'}`}>
         {currentMode === 'flight' ? (
           // PILOT SIMULATOR FLIGHT VIEWPORT
           <FlightScene 
@@ -850,7 +842,7 @@ function App() {
             initial={{ y: -64, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -64, opacity: 0 }}
-            className="absolute top-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between pointer-events-auto z-20 shadow-sm"
+            className="absolute top-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between pointer-events-auto z-20 shadow-sm"
           >
             {/* Left: Brand logo & Navigation Back */}
             <div className="flex items-center gap-3">
@@ -862,21 +854,21 @@ function App() {
                   }
                   setMode('home');
                 }}
-                className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 hover:text-slate-850 hover:bg-slate-100 hover:border-slate-350 text-[10px] font-mono uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
+                className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-450 hover:text-slate-850 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-850 hover:border-slate-350 dark:hover:border-slate-700 text-[10px] font-mono uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
               >
                 ← Menu
               </button>
-              <div className="h-5 w-px bg-slate-200" />
+              <div className="h-5 w-px bg-slate-200 dark:bg-slate-800" />
               <div>
-                <h1 className="text-xs font-black text-slate-900 tracking-widest uppercase flex items-center gap-1.5">
+                <h1 className="text-xs font-black text-slate-900 dark:text-white tracking-widest uppercase flex items-center gap-1.5">
                   <span className="text-blue-600">PLUTO</span>
-                  <span className="text-slate-400 font-light">XR</span>
-                  <span className="text-slate-300">//</span>
-                  <span className="text-slate-800 font-extrabold">
+                  <span className="text-slate-450 dark:text-slate-500 font-light">XR</span>
+                  <span className="text-slate-300 dark:text-slate-750">//</span>
+                  <span className="text-slate-800 dark:text-slate-200 font-extrabold">
                     {currentMode === 'flight' ? 'PILOT ACADEMY' : 'ANATOMY LAB'}
                   </span>
                 </h1>
-                <p className="text-[8px] font-mono text-slate-450 uppercase tracking-widest mt-0.5">
+                <p className="text-[8px] font-mono text-slate-500 dark:text-slate-450 uppercase tracking-widest mt-0.5">
                   {currentMode === 'flight' 
                     ? 'Aerospace Ground Control & 6-DOF Simulator' 
                     : 'Interactive 3D Avionics & Component Dissection'}
@@ -885,13 +877,13 @@ function App() {
             </div>
 
             {/* Center: Mode switcher ribbon integrated nicely */}
-            <div className="bg-slate-100 p-1 rounded-xl border border-slate-205 flex gap-1 text-[9px] font-bold uppercase tracking-wider">
+            <div className="bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-205 dark:border-slate-800 flex gap-1 text-[9px] font-bold uppercase tracking-wider">
               <button
                 onClick={() => handleModeSwitch('explore')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-300 ${
                   currentMode === 'explore' || currentMode === 'learning' || currentMode === 'inspect'
                     ? 'bg-blue-600 text-white shadow shadow-blue-500/10'
-                    : 'text-slate-500 hover:text-slate-800'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-450 dark:hover:text-white'
                 } ${activeMissionIndex >= 0 && missionStatus !== 'passed' ? 'cursor-not-allowed opacity-60' : ''}`}
               >
                 <Cpu className="w-3.5 h-3.5" />
@@ -902,7 +894,7 @@ function App() {
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-300 ${
                   currentMode === 'flight'
                     ? 'bg-orange-600 text-white shadow shadow-orange-500/10'
-                    : 'text-slate-500 hover:text-slate-800'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-450 dark:hover:text-white'
                 } ${activeMissionIndex >= 0 && missionStatus !== 'passed' ? 'cursor-not-allowed opacity-60' : ''}`}
               >
                 <Gamepad2 className="w-3.5 h-3.5" />
@@ -911,15 +903,25 @@ function App() {
             </div>
 
             {/* Right side status indicators */}
-            <div className="flex items-center gap-4 text-[9px] font-mono text-slate-500">
+            <div className="flex items-center gap-4 text-[9px] font-mono text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="uppercase tracking-widest text-[8px] font-bold text-slate-500">Telemetry: Link Active</span>
+                <span className="uppercase tracking-widest text-[8px] font-bold text-slate-500 dark:text-slate-450">Telemetry: Link Active</span>
               </div>
               <div className="hidden sm:flex items-center gap-1.5">
-                <span className="text-slate-300">//</span>
-                <span className="uppercase tracking-widest text-[8px] font-bold text-slate-400">SYS_OK</span>
+                <span className="text-slate-350 dark:text-slate-750">//</span>
+                <span className="uppercase tracking-widest text-[8px] font-bold text-slate-400 dark:text-slate-500">SYS_OK</span>
               </div>
+
+              {/* Theme Toggle Button */}
+              <div className="h-5 w-px bg-slate-200 dark:bg-slate-800" />
+              <button
+                onClick={toggleTheme}
+                className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-450 hover:text-slate-850 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-850 transition-all shadow-sm flex items-center justify-center shrink-0"
+                title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+              >
+                {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+              </button>
             </div>
           </motion.header>
         )}

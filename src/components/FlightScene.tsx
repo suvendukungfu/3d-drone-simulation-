@@ -298,6 +298,8 @@ interface FlightSceneProps {
 export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProps) {
   const flightCameraView = useDroneStore((state) => state.flightCameraView);
   const modelLoadStatus = useDroneStore((state) => state.modelLoadStatus);
+  const theme = useDroneStore((state) => state.theme);
+  const isDark = theme === 'dark';
   const droneGroupRef = useRef<THREE.Group>(null);
   const shadowMeshRef = useRef<THREE.Mesh>(null);
   
@@ -464,19 +466,19 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
   }
 
   return (
-    <div className="w-full h-full relative select-none bg-[#F8FAFC]">
+    <div className={`w-full h-full relative select-none ${isDark ? 'bg-[#02040a]' : 'bg-[#F8FAFC]'}`}>
       <Canvas
         shadows
         camera={{ position: [0, 1.5, -2], fov: 50 }}
         gl={{ antialias: true, preserveDrawingBuffer: true }}
       >
-        <color attach="background" args={['#F8FAFC']} />
+        <color attach="background" args={[isDark ? '#070a13' : '#F8FAFC']} />
         
         {/* Environment HDRI sky map */}
         <Environment preset="city" />
 
         {/* Studio and Outdoor Lighting — boosted for drone visibility */}
-        <ambientLight intensity={1.2} color="#ffffff" />
+        <ambientLight intensity={isDark ? 0.8 : 1.2} color={isDark ? '#e2e8f0' : '#ffffff'} />
         
         <directionalLight
           position={[15, 30, 15]}

@@ -84,6 +84,8 @@ interface JoystickProps {
 }
 
 function VirtualJoystick({ label, value, subLabels, onChange }: JoystickProps) {
+  const theme = useDroneStore((state) => state.theme);
+  const isDark = theme === 'dark';
   const containerRef = useRef<HTMLDivElement>(null);
   const [knobPos, setKnobPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -160,33 +162,45 @@ function VirtualJoystick({ label, value, subLabels, onChange }: JoystickProps) {
 
   return (
     <div className="flex flex-col items-center select-none shrink-0 pointer-events-auto">
-      <span className="text-[9px] font-mono text-cyan-400/80 mb-2 tracking-widest uppercase">
+      <span className={`text-[9px] font-mono mb-2 tracking-widest uppercase ${isDark ? 'text-cyan-400/80' : 'text-cyan-600/85'}`}>
         {label}
       </span>
       <div 
         ref={containerRef}
         onMouseDown={handleStart}
         onTouchStart={handleStart}
-        className="w-32 h-32 rounded-full border-2 border-slate-700/60 bg-slate-950/60 backdrop-blur-sm relative flex items-center justify-center cursor-crosshair shadow-[inset_0_0_15px_rgba(0,163,255,0.05)] active:border-cyan-500/40 transition-colors"
+        className={`w-32 h-32 rounded-full border-2 relative flex items-center justify-center cursor-crosshair transition-colors backdrop-blur-sm ${
+          isDark 
+            ? 'border-slate-700/60 bg-slate-950/60 shadow-[inset_0_0_15px_rgba(0,163,255,0.05)] active:border-cyan-500/40' 
+            : 'border-slate-300 bg-white/60 shadow-[inset_0_0_15px_rgba(0,163,255,0.02)] active:border-cyan-600/40'
+        }`}
       >
         {/* Helper directional arrows */}
-        <span className="absolute top-1.5 text-[8px] font-mono text-slate-600 uppercase">{subLabels.up}</span>
-        <span className="absolute bottom-1.5 text-[8px] font-mono text-slate-600 uppercase">{subLabels.down}</span>
-        <span className="absolute left-1.5 text-[8px] font-mono text-slate-600 uppercase">{subLabels.left}</span>
-        <span className="absolute right-1.5 text-[8px] font-mono text-slate-600 uppercase">{subLabels.right}</span>
+        <span className="absolute top-1.5 text-[8px] font-mono text-slate-400 dark:text-slate-600 uppercase">{subLabels.up}</span>
+        <span className="absolute bottom-1.5 text-[8px] font-mono text-slate-400 dark:text-slate-600 uppercase">{subLabels.down}</span>
+        <span className="absolute left-1.5 text-[8px] font-mono text-slate-400 dark:text-slate-600 uppercase">{subLabels.left}</span>
+        <span className="absolute right-1.5 text-[8px] font-mono text-slate-400 dark:text-slate-600 uppercase">{subLabels.right}</span>
 
         {/* Outer Ring Accent */}
-        <div className="absolute inset-2 rounded-full border border-slate-800/40 pointer-events-none" />
+        <div className="absolute inset-2 rounded-full border border-slate-300/40 dark:border-slate-800/40 pointer-events-none" />
 
         {/* Joystick Center Knob */}
         <div 
-          className="w-11 h-11 rounded-full bg-gradient-to-tr from-slate-900 to-slate-800 border border-slate-700/80 shadow-[0_4px_10px_rgba(0,0,0,0.5),0_0_8px_rgba(0,163,255,0.1)] flex items-center justify-center transition-transform duration-75 active:scale-95"
+          className={`w-11 h-11 rounded-full border flex items-center justify-center transition-transform duration-75 active:scale-95 ${
+            isDark 
+              ? 'bg-gradient-to-tr from-slate-900 to-slate-800 border-slate-700/80 shadow-[0_4px_10px_rgba(0,0,0,0.5),0_0_8px_rgba(0,163,255,0.1)]' 
+              : 'bg-gradient-to-tr from-slate-200 to-slate-100 border-slate-300 shadow-[0_4px_10px_rgba(0,0,0,0.1),0_0_8px_rgba(0,163,255,0.05)]'
+          }`}
           style={{
             transform: `translate(${knobPos.x}px, ${knobPos.y}px)`,
-            borderColor: isDragging ? '#06b6d4' : undefined
+            borderColor: isDragging ? (isDark ? '#06b6d4' : '#0891b2') : undefined
           }}
         >
-          <div className={`w-3.5 h-3.5 rounded-full ${isDragging ? 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.8)]' : 'bg-slate-700'} transition-all`} />
+          <div className={`w-3.5 h-3.5 rounded-full ${
+            isDragging 
+              ? (isDark ? 'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.8)]' : 'bg-cyan-600 shadow-[0_0_10px_rgba(8,145,178,0.5)]') 
+              : (isDark ? 'bg-slate-700' : 'bg-slate-350')
+          } transition-all`} />
         </div>
       </div>
     </div>
@@ -196,6 +210,8 @@ function VirtualJoystick({ label, value, subLabels, onChange }: JoystickProps) {
 export function ARSimulator() {
   const isARActive = useDroneStore((state) => state.isARActive);
   const setARActive = useDroneStore((state) => state.setARActive);
+  const theme = useDroneStore((state) => state.theme);
+  const isDark = theme === 'dark';
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -498,37 +514,37 @@ export function ARSimulator() {
         />
         {!cameraStream && (
           /* Mock AR Camera Viewport */
-          <div className="w-full h-full bg-[#030712] relative flex flex-col items-center justify-center overflow-hidden border-2 border-cyan-500/10">
+          <div className={`w-full h-full relative flex flex-col items-center justify-center overflow-hidden border-2 ${isDark ? 'bg-[#030712] border-cyan-500/10' : 'bg-[#F8FAFC] border-slate-200'}`}>
             {/* Tech Grid Backdrop */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(0,240,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
+            <div className={`absolute inset-0 pointer-events-none bg-[size:32px_32px] ${isDark ? 'bg-[linear-gradient(rgba(0,240,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.02)_1px,transparent_1px)]' : 'bg-[linear-gradient(rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.06)_1px,transparent_1px)]'}`} />
             
             {/* Sci-Fi Matrix Lines & Noise Overlay */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.25)_50%,rgba(0,0,0,0.3)_50%)] bg-[size:100%_4px] pointer-events-none opacity-30 mix-blend-overlay" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.1)_0%,transparent_80%)]" />
+            <div className={`absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.25)_50%,rgba(0,0,0,0.3)_50%)] bg-[size:100%_4px] pointer-events-none opacity-30 mix-blend-overlay ${isDark ? 'block' : 'hidden'}`} />
+            <div className={`absolute inset-0 ${isDark ? 'bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.1)_0%,transparent_80%)]' : 'bg-[radial-gradient(ellipse_at_center,rgba(148,163,184,0.15)_0%,transparent_80%)]'}`} />
             
             {/* Holographic Radar Ring */}
-            <div className="w-80 h-80 rounded-full border border-cyan-500/10 flex items-center justify-center relative animate-spin" style={{ animationDuration: '40s' }}>
-              <div className="absolute inset-4 rounded-full border border-dashed border-cyan-500/20" />
-              <div className="absolute inset-8 rounded-full border border-cyan-500/5" />
-              <div className="absolute w-full h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent" />
-              <div className="absolute h-full w-px bg-gradient-to-b from-transparent via-cyan-500/30 to-transparent" />
+            <div className={`w-80 h-80 rounded-full border flex items-center justify-center relative animate-spin ${isDark ? 'border-cyan-500/10' : 'border-slate-200'}`} style={{ animationDuration: '40s' }}>
+              <div className={`absolute inset-4 rounded-full border border-dashed ${isDark ? 'border-cyan-500/20' : 'border-slate-305'}`} />
+              <div className={`absolute inset-8 rounded-full border ${isDark ? 'border-cyan-500/5' : 'border-slate-100'}`} />
+              <div className={`absolute w-full h-px ${isDark ? 'bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent' : 'bg-gradient-to-r from-transparent via-slate-300/40 to-transparent'}`} />
+              <div className={`absolute h-full w-px ${isDark ? 'bg-gradient-to-b from-transparent via-cyan-500/30 to-transparent' : 'bg-gradient-to-b from-transparent via-slate-300/40 to-transparent'}`} />
             </div>
 
             {/* Corner Tech Brackets */}
-            <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-cyan-500/30" />
-            <div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-cyan-500/30" />
-            <div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-cyan-500/30" />
-            <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-cyan-500/30" />
+            <div className={`absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 ${isDark ? 'border-cyan-500/30' : 'border-slate-300'}`} />
+            <div className={`absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 ${isDark ? 'border-cyan-500/30' : 'border-slate-300'}`} />
+            <div className={`absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 ${isDark ? 'border-cyan-500/30' : 'border-slate-300'}`} />
+            <div className={`absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 ${isDark ? 'border-cyan-500/30' : 'border-slate-300'}`} />
 
             <div className="absolute flex flex-col items-center justify-center mt-2 text-center space-y-3 z-10">
-              <div className="p-4 rounded-full bg-cyan-950/20 border border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.15)] animate-pulse">
-                <CameraOff className="w-8 h-8 text-cyan-400" />
+              <div className={`p-4 rounded-full animate-pulse border ${isDark ? 'bg-cyan-950/20 border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.15)]' : 'bg-slate-100 border-slate-300'}`}>
+                <CameraOff className={`w-8 h-8 ${isDark ? 'text-cyan-400' : 'text-slate-400'}`} />
               </div>
               <div className="space-y-1">
-                <span className="text-xs font-mono font-bold text-cyan-400 tracking-[0.25em] uppercase block">
+                <span className={`text-xs font-mono font-bold tracking-[0.25em] uppercase block ${isDark ? 'text-cyan-400' : 'text-slate-700'}`}>
                   Camera Passthrough Offline
                 </span>
-                <p className="text-[8px] text-slate-500 font-mono tracking-widest uppercase">
+                <p className={`text-[8px] font-mono tracking-widest uppercase ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                   Using 3D Virtual Tracking Space Grid // Ready to Arm
                 </p>
               </div>
@@ -607,9 +623,9 @@ export function ARSimulator() {
           gl={{ alpha: true, antialias: true }}
         >
           {/* Transparent scene setup */}
-          <ambientLight intensity={1.2} color="#ffffff" />
-          <directionalLight position={[5, 10, 3]} intensity={1.5} color="#ffffff" />
-          <directionalLight position={[-5, 5, -3]} intensity={0.5} color="#cbd5e1" />
+          <ambientLight intensity={isDark ? 0.8 : 1.2} color="#ffffff" />
+          <directionalLight position={[5, 10, 3]} intensity={isDark ? 1.0 : 1.5} color="#ffffff" />
+          <directionalLight position={[-5, 5, -3]} intensity={isDark ? 0.3 : 0.5} color="#cbd5e1" />
           
           <Environment preset="city" />
 
@@ -617,8 +633,8 @@ export function ARSimulator() {
 
           {!cameraStream && (
             <>
-              <gridHelper args={[30, 30, '#005555', '#161d2a']} position={[0, -1.5, 0]} />
-              <polarGridHelper args={[15, 16, 8, 64, '#004444', '#0d1522']} position={[0, -1.49, 0]} />
+              <gridHelper args={[30, 30, isDark ? '#005555' : '#cbd5e1', isDark ? '#161d2a' : '#e2e8f0']} position={[0, -1.5, 0]} />
+              <polarGridHelper args={[15, 16, 8, 64, isDark ? '#004444' : '#94a3b8', isDark ? '#0d1522' : '#cbd5e1']} position={[0, -1.49, 0]} />
             </>
           )}
 
@@ -640,45 +656,45 @@ export function ARSimulator() {
         <div className="flex gap-2 pointer-events-auto">
           <button
             onClick={handleExit}
-            className="p-2.5 rounded-xl bg-slate-950/75 border border-slate-800 backdrop-blur-md hover:bg-slate-900 text-slate-400 hover:text-white transition shadow-2xl flex items-center gap-2"
+            className="p-2.5 rounded-xl bg-white/85 dark:bg-slate-950/75 border border-slate-200 dark:border-slate-800 backdrop-blur-md hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition shadow-2xl flex items-center gap-2"
           >
             <X className="w-4.5 h-4.5" />
             <span className="text-[10px] font-bold uppercase tracking-wider pr-1">Exit AR</span>
           </button>
 
           {/* Prompt/Shortcut key indicator */}
-          <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-950/75 border border-slate-800/80 backdrop-blur-md text-[8px] font-mono text-cyan-400 font-bold uppercase tracking-wider">
-            <Radio className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
-            <span>AI Gesture Config: <kbd className="bg-slate-900 border border-slate-800 text-cyan-400 px-1.5 py-0.5 rounded">Ctrl + Shift</kbd></span>
+          <div className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border backdrop-blur-md text-[8px] font-mono font-bold uppercase tracking-wider ${isDark ? 'bg-slate-950/75 border-slate-800/80 text-cyan-400' : 'bg-white/85 border-slate-200 text-cyan-605'}`}>
+            <Radio className={`w-3.5 h-3.5 animate-pulse ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+            <span>AI Gesture Config: <kbd className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">Ctrl + Shift</kbd></span>
           </div>
         </div>
 
         {/* Real-Time Telemetry HUD panel */}
-        <div className="bg-slate-950/75 border border-slate-800/80 backdrop-blur-md rounded-2xl p-4 w-60 shadow-2xl font-mono text-[9px] text-slate-300 uppercase space-y-2">
-          <div className="flex justify-between items-center border-b border-slate-800 pb-1.5">
-            <span className="text-cyan-400 font-bold tracking-widest flex items-center gap-1.5">
+        <div className="bg-white/85 dark:bg-slate-950/75 border border-slate-200 dark:border-slate-800/80 backdrop-blur-md rounded-2xl p-4 w-60 shadow-2xl font-mono text-[9px] text-slate-700 dark:text-slate-300 uppercase space-y-2">
+          <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-1.5">
+            <span className={`font-bold tracking-widest flex items-center gap-1.5 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
               <Activity className="w-3.5 h-3.5" /> Telemetry HUD
             </span>
-            <span className="text-[7px] bg-cyan-950 text-cyan-400 px-1 rounded">
+            <span className={`text-[7px] px-1 rounded ${isDark ? 'bg-cyan-950 text-cyan-400' : 'bg-cyan-50 text-cyan-600 border border-cyan-200/50'}`}>
               {cvEnabled ? 'AI CV Active' : 'AR Link'}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-y-1">
             <span>Altitude:</span>
-            <span className="text-right text-white font-bold">{telemetry.alt.toFixed(2)} m</span>
+            <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.alt.toFixed(2)} m</span>
 
             <span>Pitch:</span>
-            <span className="text-right text-white font-bold">{telemetry.pitch}°</span>
+            <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.pitch}°</span>
 
             <span>Roll:</span>
-            <span className="text-right text-white font-bold">{telemetry.roll}°</span>
+            <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.roll}°</span>
 
             <span>Yaw Heading:</span>
-            <span className="text-right text-white font-bold">{telemetry.yaw}°</span>
+            <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.yaw}°</span>
           </div>
-          <div className="pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[8px]">
+          <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800/60 flex items-center justify-between text-[8px] text-slate-500 dark:text-slate-400">
             <span className="flex items-center gap-1"><Battery className="w-3 h-3 text-emerald-400" /> 100%</span>
-            <span className="text-slate-500">Signal: 98%</span>
+            <span className="text-slate-500 dark:text-slate-450">Signal: 98%</span>
           </div>
         </div>
 
@@ -696,11 +712,11 @@ export function ARSimulator() {
         />
 
         {/* Dynamic Warning Alert Overlay */}
-        <div className="hidden lg:flex flex-col items-center max-w-xs text-center space-y-1 pointer-events-auto bg-slate-950/80 border border-slate-800/85 backdrop-blur px-4 py-2.5 rounded-xl">
-          <span className="text-[9px] font-mono text-cyan-400 font-bold uppercase tracking-wider">
+        <div className="hidden lg:flex flex-col items-center max-w-xs text-center space-y-1 pointer-events-auto bg-white/85 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/85 backdrop-blur px-4 py-2.5 rounded-xl shadow-xl">
+          <span className={`text-[9px] font-mono font-bold uppercase tracking-wider ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
             {cvEnabled ? 'AI OpenCV GESTURE FLIGHT' : 'Controls Active'}
           </span>
-          <p className="text-[8px] text-slate-500 font-mono leading-relaxed">
+          <p className="text-[8px] text-slate-500 dark:text-slate-400 font-mono leading-relaxed">
             {cvEnabled 
               ? 'Move hands inside the webcam zones. Left: Climb/Yaw. Right: Pitch/Roll.' 
               : 'Drag the virtual knobs to steer PlutoX. Keyboard fallback active (W/S, A/D, Arrows).'
@@ -722,28 +738,28 @@ export function ARSimulator() {
       <AnimatePresence>
         {cvOverlayOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm pointer-events-auto">
-            <div className="w-[340px] bg-slate-950/90 border border-cyan-500/30 rounded-2xl p-6 shadow-[0_0_30px_rgba(6,182,212,0.25)] relative font-mono text-[9px] text-slate-300 uppercase space-y-4">
-              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                <span className="text-cyan-400 font-bold tracking-widest flex items-center gap-1.5">
+            <div className="w-[340px] bg-white/95 dark:bg-slate-950/90 border border-slate-250 dark:border-cyan-500/30 rounded-2xl p-6 shadow-2xl dark:shadow-[0_0_30px_rgba(6,182,212,0.2)] relative font-mono text-[9px] text-slate-700 dark:text-slate-300 uppercase space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
+                <span className={`font-bold tracking-widest flex items-center gap-1.5 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
                   <Activity className="w-3.5 h-3.5" /> AI Gesture Control (OpenCV)
                 </span>
                 <button 
                   onClick={() => setCvOverlayOpen(false)}
-                  className="p-1 rounded bg-slate-900 border border-slate-800 hover:text-white"
+                  className="p-1 rounded bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 >
                   <X className="w-3 h-3" />
                 </button>
               </div>
 
               <div className="space-y-2">
-                <div className="flex justify-between items-center bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
-                  <span className="font-bold text-slate-200">Enable Hand Gestures</span>
+                <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="font-bold text-slate-800 dark:text-slate-200">Enable Hand Gestures</span>
                   <button
                     onClick={() => setCvEnabled(!cvEnabled)}
                     className={`px-3 py-1 rounded text-[8px] font-bold transition-all ${
                       cvEnabled 
                         ? 'bg-cyan-600 border border-cyan-500 text-white shadow-[0_0_10px_rgba(6,182,212,0.3)]' 
-                        : 'bg-slate-800 border border-slate-700 text-slate-400'
+                        : 'bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400'
                     }`}
                   >
                     {cvEnabled ? 'ACTIVE' : 'INACTIVE'}
@@ -751,26 +767,26 @@ export function ARSimulator() {
                 </div>
 
                 {cvEnabled && (
-                  <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3 space-y-2">
-                    <span className="text-slate-400 text-[8px]">Live Thresholded Computer Vision Mask</span>
-                    <div className="flex justify-center bg-black rounded p-1 border border-slate-900">
+                  <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 space-y-2">
+                    <span className="text-slate-500 dark:text-slate-400 text-[8px]">Live Thresholded Computer Vision Mask</span>
+                    <div className="flex justify-center bg-black rounded p-1 border border-slate-200 dark:border-slate-900">
                       <canvas 
                         ref={cvCanvasRef} 
                         width={160} 
                         height={120} 
-                        className="w-[160px] h-[120px] bg-slate-950 rounded"
+                        className="w-[160px] h-[120px] bg-slate-950 dark:bg-black rounded"
                       />
                     </div>
-                    <p className="text-[7.5px] text-slate-500 leading-relaxed text-center">
+                    <p className="text-[7.5px] text-slate-500 dark:text-slate-400 leading-relaxed text-center">
                       Skin-tone segmentation (RGB range) isolating your hand. Place hands inside the overlay zones.
                     </p>
                   </div>
                 )}
               </div>
 
-              <div className="text-[7.5px] text-slate-500 bg-slate-900/30 p-2.5 border border-slate-900 rounded-xl leading-relaxed">
-                <span className="text-cyan-500/80 font-bold block mb-1">Shortcut Key Info:</span>
-                Press <kbd className="bg-slate-850 px-1 border border-slate-800 rounded text-cyan-400">Ctrl + Shift</kbd> at any time to open/close this settings panel.
+              <div className="text-[7.5px] text-slate-550 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/30 p-2.5 border border-slate-200 dark:border-slate-900 rounded-xl leading-relaxed">
+                <span className={`font-bold block mb-1 ${isDark ? 'text-cyan-400/80' : 'text-cyan-600'}`}>Shortcut Key Info:</span>
+                Press <kbd className="bg-slate-100 dark:bg-slate-850 px-1 border border-slate-300 dark:border-slate-800 rounded text-cyan-600 dark:text-cyan-400">Ctrl + Shift</kbd> at any time to open/close this settings panel.
               </div>
             </div>
           </div>
