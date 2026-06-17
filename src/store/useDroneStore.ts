@@ -80,9 +80,15 @@ const DEFAULT_TELEMETRY: TelemetryData = {
   heading: 0.0,
   motorRPMs: [0, 0, 0, 0],
   battery: 100,
+  batteryVoltage: 4.35,
+  batteryCurrent: 0.0,
+  batteryMahUsed: 0.0,
+  isBatteryCritical: false,
   flightTime: 0,
   sensorError: false,
-  calibrationActive: true
+  calibrationActive: true,
+  linkQuality: 100,
+  gpsSatsLocked: 0,
 };
 
 interface DroneState {
