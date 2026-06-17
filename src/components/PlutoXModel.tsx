@@ -78,10 +78,11 @@ export function getComponentIdByMeshName(meshName: string): string | null {
 interface PlutoXModelProps {
   isFlightMode?: boolean;
   onLoad?: (scene: THREE.Group) => void;
+  modelPath?: string;
 }
 
-export function PlutoXModel({ isFlightMode = false, onLoad }: PlutoXModelProps = {}) {
-  const { scene: originalScene } = useGLTF('/models/plutox.glb');
+export function PlutoXModel({ isFlightMode = false, onLoad, modelPath = '/models/plutox.glb' }: PlutoXModelProps = {}) {
+  const { scene: originalScene } = useGLTF(modelPath);
   const scene = useMemo(() => originalScene.clone(true), [originalScene]);
 
   useEffect(() => {
@@ -291,6 +292,10 @@ export function PlutoXModel({ isFlightMode = false, onLoad }: PlutoXModelProps =
     }
 
     if (componentId) {
+      if (currentMode === 'learning') {
+        useDroneStore.getState().identifyComponent(componentId);
+        return;
+      }
       // Interactive spin test toggle if motor or propeller is already selected and clicked again
       if (selectedComponent === componentId) {
         if (componentId.startsWith('motor')) {
@@ -495,4 +500,7 @@ if (typeof document !== 'undefined') {
   document.head.appendChild(style);
 }
 
+// Enable Draco decoding CDN globally for Phase 2-4 performance optimizations
+useGLTF.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
 useGLTF.preload('/models/plutox.glb');
+useGLTF.preload('/PlutoX [Primus X2 v1].glb');

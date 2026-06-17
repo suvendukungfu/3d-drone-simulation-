@@ -445,6 +445,129 @@ export class SimulatorOrchestrator {
           store.addNotification('CRASH DETECTED', 'error');
         }
         this.disarm();
+        return;
+      }
+    }
+
+    // A2. Obstacle & Hoop Collision Detection (Phase 2-4 real obstacle physics)
+    const store = useDroneStore.getState() as any;
+    const envType = store.flightEnvironment;
+    const droneRadius = 0.08; // 8cm clearance radius around drone center
+
+    // Box Obstacles depending on active environment
+    let boxObstacles: { c: [number, number, number]; s: [number, number, number]; label: string }[] = [];
+    if (envType === 'room') {
+      boxObstacles = [
+        { c: [-2.5, 0.4, -2.5], s: [1.5, 0.8, 1.5], label: 'Desk Table' },
+        { c: [2.5, 0.6, -1.0], s: [0.8, 1.2, 0.8], label: 'Book Shelf' },
+        { c: [-3.0, 0.45, 2.5], s: [1.2, 0.9, 1.2], label: 'Cabinet' }
+      ];
+    } else if (envType === 'lab') {
+      boxObstacles = [
+        { c: [-3.5, 0.5, -3.5], s: [2.5, 1.0, 1.2], label: 'Bench A' },
+        { c: [3.5, 0.5, -3.5], s: [2.5, 1.0, 1.2], label: 'Bench B' },
+        { c: [-4.0, 0.6, 2.0], s: [1.5, 1.2, 1.5], label: 'Component Locker' }
+      ];
+    } else if (envType === 'classroom') {
+      boxObstacles = [
+        { c: [0, 0.45, -6.5], s: [1.6, 0.9, 0.8], label: "Teacher's Desk" },
+        { c: [-2.5, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 1' },
+        { c: [0, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 2' },
+        { c: [2.5, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 3' },
+        { c: [-2.5, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 4' },
+        { c: [0, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 5' },
+        { c: [2.5, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 6' },
+        { c: [-7.5, 1.0, 4.0], s: [1.2, 2.0, 0.8], label: 'Bookshelf' }
+      ];
+    } else if (envType === 'warehouse') {
+      boxObstacles = [
+        { c: [-5.0, 1.5, -4.0], s: [2.0, 3.0, 1.2], label: 'Storage Rack A' },
+        { c: [5.0, 1.5, -4.0], s: [2.0, 3.0, 1.2], label: 'Storage Rack B' },
+        { c: [-6.0, 0.75, 4.0], s: [1.5, 1.5, 1.5], label: 'Cargo Crate A' },
+        { c: [6.0, 0.75, 4.0], s: [1.5, 1.5, 1.5], label: 'Cargo Crate B' },
+        { c: [0.0, 1.0, -8.0], s: [4.0, 2.0, 1.0], label: 'Pallet Rack' }
+      ];
+    } else if (envType === 'field') {
+      boxObstacles = [
+        { c: [-4.5, 1.8, -4.5], s: [0.8, 3.6, 0.8], label: 'Conifer Tree' },
+        { c: [5.5, 1.2, -6.5], s: [1.0, 2.4, 1.0], label: 'Granite Boulder' },
+        { c: [-6.5, 1.5, 5.5], s: [0.6, 3.0, 0.6], label: 'Telemetry Mast' }
+      ];
+    } else if (envType === 'course') {
+      boxObstacles = [
+        { c: [-5.0, 1.8, 3.0], s: [0.8, 3.6, 0.8], label: 'Tower A' },
+        { c: [5.0, 1.8, 3.0], s: [0.8, 3.6, 0.8], label: 'Tower B' },
+        { c: [0.0, 1.8, -5.0], s: [1.2, 3.6, 1.2], label: 'Center Column' },
+        { c: [-2.5, 0.5, 6.0], s: [1.5, 1.0, 1.5], label: 'Hazard Zone 1' },
+        { c: [2.5, 0.5, 6.0], s: [1.5, 1.0, 1.5], label: 'Hazard Zone 2' },
+        { c: [-1.25, 1.1, 1.5], s: [0.2, 2.2, 0.25], label: 'Arch 1 Left Pillar' },
+        { c: [1.25, 1.1, 1.5], s: [0.2, 2.2, 0.25], label: 'Arch 1 Right Pillar' },
+        { c: [0, 2.2, 1.5], s: [2.7, 0.2, 0.25], label: 'Arch 1 Beam' }
+      ];
+    }
+
+    // Check box collisions
+    for (const box of boxObstacles) {
+      const hX = box.s[0] / 2;
+      const hY = box.s[1] / 2;
+      const hZ = box.s[2] / 2;
+      const minX = box.c[0] - hX;
+      const maxX = box.c[0] + hX;
+      const minY = box.c[1] - hY;
+      const maxY = box.c[1] + hY;
+      const minZ = box.c[2] - hZ;
+      const maxZ = box.c[2] + hZ;
+
+      const closestX = Math.max(minX, Math.min(this.state.position.x, maxX));
+      const closestY = Math.max(minY, Math.min(this.state.position.y, maxY));
+      const closestZ = Math.max(minZ, Math.min(this.state.position.z, maxZ));
+
+      const dx = this.state.position.x - closestX;
+      const dy = this.state.position.y - closestY;
+      const dz = this.state.position.z - closestZ;
+
+      const distSq = dx * dx + dy * dy + dz * dz;
+      if (distSq < droneRadius * droneRadius) {
+        this.crashDetected = true;
+        if (store.addNotification) {
+          store.addNotification(`CRASHED INTO ${box.label.toUpperCase()}`, 'error');
+        }
+        this.disarm();
+        return;
+      }
+    }
+
+    // Hoop/Ring Obstacles in Course environment
+    if (envType === 'course') {
+      const activeMissionIndex = store.activeMissionIndex;
+      if (activeMissionIndex === 9 || activeMissionIndex === 10) {
+        const hoops = [
+          { id: 'gate1_hoop', c: [-2.5, 1.2, -2.5], r: 0.65, t: 0.05 },
+          { id: 'gate2_hoop', c: [0.0, 1.8, 3.5], r: 0.65, t: 0.05 },
+          { id: 'gate3_hoop', c: [2.5, 1.2, -2.5], r: 0.65, t: 0.05 }
+        ];
+
+        for (const hoop of hoops) {
+          const distPlane = Math.abs(this.state.position.z - hoop.c[2]);
+          if (distPlane < hoop.t + droneRadius) {
+            const distRadial = Math.sqrt(
+              (this.state.position.x - hoop.c[0]) ** 2 +
+              (this.state.position.y - hoop.c[1]) ** 2
+            );
+
+            const innerLimit = hoop.r - hoop.t - droneRadius;
+            const outerLimit = hoop.r + hoop.t + droneRadius;
+
+            if (distRadial >= innerLimit && distRadial <= outerLimit) {
+              this.crashDetected = true;
+              if (store.addNotification) {
+                store.addNotification('CRASHED INTO GATE FRAME', 'error');
+              }
+              this.disarm();
+              return;
+            }
+          }
+        }
       }
     }
     

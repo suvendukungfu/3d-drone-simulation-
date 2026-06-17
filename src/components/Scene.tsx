@@ -136,9 +136,9 @@ function CameraController({ controlsRef, vrEye, floorGroupRef }: CameraControlle
           targetLookAt.current.set(0, 0.5, 0);
         } else {
           if (currentMode === 'home') {
-            // Shift target lookAt to the left of the drone to push the drone to the right side of the screen
-            targetCamPos.current.set(4.0, 2.5, 5.0);
-            targetLookAt.current.set(-1.2, -0.25, 0);
+            // Shift target lookAt and move camera closer to make drone larger and more obvious
+            targetCamPos.current.set(3.2, 1.8, 4.0);
+            targetLookAt.current.set(-1.0, -0.2, 0);
           } else {
             targetCamPos.current.set(5.0, 3.5, 6.0);
             targetLookAt.current.set(0, 0, 0);
@@ -259,11 +259,13 @@ export function Scene({ controlsRef, vrEye }: SceneProps) {
         camera={{ position: [5.0, 3.5, 6.0], fov: 45 }}
         gl={{ antialias: true, preserveDrawingBuffer: true }}
       >
-        {/* Realistic HDRI warehouse backdrop with background enabled */}
-        <Environment preset="warehouse" background />
+        <color attach="background" args={['#F8FAFC']} />
+
+        {/* Realistic HDRI warehouse backdrop with reflections enabled */}
+        <Environment preset="warehouse" />
 
         {/* Ambient & Soft Directional Lighting representing warehouse skylights */}
-        <ambientLight intensity={0.4} color="#dbeafe" />
+        <ambientLight intensity={0.8} color="#ffffff" />
         
         <directionalLight
           position={[12, 20, 8]}
@@ -279,8 +281,8 @@ export function Scene({ controlsRef, vrEye }: SceneProps) {
           position={[0, 8, 0]}
           angle={0.45}
           penumbra={0.8}
-          intensity={6}
-          color="#00A3FF"
+          intensity={10}
+          color="#3D82F5"
           castShadow
           shadow-bias={-0.0001}
         />
@@ -297,7 +299,7 @@ export function Scene({ controlsRef, vrEye }: SceneProps) {
           {/* Realistic industrial concrete floor with high specular reflection */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.6, 0]} receiveShadow>
             <planeGeometry args={[100, 100]} />
-            <meshStandardMaterial color="#080c16" roughness={0.2} metalness={0.7} />
+            <meshStandardMaterial color="#F1F5F9" roughness={0.4} metalness={0.1} />
           </mesh>
 
           {/* Muted industrial grid lines for spatial alignment */}
@@ -306,10 +308,10 @@ export function Scene({ controlsRef, vrEye }: SceneProps) {
             args={[30, 30]}
             cellSize={1.0}
             cellThickness={0.5}
-            cellColor="#0044cc"
+            cellColor="#cbd5e1"
             sectionSize={5.0}
             sectionThickness={1.2}
-            sectionColor="#00a3ff"
+            sectionColor="#3D82F5"
             fadeDistance={20}
             fadeStrength={1.2}
             infiniteGrid
@@ -320,26 +322,26 @@ export function Scene({ controlsRef, vrEye }: SceneProps) {
             {/* Metallic landing plate */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
               <circleGeometry args={[2.5, 64]} />
-              <meshStandardMaterial color="#0b1329" roughness={0.35} metalness={0.85} />
+              <meshStandardMaterial color="#FFFFFF" roughness={0.5} metalness={0.2} />
             </mesh>
             {/* Painted cyber cyan border ring */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
               <ringGeometry args={[2.4, 2.5, 64]} />
-              <meshBasicMaterial color="#00a3ff" toneMapped={false} />
+              <meshBasicMaterial color="#3D82F5" toneMapped={false} />
             </mesh>
             {/* Blueprint concentric rings */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
               <ringGeometry args={[1.5, 1.54, 64]} />
-              <meshBasicMaterial color="#0055ff" transparent opacity={0.35} toneMapped={false} />
+              <meshBasicMaterial color="#3D82F5" transparent opacity={0.35} toneMapped={false} />
             </mesh>
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
               <ringGeometry args={[3.5, 3.54, 64]} />
-              <meshBasicMaterial color="#0055ff" transparent opacity={0.15} toneMapped={false} />
+              <meshBasicMaterial color="#3D82F5" transparent opacity={0.15} toneMapped={false} />
             </mesh>
             {/* Inner crosshairs target */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, 0]}>
               <ringGeometry args={[0.0, 0.4, 4]} />
-              <meshBasicMaterial color="#00a3ff" toneMapped={false} transparent opacity={0.4} />
+              <meshBasicMaterial color="#3D82F5" toneMapped={false} transparent opacity={0.4} />
             </mesh>
           </group>
 

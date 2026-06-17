@@ -2,6 +2,25 @@ import { create } from 'zustand';
 import { sound } from '../utils/soundController';
 import { TelemetryData } from '../utils/drone/types';
 
+const syncHashFromState = (mode: string, missionIndex: number) => {
+  if (typeof window === 'undefined') return;
+  let targetHash = '#/';
+  if (mode === 'explore' || mode === 'learning') {
+    targetHash = '#/anatomy';
+  } else if (mode === 'flight') {
+    if (missionIndex >= 0) {
+      targetHash = `#/sim/mission/${missionIndex}`;
+    } else {
+      targetHash = '#/learn';
+    }
+  } else if (mode === 'home') {
+    targetHash = '#/';
+  }
+  if (window.location.hash !== targetHash) {
+    window.location.hash = targetHash;
+  }
+};
+
 export type AppMode = 'home' | 'explore' | 'inspect' | 'learning' | 'flight';
 export type CameraView = 'orbit' | 'inspect' | 'top' | 'bottom' | 'left' | 'right' | 'front' | 'back';
 export type FlightCameraView = 'chase' | 'fpv' | 'orbit';
@@ -299,6 +318,8 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       autoRotate: mode === 'home',
       learningStatus: mode === 'learning' ? 'identifying' : 'idle'
     });
+    
+    syncHashFromState(mode, get().activeMissionIndex);
   },
 
   hoverComponent: (id) => {
@@ -560,11 +581,23 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   
   selectMission: (index) => {
     sound.playClick();
+    if (index >= 0) {
+      const levelIndex = [4, 6, 8, 7, 10].indexOf(index);
+      if (levelIndex >= 0) {
+        const isUnlocked = get().unlockedLevels[levelIndex];
+        if (!isUnlocked) {
+          console.warn(`Attempted to select locked mission index: ${index}`);
+          return;
+        }
+      }
+    }
     set({
       activeMissionIndex: index,
       missionStatus: index >= 0 ? 'active' : 'idle',
       missionObjectivesCompleted: []
     });
+    
+    syncHashFromState(get().currentMode, index);
   },
   
   setMissionStatus: (status) => set({ missionStatus: status }),
@@ -677,7 +710,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
 }));
 
 // Fluctuates RPM of active diagnostic motors in Explore mode
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && typeof (globalThis as any).vitest === 'undefined' && (globalThis as any).process?.env?.NODE_ENV !== 'test') {
   setInterval(() => {
     const state = useDroneStore.getState();
     if (state.currentMode === 'explore' || state.currentMode === 'learning') {

@@ -464,19 +464,19 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
   }
 
   return (
-    <div className="w-full h-full relative select-none bg-[#02040a]">
+    <div className="w-full h-full relative select-none bg-[#F8FAFC]">
       <Canvas
         shadows
         camera={{ position: [0, 1.5, -2], fov: 50 }}
         gl={{ antialias: true, preserveDrawingBuffer: true }}
       >
-        <color attach="background" args={['#070a13']} />
+        <color attach="background" args={['#F8FAFC']} />
         
         {/* Environment HDRI sky map */}
         <Environment preset="city" />
 
         {/* Studio and Outdoor Lighting — boosted for drone visibility */}
-        <ambientLight intensity={0.8} color="#e2e8f0" />
+        <ambientLight intensity={1.2} color="#ffffff" />
         
         <directionalLight
           position={[15, 30, 15]}

@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Environment } from '@react-three/drei';
+import { Environment, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useDroneStore } from '../../store/useDroneStore';
 import { PlutoXModel } from '../PlutoXModel';
 import { 
-  X, CameraOff, Activity, Battery 
+  X, CameraOff, Activity, Battery, Radio
 } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
 
 // Self-contained 3D Drone component inside AR canvas
 function ARDrone({ 
@@ -68,8 +69,8 @@ function ARDrone({
   });
 
   return (
-    <group ref={groupRef}>
-      <PlutoXModel isFlightMode={true} />
+    <group ref={groupRef} scale={[2.2, 2.2, 2.2]}>
+      <PlutoXModel isFlightMode={true} modelPath="/PlutoX [Primus X2 v1].glb" />
     </group>
   );
 }
@@ -77,11 +78,12 @@ function ARDrone({
 // Virtual Joystick subcomponent
 interface JoystickProps {
   label: string;
+  value: { x: number; y: number };
   subLabels: { up: string; down: string; left: string; right: string };
   onChange: (values: { x: number; y: number }) => void;
 }
 
-function VirtualJoystick({ label, subLabels, onChange }: JoystickProps) {
+function VirtualJoystick({ label, value, subLabels, onChange }: JoystickProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [knobPos, setKnobPos] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -89,6 +91,19 @@ function VirtualJoystick({ label, subLabels, onChange }: JoystickProps) {
   const handleStart = () => {
     setIsDragging(true);
   };
+
+  // Synchronize visual knob position when external value changes (like keyboard controls)
+  useEffect(() => {
+    if (isDragging) return;
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const padRadius = rect.width / 2;
+    // Map normalized value (-1 to 1) back to pixels
+    setKnobPos({
+      x: value.x * padRadius,
+      y: -value.y * padRadius // invert Y for display
+    });
+  }, [value, isDragging]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -190,19 +205,192 @@ export function ARSimulator() {
   const [joystickRight, setJoystickRight] = useState({ x: 0, y: 0 });
 
   // 3D coordinate tracker references
-  const dronePos = useRef(new THREE.Vector3(0, 0, -2.5));
+  const dronePos = useRef(new THREE.Vector3(0, 0, 0));
   const droneRot = useRef(new THREE.Euler(0, 0, 0));
 
   const [telemetry, setTelemetry] = useState({ alt: 1.0, pitch: 0, roll: 0, yaw: 0 });
+
+  // CV Hand Gesture Controls
+  const [cvEnabled, setCvEnabled] = useState(false);
+  const [cvOverlayOpen, setCvOverlayOpen] = useState(false);
+  const [leftCentroid, setLeftCentroid] = useState<{ x: number; y: number } | null>(null);
+  const [rightCentroid, setRightCentroid] = useState<{ x: number; y: number } | null>(null);
+
+  const cvCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  if (!offscreenCanvasRef.current && typeof document !== 'undefined') {
+    offscreenCanvasRef.current = document.createElement('canvas');
+    offscreenCanvasRef.current.width = 160;
+    offscreenCanvasRef.current.height = 120;
+  }
+
+  // Ctrl + Shift listener to toggle CV config panel
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey) {
+        setCvOverlayOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  // CV image processing loop (Skin-Color Detection centroid tracking)
+  useEffect(() => {
+    if (!isARActive || !cameraStream || !cvEnabled) return;
+
+    let active = true;
+    const video = videoRef.current;
+    const offscreen = offscreenCanvasRef.current;
+    if (!video || !offscreen) return;
+    const ctx = offscreen.getContext('2d');
+    if (!ctx) return;
+
+    const processFrame = () => {
+      if (!active || !cvEnabled) return;
+
+      try {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          ctx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
+          const imgData = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
+          const data = imgData.data;
+          const w = offscreen.width;
+          const h = offscreen.height;
+
+          // Left Zone: X in [0.1, 0.4], Y in [0.2, 0.8]
+          // Right Zone: X in [0.6, 0.9], Y in [0.2, 0.8]
+          const leftBound = { x1: Math.floor(w * 0.1), x2: Math.floor(w * 0.4), y1: Math.floor(h * 0.2), y2: Math.floor(h * 0.8) };
+          const rightBound = { x1: Math.floor(w * 0.6), x2: Math.floor(w * 0.9), y1: Math.floor(h * 0.2), y2: Math.floor(h * 0.8) };
+
+          let leftSumX = 0, leftSumY = 0, leftCount = 0;
+          let rightSumX = 0, rightSumY = 0, rightCount = 0;
+
+          const diagCanvas = cvCanvasRef.current;
+          let diagCtx: CanvasRenderingContext2D | null = null;
+          let diagImgData: ImageData | null = null;
+          if (diagCanvas) {
+            diagCtx = diagCanvas.getContext('2d');
+            if (diagCtx) {
+              diagImgData = diagCtx.createImageData(w, h);
+            }
+          }
+
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+              const idx = (y * w + x) * 4;
+              const r = data[idx];
+              const g = data[idx + 1];
+              const b = data[idx + 2];
+
+              // HSV-like skin color thresholding
+              const isSkin = r > 80 && g > 35 && b > 15 &&
+                             r > g && r > b &&
+                             (r - Math.min(g, b)) > 15 &&
+                             Math.abs(r - g) > 10;
+
+              if (diagImgData) {
+                const diagIdx = (y * w + x) * 4;
+                if (isSkin) {
+                  diagImgData.data[diagIdx] = 0;
+                  diagImgData.data[diagIdx + 1] = 240;
+                  diagImgData.data[diagIdx + 2] = 255;
+                  diagImgData.data[diagIdx + 3] = 255;
+                } else {
+                  diagImgData.data[diagIdx] = 3;
+                  diagImgData.data[diagIdx + 1] = 7;
+                  diagImgData.data[diagIdx + 2] = 18;
+                  diagImgData.data[diagIdx + 3] = 180;
+                }
+              }
+
+              if (isSkin) {
+                if (x >= leftBound.x1 && x <= leftBound.x2 && y >= leftBound.y1 && y <= leftBound.y2) {
+                  leftSumX += x;
+                  leftSumY += y;
+                  leftCount++;
+                }
+                if (x >= rightBound.x1 && x <= rightBound.x2 && y >= rightBound.y1 && y <= rightBound.y2) {
+                  rightSumX += x;
+                  rightSumY += y;
+                  rightCount++;
+                }
+              }
+            }
+          }
+
+          if (diagCtx && diagImgData) {
+            diagCtx.putImageData(diagImgData, 0, 0);
+            diagCtx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
+            diagCtx.lineWidth = 1;
+            diagCtx.strokeRect(leftBound.x1, leftBound.y1, leftBound.x2 - leftBound.x1, leftBound.y2 - leftBound.y1);
+            diagCtx.strokeRect(rightBound.x1, rightBound.y1, rightBound.x2 - rightBound.x1, rightBound.y2 - rightBound.y1);
+          }
+
+          const minPixels = 80;
+          if (leftCount > minPixels) {
+            const cx = leftSumX / leftCount;
+            const cy = leftSumY / leftCount;
+            const zcX = (leftBound.x1 + leftBound.x2) / 2;
+            const zcY = (leftBound.y1 + leftBound.y2) / 2;
+            const dx = (cx - zcX) / ((leftBound.x2 - leftBound.x1) / 2);
+            const dy = -(cy - zcY) / ((leftBound.y2 - leftBound.y1) / 2);
+            
+            setJoystickLeft((prev) => ({
+              x: prev.x * 0.65 + THREE.MathUtils.clamp(dx * 1.5, -1, 1) * 0.35,
+              y: prev.y * 0.65 + THREE.MathUtils.clamp(dy * 1.5, -1, 1) * 0.35
+            }));
+            setLeftCentroid({ x: cx / w, y: cy / h });
+          } else {
+            setJoystickLeft((prev) => ({ x: prev.x * 0.8, y: prev.y * 0.8 }));
+            setLeftCentroid(null);
+          }
+
+          if (rightCount > minPixels) {
+            const cx = rightSumX / rightCount;
+            const cy = rightSumY / rightCount;
+            const zcX = (rightBound.x1 + rightBound.x2) / 2;
+            const zcY = (rightBound.y1 + rightBound.y2) / 2;
+            const dx = (cx - zcX) / ((rightBound.x2 - rightBound.x1) / 2);
+            const dy = -(cy - zcY) / ((rightBound.y2 - rightBound.y1) / 2);
+
+            setJoystickRight((prev) => ({
+              x: prev.x * 0.65 + THREE.MathUtils.clamp(dx * 1.5, -1, 1) * 0.35,
+              y: prev.y * 0.65 + THREE.MathUtils.clamp(dy * 1.5, -1, 1) * 0.35
+            }));
+            setRightCentroid({ x: cx / w, y: cy / h });
+          } else {
+            setJoystickRight((prev) => ({ x: prev.x * 0.8, y: prev.y * 0.8 }));
+            setRightCentroid(null);
+          }
+        }
+      } catch (err) {
+        console.error("Error in CV processing loop:", err);
+      }
+
+      if (active) {
+        requestAnimationFrame(processFrame);
+      }
+    };
+
+    requestAnimationFrame(processFrame);
+
+    return () => {
+      active = false;
+    };
+  }, [isARActive, cameraStream, cvEnabled]);
 
   // Request Camera Stream on activation
   useEffect(() => {
     if (!isARActive) return;
 
+    let activeStream: MediaStream | null = null;
+
     navigator.mediaDevices.getUserMedia({ 
       video: { facingMode: 'environment', width: 1280, height: 720 } 
     })
       .then((stream) => {
+        activeStream = stream;
         setCameraStream(stream);
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -213,8 +401,8 @@ export function ARSimulator() {
       });
 
     return () => {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach((track) => track.stop());
+      if (activeStream) {
+        activeStream.getTracks().forEach((track) => track.stop());
       }
       setCameraStream(null);
     };
@@ -301,42 +489,121 @@ export function ARSimulator() {
       
       {/* 1. BACKGROUND LAYER: Webcam Stream or Cyber Grid Mockup */}
       <div className="absolute inset-0 z-0">
-        {cameraStream ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
-        ) : (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`w-full h-full object-cover ${cameraStream ? 'block' : 'hidden'}`}
+        />
+        {!cameraStream && (
           /* Mock AR Camera Viewport */
-          <div className="w-full h-full bg-[#080d19] relative flex flex-col items-center justify-center border-2 border-cyan-500/10">
-            {/* Sci-Fi Matrix Lines & Noise Overlay */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.25)_50%,rgba(0,0,0,0.3)_50%)] bg-[size:100%_4px] pointer-events-none opacity-40 mix-blend-overlay" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.15)_0%,transparent_75%)]" />
+          <div className="w-full h-full bg-[#030712] relative flex flex-col items-center justify-center overflow-hidden border-2 border-cyan-500/10">
+            {/* Tech Grid Backdrop */}
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(0,240,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
             
-            <div className="w-72 h-72 rounded-full border border-cyan-500/10 flex items-center justify-center animate-pulse">
-              <div className="w-48 h-48 rounded-full border border-cyan-500/20 flex items-center justify-center">
-                <CameraOff className="w-12 h-12 text-cyan-500/40" />
+            {/* Sci-Fi Matrix Lines & Noise Overlay */}
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.25)_50%,rgba(0,0,0,0.3)_50%)] bg-[size:100%_4px] pointer-events-none opacity-30 mix-blend-overlay" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.1)_0%,transparent_80%)]" />
+            
+            {/* Holographic Radar Ring */}
+            <div className="w-80 h-80 rounded-full border border-cyan-500/10 flex items-center justify-center relative animate-spin" style={{ animationDuration: '40s' }}>
+              <div className="absolute inset-4 rounded-full border border-dashed border-cyan-500/20" />
+              <div className="absolute inset-8 rounded-full border border-cyan-500/5" />
+              <div className="absolute w-full h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent" />
+              <div className="absolute h-full w-px bg-gradient-to-b from-transparent via-cyan-500/30 to-transparent" />
+            </div>
+
+            {/* Corner Tech Brackets */}
+            <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-cyan-500/30" />
+            <div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-cyan-500/30" />
+            <div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-cyan-500/30" />
+            <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-cyan-500/30" />
+
+            <div className="absolute flex flex-col items-center justify-center mt-2 text-center space-y-3 z-10">
+              <div className="p-4 rounded-full bg-cyan-950/20 border border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.15)] animate-pulse">
+                <CameraOff className="w-8 h-8 text-cyan-400" />
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs font-mono font-bold text-cyan-400 tracking-[0.25em] uppercase block">
+                  Camera Passthrough Offline
+                </span>
+                <p className="text-[8px] text-slate-500 font-mono tracking-widest uppercase">
+                  Using 3D Virtual Tracking Space Grid // Ready to Arm
+                </p>
               </div>
             </div>
-            <div className="mt-6 text-center space-y-1.5 z-10">
-              <span className="text-[10px] font-mono text-cyan-400 tracking-widest uppercase block animate-pulse">
-                Camera Passthrough Offline
-              </span>
-              <p className="text-[9px] text-slate-500 font-mono uppercase">
-                Using Virtual Tracking Space Grid // Ready to arm
-              </p>
+          </div>
+        )}
+
+        {/* Live OpenCV skin threshold hand tracking centroid feedback overlays */}
+        {cvEnabled && cameraStream && (
+          <div className="absolute inset-0 z-20 pointer-events-none font-mono text-[8px]">
+            {/* Left Hand Zone */}
+            <div className="absolute left-[10%] top-[20%] w-[30%] h-[60%] border-2 border-cyan-500/40 bg-cyan-950/5 rounded-2xl flex flex-col justify-between p-3 shadow-[0_0_15px_rgba(6,182,212,0.05)]">
+              <div className="flex justify-between items-center text-cyan-400 font-bold tracking-widest">
+                <span>CV_ZONE_L // FLIGHT CONTROL</span>
+                <span className={leftCentroid ? "text-emerald-400 animate-pulse" : "text-cyan-600"}>
+                  {leftCentroid ? "• DETECTED" : "• SEARCHING"}
+                </span>
+              </div>
+              <div className="flex-1 relative flex items-center justify-center">
+                <div className="w-full h-px bg-cyan-500/10 border-dashed" />
+                <div className="h-full w-px bg-cyan-500/10 border-dashed" />
+                
+                {leftCentroid && (
+                  <div 
+                    className="absolute w-6 h-6 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center transition-all duration-75"
+                    style={{ left: `${(leftCentroid.x - 0.1) / 0.3 * 100}%`, top: `${(leftCentroid.y - 0.2) / 0.6 * 100}%` }}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping absolute" />
+                    <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
+                    <div className="w-8 h-8 border border-dashed border-cyan-400/60 rounded-full absolute animate-spin" style={{ animationDuration: '6s' }} />
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>THROTTLE: {(joystickLeft.y * 100).toFixed(0)}%</span>
+                <span>YAW: {(joystickLeft.x * 100).toFixed(0)}%</span>
+              </div>
+            </div>
+
+            {/* Right Hand Zone */}
+            <div className="absolute right-[10%] top-[20%] w-[30%] h-[60%] border-2 border-cyan-500/40 bg-cyan-950/5 rounded-2xl flex flex-col justify-between p-3 shadow-[0_0_15px_rgba(6,182,212,0.05)]">
+              <div className="flex justify-between items-center text-cyan-400 font-bold tracking-widest">
+                <span>CV_ZONE_R // ATTITUDE</span>
+                <span className={rightCentroid ? "text-emerald-400 animate-pulse" : "text-cyan-600"}>
+                  {rightCentroid ? "• DETECTED" : "• SEARCHING"}
+                </span>
+              </div>
+              <div className="flex-1 relative flex items-center justify-center">
+                <div className="w-full h-px bg-cyan-500/10 border-dashed" />
+                <div className="h-full w-px bg-cyan-500/10 border-dashed" />
+
+                {rightCentroid && (
+                  <div 
+                    className="absolute w-6 h-6 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center transition-all duration-75"
+                    style={{ left: `${(rightCentroid.x - 0.6) / 0.3 * 100}%`, top: `${(rightCentroid.y - 0.2) / 0.6 * 100}%` }}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping absolute" />
+                    <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
+                    <div className="w-8 h-8 border border-dashed border-cyan-400/60 rounded-full absolute animate-spin" style={{ animationDuration: '6s' }} />
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>PITCH: {(joystickRight.y * 100).toFixed(0)}%</span>
+                <span>ROLL: {(joystickRight.x * 100).toFixed(0)}%</span>
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* 2. MIDDLE LAYER: Transparent Three.js WebGL Canvas */}
-      <div className="absolute inset-0 z-10 pointer-events-none">
+      <div className="absolute inset-0 z-10">
         <Canvas
-          camera={{ position: [0, 0, 0], fov: 60 }}
+          camera={{ position: [0, 0.6, 2.2], fov: 60 }}
           gl={{ alpha: true, antialias: true }}
         >
           {/* Transparent scene setup */}
@@ -345,6 +612,15 @@ export function ARSimulator() {
           <directionalLight position={[-5, 5, -3]} intensity={0.5} color="#cbd5e1" />
           
           <Environment preset="city" />
+
+          <OrbitControls makeDefault enableDamping minDistance={1} maxDistance={8} />
+
+          {!cameraStream && (
+            <>
+              <gridHelper args={[30, 30, '#005555', '#161d2a']} position={[0, -1.5, 0]} />
+              <polarGridHelper args={[15, 16, 8, 64, '#004444', '#0d1522']} position={[0, -1.49, 0]} />
+            </>
+          )}
 
           {/* Render 3D Drone */}
           <ARDrone 
@@ -360,14 +636,22 @@ export function ARSimulator() {
       {/* Top HUD Status Ribbon */}
       <div className="w-full p-4 z-20 flex justify-between items-start pointer-events-none">
         
-        {/* Back Button */}
-        <button
-          onClick={handleExit}
-          className="pointer-events-auto p-2.5 rounded-xl bg-slate-950/75 border border-slate-800 backdrop-blur-md hover:bg-slate-900 text-slate-400 hover:text-white transition shadow-2xl flex items-center gap-2"
-        >
-          <X className="w-4.5 h-4.5" />
-          <span className="text-[10px] font-bold uppercase tracking-wider pr-1">Exit AR</span>
-        </button>
+        {/* Actions Button Panel */}
+        <div className="flex gap-2 pointer-events-auto">
+          <button
+            onClick={handleExit}
+            className="p-2.5 rounded-xl bg-slate-950/75 border border-slate-800 backdrop-blur-md hover:bg-slate-900 text-slate-400 hover:text-white transition shadow-2xl flex items-center gap-2"
+          >
+            <X className="w-4.5 h-4.5" />
+            <span className="text-[10px] font-bold uppercase tracking-wider pr-1">Exit AR</span>
+          </button>
+
+          {/* Prompt/Shortcut key indicator */}
+          <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-950/75 border border-slate-800/80 backdrop-blur-md text-[8px] font-mono text-cyan-400 font-bold uppercase tracking-wider">
+            <Radio className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
+            <span>AI Gesture Config: <kbd className="bg-slate-900 border border-slate-800 text-cyan-400 px-1.5 py-0.5 rounded">Ctrl + Shift</kbd></span>
+          </div>
+        </div>
 
         {/* Real-Time Telemetry HUD panel */}
         <div className="bg-slate-950/75 border border-slate-800/80 backdrop-blur-md rounded-2xl p-4 w-60 shadow-2xl font-mono text-[9px] text-slate-300 uppercase space-y-2">
@@ -375,7 +659,9 @@ export function ARSimulator() {
             <span className="text-cyan-400 font-bold tracking-widest flex items-center gap-1.5">
               <Activity className="w-3.5 h-3.5" /> Telemetry HUD
             </span>
-            <span className="text-[7px] bg-cyan-950 text-cyan-400 px-1 rounded">AR Link</span>
+            <span className="text-[7px] bg-cyan-950 text-cyan-400 px-1 rounded">
+              {cvEnabled ? 'AI CV Active' : 'AR Link'}
+            </span>
           </div>
           <div className="grid grid-cols-2 gap-y-1">
             <span>Altitude:</span>
@@ -404,26 +690,92 @@ export function ARSimulator() {
         {/* Left Joystick: Throttle (Altitude Y) & Yaw (Rotation Y) */}
         <VirtualJoystick 
           label="Left Stick"
+          value={joystickLeft}
           subLabels={{ up: 'Climb', down: 'Descend', left: 'Yaw L', right: 'Yaw R' }}
           onChange={(vals) => setJoystickLeft(vals)}
         />
 
         {/* Dynamic Warning Alert Overlay */}
         <div className="hidden lg:flex flex-col items-center max-w-xs text-center space-y-1 pointer-events-auto bg-slate-950/80 border border-slate-800/85 backdrop-blur px-4 py-2.5 rounded-xl">
-          <span className="text-[9px] font-mono text-cyan-400 font-bold uppercase tracking-wider">Controls Active</span>
+          <span className="text-[9px] font-mono text-cyan-400 font-bold uppercase tracking-wider">
+            {cvEnabled ? 'AI OpenCV GESTURE FLIGHT' : 'Controls Active'}
+          </span>
           <p className="text-[8px] text-slate-500 font-mono leading-relaxed">
-            Drag the virtual knobs to steer PlutoX. Keyboard fallback active (W/S, A/D, Arrows).
+            {cvEnabled 
+              ? 'Move hands inside the webcam zones. Left: Climb/Yaw. Right: Pitch/Roll.' 
+              : 'Drag the virtual knobs to steer PlutoX. Keyboard fallback active (W/S, A/D, Arrows).'
+            }
           </p>
         </div>
 
         {/* Right Joystick: Pitch (Z axis forward/back) & Roll (X axis left/right) */}
         <VirtualJoystick 
           label="Right Stick"
+          value={joystickRight}
           subLabels={{ up: 'Pitch Fwd', down: 'Pitch Back', left: 'Roll L', right: 'Roll R' }}
           onChange={(vals) => setJoystickRight(vals)}
         />
 
       </div>
+
+      {/* AI CV Gesture Settings Panel (Ctrl + Shift to open) */}
+      <AnimatePresence>
+        {cvOverlayOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm pointer-events-auto">
+            <div className="w-[340px] bg-slate-950/90 border border-cyan-500/30 rounded-2xl p-6 shadow-[0_0_30px_rgba(6,182,212,0.25)] relative font-mono text-[9px] text-slate-300 uppercase space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span className="text-cyan-400 font-bold tracking-widest flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5" /> AI Gesture Control (OpenCV)
+                </span>
+                <button 
+                  onClick={() => setCvOverlayOpen(false)}
+                  className="p-1 rounded bg-slate-900 border border-slate-800 hover:text-white"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
+                  <span className="font-bold text-slate-200">Enable Hand Gestures</span>
+                  <button
+                    onClick={() => setCvEnabled(!cvEnabled)}
+                    className={`px-3 py-1 rounded text-[8px] font-bold transition-all ${
+                      cvEnabled 
+                        ? 'bg-cyan-600 border border-cyan-500 text-white shadow-[0_0_10px_rgba(6,182,212,0.3)]' 
+                        : 'bg-slate-800 border border-slate-700 text-slate-400'
+                    }`}
+                  >
+                    {cvEnabled ? 'ACTIVE' : 'INACTIVE'}
+                  </button>
+                </div>
+
+                {cvEnabled && (
+                  <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-3 space-y-2">
+                    <span className="text-slate-400 text-[8px]">Live Thresholded Computer Vision Mask</span>
+                    <div className="flex justify-center bg-black rounded p-1 border border-slate-900">
+                      <canvas 
+                        ref={cvCanvasRef} 
+                        width={160} 
+                        height={120} 
+                        className="w-[160px] h-[120px] bg-slate-950 rounded"
+                      />
+                    </div>
+                    <p className="text-[7.5px] text-slate-500 leading-relaxed text-center">
+                      Skin-tone segmentation (RGB range) isolating your hand. Place hands inside the overlay zones.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-[7.5px] text-slate-500 bg-slate-900/30 p-2.5 border border-slate-900 rounded-xl leading-relaxed">
+                <span className="text-cyan-500/80 font-bold block mb-1">Shortcut Key Info:</span>
+                Press <kbd className="bg-slate-850 px-1 border border-slate-800 rounded text-cyan-400">Ctrl + Shift</kbd> at any time to open/close this settings panel.
+              </div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
