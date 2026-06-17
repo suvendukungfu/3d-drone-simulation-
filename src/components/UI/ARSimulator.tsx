@@ -165,7 +165,7 @@ function VirtualJoystick({ label, subLabels, onChange }: JoystickProps) {
 
         {/* Joystick Center Knob */}
         <div 
-          className="w-11 h-11 rounded-full bg-gradient-to-tr from-slate-900 to-slate-850 border border-slate-700/80 shadow-[0_4px_10px_rgba(0,0,0,0.5),0_0_8px_rgba(0,163,255,0.1)] flex items-center justify-center transition-transform duration-75 active:scale-95"
+          className="w-11 h-11 rounded-full bg-gradient-to-tr from-slate-900 to-slate-800 border border-slate-700/80 shadow-[0_4px_10px_rgba(0,0,0,0.5),0_0_8px_rgba(0,163,255,0.1)] flex items-center justify-center transition-transform duration-75 active:scale-95"
           style={{
             transform: `translate(${knobPos.x}px, ${knobPos.y}px)`,
             borderColor: isDragging ? '#06b6d4' : undefined
@@ -409,7 +409,7 @@ export function ARSimulator() {
         />
 
         {/* Dynamic Warning Alert Overlay */}
-        <div className="hidden lg:flex flex-col items-center max-w-xs text-center space-y-1 pointer-events-auto bg-slate-950/80 border border-slate-850 backdrop-blur px-4 py-2.5 rounded-xl">
+        <div className="hidden lg:flex flex-col items-center max-w-xs text-center space-y-1 pointer-events-auto bg-slate-950/80 border border-slate-800/85 backdrop-blur px-4 py-2.5 rounded-xl">
           <span className="text-[9px] font-mono text-cyan-400 font-bold uppercase tracking-wider">Controls Active</span>
           <p className="text-[8px] text-slate-500 font-mono leading-relaxed">
             Drag the virtual knobs to steer PlutoX. Keyboard fallback active (W/S, A/D, Arrows).

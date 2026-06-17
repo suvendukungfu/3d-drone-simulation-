@@ -9,3 +9,15 @@ html, body, #root {
   padding: 0;
   background-color: #0B0F19;
 }
+
+@keyframes scan-laser {
+  0% { top: 0%; opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  100% { top: 100%; opacity: 0; }
+}
+
+.animate-scan-laser {
+  animation: scan-laser 8s ease-in-out infinite;
+}
+

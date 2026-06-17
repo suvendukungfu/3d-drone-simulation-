@@ -554,7 +554,7 @@ export function TrainingMissionSystem({
       <div className="space-y-6 flex-1 overflow-y-auto pr-1 scrollbar-thin">
         
         {/* Title */}
-        <div className="flex justify-between items-center border-b border-slate-850 pb-3">
+        <div className="flex justify-between items-center border-b border-slate-800 pb-3">
           <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
             <Award className="w-4.5 h-4.5 text-blue-400" />
             UAV Flight Academy
@@ -585,7 +585,7 @@ export function TrainingMissionSystem({
                     disabled={droneInitFailed || !isUnlocked}
                     className={`w-full text-left p-3 rounded-xl border transition-all flex items-start gap-3 pointer-events-auto ${
                       isUnlocked
-                        ? 'bg-slate-900/40 hover:bg-slate-900 border-slate-850/85 text-slate-300 hover:text-white shadow-sm'
+                        ? 'bg-slate-900/40 hover:bg-slate-900 border-slate-800/85 text-slate-300 hover:text-white shadow-sm'
                         : 'bg-slate-950/20 border-slate-900/40 text-slate-600 cursor-not-allowed opacity-60'
                     }`}
                   >
@@ -612,7 +612,7 @@ export function TrainingMissionSystem({
         ) : (
           /* 2. ACTIVE LESSON DETAIL PANEL */
           <div className="space-y-5">
-            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-850">
+            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800">
               <span className="text-[9px] text-blue-400 font-mono tracking-widest uppercase">
                 Active Training Module
               </span>
@@ -634,7 +634,7 @@ export function TrainingMissionSystem({
                       <span>MODULE PROGRESS</span>
                       <span className="text-blue-400 font-bold">{pct}%</span>
                     </div>
-                    <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden border border-slate-850/60">
+                    <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden border border-slate-800/60">
                       <div 
                         className="bg-gradient-to-r from-blue-500 to-emerald-400 h-full transition-all duration-500"
                         style={{ width: `${pct}%` }}
@@ -654,7 +654,7 @@ export function TrainingMissionSystem({
 
             {/* Visual widgets for Bench Diagnostics */}
             {activeMissionIndex === 2 && (
-              <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-850 space-y-3 mt-2">
+              <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800 space-y-3 mt-2">
                 <span className="text-[9px] text-amber-400 font-mono tracking-widest uppercase block">
                   Visual Transmitter Check
                 </span>
@@ -711,7 +711,7 @@ export function TrainingMissionSystem({
             )}
 
             {activeMissionIndex === 3 && (
-              <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-850 space-y-3 mt-2">
+              <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-800 space-y-3 mt-2">
                 <span className="text-[9px] text-orange-400 font-mono tracking-widest uppercase block">
                   Motor Mixer Diagnostics
                 </span>
@@ -806,7 +806,7 @@ export function TrainingMissionSystem({
                           ? 'bg-emerald-950/15 border-emerald-500/30 text-emerald-300'
                           : isFirstUncompleted
                             ? 'bg-blue-950/25 border-blue-500 text-slate-200 shadow-[0_0_12px_rgba(0,163,255,0.15)] animate-pulse'
-                            : 'bg-slate-900/20 border-slate-850 text-slate-400'
+                            : 'bg-slate-900/20 border-slate-800 text-slate-400'
                       }`}
                     >
                       {completed ? (
@@ -825,7 +825,7 @@ export function TrainingMissionSystem({
 
             {/* Checkpoint Status Indicator */}
             {checkpoints.length > 0 && (
-              <div className="bg-slate-900/20 p-3 rounded-lg border border-slate-850/80 space-y-2">
+              <div className="bg-slate-900/20 p-3 rounded-lg border border-slate-800/80 space-y-2">
                 <span className="text-[9px] text-slate-500 font-mono uppercase tracking-wider flex items-center gap-1.5">
                   <Navigation className="w-3.5 h-3.5 text-slate-500" />
                   Flight Checkpoints
@@ -913,7 +913,7 @@ export function TrainingMissionSystem({
         <div className="pt-4 mt-4 border-t border-slate-900 flex gap-2">
           <button
             onClick={handleRestartMission}
-            className="flex-1 py-2 border border-slate-800 bg-slate-900 hover:bg-slate-850 hover:text-white rounded-lg text-slate-400 text-xs font-bold uppercase tracking-wider transition-all duration-300"
+            className="flex-1 py-2 border border-slate-800 bg-slate-900 hover:bg-slate-800 hover:text-white rounded-lg text-slate-400 text-xs font-bold uppercase tracking-wider transition-all duration-300"
           >
             Restart Module
           </button>

@@ -680,7 +680,7 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
         {/* Right Side: Drone Motor Status Visualizer */}
         {showTelemetryDashboard ? (
           <div className="bg-slate-950/80 backdrop-blur-md border border-slate-800 p-4 rounded-2xl w-[280px] shadow-2xl flex flex-col gap-3">
-            <div className="flex items-center justify-between border-b border-slate-850 pb-2">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Motor Diagnostics</span>
               <span className="text-[9px] text-slate-400 font-mono">
                 TIME: {telemetry.flightTime}s
@@ -714,7 +714,7 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
       {isInitChecking && !droneInitFailed && modelLoadStatus !== 'failed' && (
         <div className="absolute inset-0 bg-[#070a13]/70 backdrop-blur-md z-30 pointer-events-auto flex items-center justify-center font-mono">
           <div className="bg-slate-950/90 border border-slate-800 p-8 rounded-2xl w-full max-w-sm shadow-2xl flex flex-col gap-6">
-            <div className="flex items-center gap-2.5 border-b border-slate-850 pb-3">
+            <div className="flex items-center gap-2.5 border-b border-slate-800 pb-3">
               <Cpu className="w-5 h-5 text-blue-400 animate-pulse" />
               <span className="text-xs font-bold text-white uppercase tracking-wider">
                 Pre-Flight Boot Diagnostics
