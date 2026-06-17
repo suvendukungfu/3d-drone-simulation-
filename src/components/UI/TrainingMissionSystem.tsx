@@ -268,7 +268,6 @@ export function TrainingMissionSystem({
   const selectMission = useDroneStore((state) => state.selectMission);
   const missionStatus = useDroneStore((state) => state.missionStatus);
   const setMissionStatus = useDroneStore((state) => state.setMissionStatus);
-  const telemetry = useDroneStore((state) => state.telemetry);
   const certificationEarned = useDroneStore((state) => state.certificationEarned);
   const earnCertification = useDroneStore((state) => state.earnCertification);
   const isAcademyOpen = useDroneStore((state) => state.isAcademyOpen);
@@ -287,11 +286,13 @@ export function TrainingMissionSystem({
 
   const [objectives, setObjectives] = useState<boolean[]>([]);
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
+  const checkpointsRef = useRef<Checkpoint[]>([]);
   const hoverTimer = useRef(0.0);
   const targetCompletedRef = useRef<boolean[]>([]);
   
   // Mission 11 (Certification) Timer
   const [examTimer, setExamTimer] = useState(60);
+  const examTimerValRef = useRef(60);
   const examTimerRef = useRef<any>(null);
 
   // Keyboard listener for Module 3 Stick Checks
@@ -338,21 +339,26 @@ export function TrainingMissionSystem({
       
       const cps = mission.checkpoints ? JSON.parse(JSON.stringify(mission.checkpoints)) : [];
       setCheckpoints(cps);
+      checkpointsRef.current = cps;
       onCheckpointsUpdated(cps);
       hoverTimer.current = 0.0;
       
       // Start countdown timer for Module 11 (Certification)
       if (activeMissionIndex === 10) {
         setExamTimer(60);
+        examTimerValRef.current = 60;
         if (examTimerRef.current) clearInterval(examTimerRef.current);
         examTimerRef.current = setInterval(() => {
           setExamTimer(t => {
             if (t <= 1) {
               clearInterval(examTimerRef.current);
               setMissionStatus('failed');
+              examTimerValRef.current = 0;
               return 0;
             }
-            return t - 1;
+            const nextVal = t - 1;
+            examTimerValRef.current = nextVal;
+            return nextVal;
           });
         }, 1000);
       } else {
@@ -364,6 +370,7 @@ export function TrainingMissionSystem({
     } else {
       setObjectives([]);
       setCheckpoints([]);
+      checkpointsRef.current = [];
       onCheckpointsUpdated([]);
       if (examTimerRef.current) {
         clearInterval(examTimerRef.current);
@@ -393,7 +400,7 @@ export function TrainingMissionSystem({
 
       // B. Evaluate Checkpoint Collisions (Only for simulator flight modules 9, 10, 11)
       let checkpointsChanged = false;
-      const updatedCheckpoints = checkpoints.map((cp) => {
+      const updatedCheckpoints = checkpointsRef.current.map((cp) => {
         if (cp.passed) return cp;
         
         const cpPos = new THREE.Vector3(...cp.position);
@@ -408,18 +415,21 @@ export function TrainingMissionSystem({
 
       if (checkpointsChanged) {
         setCheckpoints(updatedCheckpoints);
+        checkpointsRef.current = updatedCheckpoints;
         onCheckpointsUpdated(updatedCheckpoints);
       }
 
       // C. Mission-Specific Custom Timers / Logic
-      const currentAltitude = telemetry.altitude;
+      const stateTelemetry = useDroneStore.getState().telemetry;
+      const currentAltitude = stateTelemetry.altitude;
+      const isArmed = stateTelemetry.isArmed;
       
       // Module 7: 5 Seconds Hover check
       if (activeMissionIndex === 6) {
         const distFromMat = new THREE.Vector2(physState.position.x, physState.position.z).length();
         const hoverOk = currentAltitude >= 0.95 && currentAltitude <= 1.55 && distFromMat <= 1.05;
         
-        if (hoverOk && telemetry.isArmed) {
+        if (hoverOk && isArmed) {
           hoverTimer.current += 0.2;
           if (hoverTimer.current >= 5.0) {
             currentObjs[2] = true;
@@ -431,27 +441,27 @@ export function TrainingMissionSystem({
 
       // Module 9: Waypoint checks
       if (activeMissionIndex === 8) {
-        if (updatedCheckpoints[0].passed) {
+        if (updatedCheckpoints[0] && updatedCheckpoints[0].passed) {
           currentObjs[1] = true;
         }
         const returnedMat = distanceToBase(physState) < 0.65 && currentAltitude >= 0.8;
-        if (updatedCheckpoints[0].passed && returnedMat) {
+        if (updatedCheckpoints[0] && updatedCheckpoints[0].passed && returnedMat) {
           currentObjs[2] = true;
         }
       }
 
       // Module 10: Obstacles
       if (activeMissionIndex === 9) {
-        currentObjs[0] = updatedCheckpoints[0].passed;
-        currentObjs[1] = updatedCheckpoints[1].passed;
-        currentObjs[2] = updatedCheckpoints[2].passed;
+        currentObjs[0] = updatedCheckpoints[0] ? updatedCheckpoints[0].passed : false;
+        currentObjs[1] = updatedCheckpoints[1] ? updatedCheckpoints[1].passed : false;
+        currentObjs[2] = updatedCheckpoints[2] ? updatedCheckpoints[2].passed : false;
       }
 
       // Module 11: Certification test
       if (activeMissionIndex === 10) {
         currentObjs[0] = updatedCheckpoints.every(c => c.passed);
         
-        const touchedDown = currentAltitude <= 0.05 && !telemetry.isArmed;
+        const touchedDown = currentAltitude <= 0.05 && !isArmed;
         const targetMat = new THREE.Vector2(3.0, 3.5);
         const distTarget = new THREE.Vector2(physState.position.x, physState.position.z).distanceTo(targetMat);
         
@@ -459,7 +469,7 @@ export function TrainingMissionSystem({
           currentObjs[1] = true;
         }
         
-        if (examTimer > 0) {
+        if (examTimerValRef.current > 0) {
           currentObjs[2] = true;
         }
       }
@@ -498,7 +508,7 @@ export function TrainingMissionSystem({
     }, 200);
 
     return () => clearInterval(interval);
-  }, [activeMissionIndex, checkpoints, missionStatus, examTimer, earnCertification, telemetry.isArmed, telemetry.altitude]);
+  }, [activeMissionIndex, missionStatus, earnCertification]);
 
   const handleNextMission = () => {
     const currentLevel = LEVELS.find(l => l.moduleIndex === activeMissionIndex);
