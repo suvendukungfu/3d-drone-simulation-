@@ -1,3 +1,26 @@
+/**
+ * FlightController.ts
+ * ───────────────────
+ * Cascaded PID flight controller for the PlutoX Nano.
+ *
+ * Architecture:
+ *   ┌─────────────────────────────────────────────────────────────┐
+ *   │  Altitude Loop  →  Climb Rate Loop  →  Throttle Command    │
+ *   │  Angle Loop     →  Rate Loop        →  Torque Corrections  │
+ *   │  Motor Mixer    →  [m1, m2, m3, m4] motor outputs          │
+ *   └─────────────────────────────────────────────────────────────┘
+ *
+ * Control Loops:
+ *   1. Altitude Hold    — Outer altitude P → inner climb rate PID
+ *   2. Self-Leveling    — Outer angle P → inner angular rate PID
+ *   3. Yaw Rate         — Direct rate PID from pilot yaw stick input
+ *   4. Motor Mixer      — X-config mixing of throttle + roll/pitch/yaw corrections
+ *
+ * All PID loops use:
+ *   - Anti-windup integral clamping (iMax)
+ *   - Low-pass filtered derivative term (configurable cutoff frequency)
+ *   - Low-pass filtered stick inputs (10 Hz) for pilot comfort
+ */
 import * as THREE from 'three';
 import { PIDGains, PIDControllerState, FlightControlStick, DroneSensorData } from './types';
 
