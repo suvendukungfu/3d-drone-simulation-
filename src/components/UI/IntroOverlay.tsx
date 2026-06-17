@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useDroneStore } from '../../store/useDroneStore';
 import { 
   Gamepad2, Cpu, GraduationCap, Camera, Box, X, 
-  Wifi, ShieldAlert, Cpu as CpuIcon, BatteryCharging, 
-  Orbit, Database, Radio
+  Wifi, Cpu as CpuIcon, BatteryCharging, 
+  Orbit, Database, Radio, ClipboardList
 } from 'lucide-react';
 
 export function IntroOverlay() {
@@ -270,91 +270,159 @@ export function IntroOverlay() {
       {/* 5. ENTER FLIGHT SIM DISPATCHER MODAL DIALOG */}
       <AnimatePresence>
         {isFlightSimModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md pointer-events-auto">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-[3px] pointer-events-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               transition={{ type: 'spring', damping: 25, stiffness: 380 }}
-              className="relative max-w-xl w-full bg-slate-950/90 border border-slate-800/80 rounded-[2rem] p-8 shadow-2xl overflow-hidden flex flex-col space-y-7"
+              className="relative max-w-2xl w-full bg-[#050814]/95 border border-blue-900/50 rounded-3xl p-8 shadow-[0_0_40px_rgba(0,163,255,0.15)] overflow-hidden flex flex-col space-y-6"
             >
               {/* Glossy inner glow border */}
-              <div className="absolute -inset-px rounded-[2rem] bg-gradient-to-b from-slate-800/30 to-transparent pointer-events-none" />
+              <div className="absolute -inset-px rounded-3xl bg-gradient-to-b from-blue-500/10 via-slate-800/10 to-transparent pointer-events-none" />
+
+              {/* Subtle aerospace blueprint lines in modal background */}
+              <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.003)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.003)_1px,transparent_1px)] bg-[size:20px_20px] opacity-20 pointer-events-none" />
 
               {/* Scanlines inside modal */}
-              <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.2)_50%,rgba(0,0,0,0.25)_50%)] bg-[size:100%_4px] pointer-events-none opacity-20 mix-blend-overlay" />
+              <div className="absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.15)_50%,rgba(0,0,0,0.2)_50%)] bg-[size:100%_4px] pointer-events-none opacity-20 mix-blend-overlay" />
               
               {/* Close Button */}
               <button
                 onClick={() => setFlightSimModalOpen(false)}
-                className="absolute top-5 right-5 p-2 rounded-2xl bg-slate-900/80 border border-slate-800/80 hover:bg-slate-800 hover:text-white text-slate-400 transition-all duration-300"
+                className="absolute top-6 right-6 p-2 rounded-xl bg-slate-900/60 border border-slate-800/60 hover:bg-slate-800 hover:text-white text-slate-400 transition-all duration-300 z-10"
               >
-                <X className="w-4.5 h-4.5" />
+                <X className="w-4 h-4" />
               </button>
 
-              <div className="space-y-2 pr-8">
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-blue-500/20 bg-blue-950/20 text-[8px] font-mono font-bold tracking-widest text-blue-400 uppercase">
-                  <Database className="w-2.5 h-2.5" /> Simulation Core
-                </span>
-                <h3 className="text-2xl font-extrabold uppercase tracking-wider text-white">Select Flight Arena</h3>
-                <p className="text-xs text-slate-400 font-light leading-relaxed">
-                  Choose your cockpit view. Authorize device video hardware to project PlutoX into your living space, or enter the closed virtual simulation courses.
+              {/* Aerospace Header */}
+              <div className="space-y-3 pr-8 relative">
+                <div className="flex items-center gap-4 text-[8px] font-mono tracking-widest uppercase">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-blue-500/30 bg-blue-950/30 text-blue-400 font-bold">
+                    <Database className="w-2.5 h-2.5 text-cyan-400" /> Simulation Core Online
+                  </span>
+                  <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Flight Systems Ready
+                  </span>
+                </div>
+                <h3 className="text-xl font-black uppercase tracking-widest text-white">
+                  Mission Mode Selection
+                </h3>
+                <p className="text-[10px] text-slate-400 font-light leading-relaxed">
+                  Configure simulation arena parameters. Authorize localized AR hardware pass-through telemetry or initialize the closed virtual 6-DOF physics sandbox environment.
                 </p>
               </div>
 
               {/* Grid Options */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 
-                {/* OPTION A: AR PASSTHROUGH */}
+                {/* MISSION CARD A: AR PASSTHROUGH */}
                 <button
                   onClick={startARMode}
-                  className="flex flex-col text-left p-5.5 rounded-2xl bg-gradient-to-b from-blue-950/30 to-blue-950/5 border border-blue-900/40 hover:border-blue-500 hover:shadow-[0_0_25px_rgba(59,130,246,0.2)] transition-all duration-300 group relative overflow-hidden active:scale-[0.98]"
+                  className="flex flex-col text-left p-6 rounded-2xl bg-slate-950/40 border border-slate-850 hover:border-cyan-500/50 hover:shadow-[0_0_20px_rgba(6,182,212,0.15)] transition-all duration-300 group relative overflow-hidden active:scale-[0.98] flex-1 justify-between h-full"
                 >
-                  <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.05),transparent)] translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                  <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(6,182,212,0.02),transparent)] translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                   
-                  <div className="w-11 h-11 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-115 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shadow-[0_0_12px_rgba(59,130,246,0.1)] mb-4">
-                    <Camera className="w-5.5 h-5.5" />
+                  <div>
+                    {/* Header Info Line */}
+                    <div className="flex justify-between items-start w-full mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-105 group-hover:bg-cyan-500 group-hover:text-white transition-all duration-300">
+                        <Camera className="w-5 h-5" />
+                      </div>
+                      <span className="text-[7.5px] font-mono font-bold tracking-widest px-2 py-0.5 rounded border border-cyan-500/20 bg-cyan-950/20 text-cyan-400 uppercase">
+                        Experimental
+                      </span>
+                    </div>
+
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-100 group-hover:text-white">
+                      AR Passthrough
+                    </h4>
+                    
+                    <p className="text-[9.5px] text-slate-450 font-light leading-relaxed mt-2">
+                      Stream your live room camera feed and steer the 3D model using floating virtual joystick knobs.
+                    </p>
+
+                    {/* Technical metadata blocks */}
+                    <div className="space-y-2 mt-4 pt-4 border-t border-slate-900/60 text-[8.5px] font-mono text-slate-400">
+                      <div>
+                        <span className="text-slate-500 uppercase">Use Case:</span>
+                        <p className="text-slate-300 mt-0.5">View Pluto drone inside your physical room using camera passthrough.</p>
+                      </div>
+                      <div className="flex justify-between">
+                        <span><span className="text-slate-500 uppercase">Hardware:</span> <strong className="text-slate-350">Webcam</strong></span>
+                        <span><span className="text-slate-500 uppercase">Diff:</span> <strong className="text-slate-350">Intermediate</strong></span>
+                      </div>
+                    </div>
                   </div>
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-slate-200 group-hover:text-white">
-                    AR Passthrough
-                  </h4>
-                  <p className="text-[10px] text-slate-400 font-light leading-relaxed mt-2.5">
-                    Stream your live room camera feed and steer the 3D model using floating virtual joystick knobs.
-                  </p>
-                  <span className="text-[8px] font-mono text-cyan-400 font-bold uppercase tracking-widest mt-6 block">
+
+                  <span className="text-[8px] font-mono text-cyan-400 font-bold uppercase tracking-widest mt-6 block group-hover:translate-x-1 transition-transform">
                     Launch Camera →
                   </span>
                 </button>
 
-                {/* OPTION B: CLOSED SIMULATOR */}
+                {/* MISSION CARD B: CLOSED SIMULATOR (VISUALLY DOMINANT) */}
                 <button
                   onClick={startClosedSim}
-                  className="flex flex-col text-left p-5.5 rounded-2xl bg-gradient-to-b from-slate-900/50 to-slate-900/10 border border-slate-800/80 hover:border-cyan-500 hover:shadow-[0_0_25px_rgba(6,182,212,0.2)] transition-all duration-300 group relative overflow-hidden active:scale-[0.98]"
+                  className="flex flex-col text-left p-6 rounded-2xl bg-blue-950/10 border-2 border-blue-500/40 hover:border-blue-405 hover:shadow-[0_0_25px_rgba(59,130,246,0.25)] transition-all duration-300 group relative overflow-hidden active:scale-[0.98] flex-1 justify-between h-full"
                 >
-                  <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(6,182,212,0.05),transparent)] translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                  {/* Glowing background hint */}
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
+                  <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.04),transparent)] translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                   
-                  <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-115 group-hover:bg-cyan-600 group-hover:text-white transition-all duration-300 shadow-[0_0_12px_rgba(6,182,212,0.1)] mb-4">
-                    <Box className="w-5.5 h-5.5" />
+                  <div>
+                    {/* Header Info Line */}
+                    <div className="flex justify-between items-start w-full mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shadow-[0_0_10px_rgba(59,130,246,0.15)]">
+                        <Box className="w-5 h-5" />
+                      </div>
+                      <span className="text-[7.5px] font-mono font-bold tracking-widest px-2 py-0.5 rounded border border-emerald-500/30 bg-emerald-950/20 text-emerald-400 uppercase animate-pulse">
+                        Recommended
+                      </span>
+                    </div>
+
+                    <h4 className="text-xs font-black uppercase tracking-wider text-white">
+                      Closed Simulator
+                    </h4>
+                    
+                    <p className="text-[9.5px] text-slate-350 font-light leading-relaxed mt-2">
+                      Load detailed virtual environments (Warehouse, Lab, Hoop Arena) with full 6-DOF physics and keyboard flight loops.
+                    </p>
+
+                    {/* Technical metadata blocks */}
+                    <div className="space-y-2 mt-4 pt-4 border-t border-slate-900/60 text-[8.5px] font-mono text-slate-300">
+                      <div>
+                        <span className="text-slate-400 uppercase">Use Case:</span>
+                        <p className="text-slate-200 mt-0.5">Professional pilot training using virtual environments.</p>
+                      </div>
+                      <div className="flex justify-between">
+                        <span><span className="text-slate-400 uppercase">Hardware:</span> <strong className="text-white">Keyboard</strong></span>
+                        <span><span className="text-slate-400 uppercase">Diff:</span> <strong className="text-white">Beginner-Friendly</strong></span>
+                      </div>
+                    </div>
                   </div>
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-slate-200 group-hover:text-white">
-                    Closed Simulator
-                  </h4>
-                  <p className="text-[10px] text-slate-400 font-light leading-relaxed mt-2.5">
-                    Load detailed virtual environments (Warehouse, Lab, Hoop Arena) with full 6-DOF physics and keyboard flight loops.
-                  </p>
-                  <span className="text-[8px] font-mono text-cyan-400 font-bold uppercase tracking-widest mt-6 block">
+
+                  <span className="text-[8px] font-mono text-blue-400 group-hover:text-cyan-400 font-bold uppercase tracking-widest mt-6 block group-hover:translate-x-1 transition-transform">
                     Enter Sandbox →
                   </span>
                 </button>
 
               </div>
 
-              {/* Warning Alert banner */}
-              <div className="flex gap-3 items-start p-4 bg-amber-950/15 border border-amber-900/35 rounded-2xl text-[10px] text-amber-300 leading-relaxed">
-                <ShieldAlert className="w-4.5 h-4.5 text-amber-500 shrink-0 mt-0.5" />
-                <p className="font-light">
-                  <strong>Hardware Warning:</strong> AR mode depends on client web camera authorization. For precision stabilization testing, Keyboard pilot binds inside the Closed Sim are recommended.
-                </p>
+              {/* Mission Briefing Panel (Caution warning redesigned) */}
+              <div className="flex gap-3.5 items-start p-4 bg-amber-950/10 border border-amber-500/20 rounded-2xl text-[9.5px] text-amber-300 leading-relaxed relative overflow-hidden">
+                {/* Cyber alert corner lines */}
+                <div className="absolute top-0 left-0 w-1.5 h-1.5 border-t border-l border-amber-500/30" />
+                <div className="absolute top-0 right-0 w-1.5 h-1.5 border-t border-r border-amber-500/30" />
+                <div className="absolute bottom-0 left-0 w-1.5 h-1.5 border-b border-l border-amber-500/30" />
+                <div className="absolute bottom-0 right-0 w-1.5 h-1.5 border-b border-r border-amber-500/30" />
+
+                <ClipboardList className="w-4.5 h-4.5 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
+                <div className="space-y-1">
+                  <span className="font-mono text-[8px] font-bold uppercase tracking-widest text-amber-400 block">Mission Briefing & Diagnostics</span>
+                  <p className="font-light">
+                    Camera permissions are strictly required for AR mode passthrough telemetry. Closed Simulator sandbox courses are recommended for training and level certification.
+                  </p>
+                </div>
               </div>
 
             </motion.div>
