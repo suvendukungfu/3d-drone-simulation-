@@ -306,9 +306,23 @@ export function PlutoXModel({ isFlightMode = false, onLoad }: PlutoXModelProps =
     }
   };
 
+  const rootGroupRef = useRef<THREE.Group>(null);
+
   // Main animation frame loop
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (currentMode === 'flight') return;
+
+    // Apply subtle floating sine wave animation on Home Hub
+    if (rootGroupRef.current) {
+      if (currentMode === 'home') {
+        const time = state.clock.getElapsedTime();
+        rootGroupRef.current.position.y = -0.5 + Math.sin(time * 1.5) * 0.05;
+      } else if (!isFlightMode) {
+        rootGroupRef.current.position.y = -0.5;
+      } else {
+        rootGroupRef.current.position.y = 0;
+      }
+    }
     
     // 1. Exploded view calculations
     explodeTargets.forEach(({ object, originalX, originalY, originalZ }) => {
@@ -370,8 +384,10 @@ export function PlutoXModel({ isFlightMode = false, onLoad }: PlutoXModelProps =
 
       // C. Active propeller/motor casing rotation (spinning around local Z axis)
       const shouldSpin = componentId && (componentId.startsWith('propellerA') || componentId.startsWith('propellerB') || componentId.startsWith('motor'));
-      if (isRunning && shouldSpin) {
-        const rpm = motorRPMs[motorKey];
+      const isIdleHome = currentMode === 'home' && componentId && (componentId.startsWith('propellerA') || componentId.startsWith('propellerB'));
+      
+      if ((isRunning || isIdleHome) && shouldSpin) {
+        const rpm = isIdleHome ? 1200 : motorRPMs[motorKey!];
         if (rpm > 0) {
           // CW (2 & 3) vs CCW (1 & 4)
           const direction = (cornerIndex === 2 || cornerIndex === 3) ? -1 : 1;
@@ -385,8 +401,8 @@ export function PlutoXModel({ isFlightMode = false, onLoad }: PlutoXModelProps =
           mesh.rotation.z = rotationAngles.current[spinKey];
 
           // Procedural Audio pitch modifications based on RPM speeds
-          if (componentId === 'propellerA' || componentId === 'propellerB') {
-            sound.updateMotorPitch(motorKey, rpm);
+          if (isRunning && (componentId === 'propellerA' || componentId === 'propellerB')) {
+            sound.updateMotorPitch(motorKey!, rpm);
           }
         }
       }
@@ -404,14 +420,16 @@ export function PlutoXModel({ isFlightMode = false, onLoad }: PlutoXModelProps =
 
   return (
     <>
-      <primitive
-        object={scene}
-        scale={isFlightMode ? 1.0 : 18.0}
-        position={isFlightMode ? [0, 0, 0] : [0, -0.5, 0]}
-        onPointerOver={handlePointerOver}
-        onPointerOut={handlePointerOut}
-        onClick={handleClick}
-      />
+      <group ref={rootGroupRef} position={isFlightMode ? [0, 0, 0] : [0, -0.5, 0]}>
+        <primitive
+          object={scene}
+          scale={isFlightMode ? 1.0 : 18.0}
+          position={[0, 0, 0]}
+          onPointerOver={handlePointerOver}
+          onPointerOut={handlePointerOut}
+          onClick={handleClick}
+        />
+      </group>
 
       {/* Dynamic 3D Propeller Rotation Indicator Overlay Arrows */}
       {showRotationDirections && propLocations.map(({ corner, label, pos, active }) => {

@@ -25,6 +25,7 @@ function CameraController({ controlsRef, vrEye, floorGroupRef }: CameraControlle
   const isExploded = useDroneStore((state) => state.isExploded);
   const isolationMode = useDroneStore((state) => state.isolationMode);
   const cameraView = useDroneStore((state) => state.cameraView);
+  const currentMode = useDroneStore((state) => state.currentMode);
 
   const vrCameraPosition = useDroneStore((state) => state.vrCameraPosition);
   const vrCameraTarget = useDroneStore((state) => state.vrCameraTarget);
@@ -134,12 +135,18 @@ function CameraController({ controlsRef, vrEye, floorGroupRef }: CameraControlle
           targetCamPos.current.set(7.0, 5.0, 8.0);
           targetLookAt.current.set(0, 0.5, 0);
         } else {
-          targetCamPos.current.set(5.0, 3.5, 6.0);
-          targetLookAt.current.set(0, 0, 0);
+          if (currentMode === 'home') {
+            // Shift target lookAt to the left of the drone to push the drone to the right side of the screen
+            targetCamPos.current.set(4.0, 2.5, 5.0);
+            targetLookAt.current.set(-1.2, -0.25, 0);
+          } else {
+            targetCamPos.current.set(5.0, 3.5, 6.0);
+            targetLookAt.current.set(0, 0, 0);
+          }
         }
         break;
     }
-  }, [selectedComponent, isExploded, isolationMode, cameraView, vrEye, scene]);
+  }, [selectedComponent, isExploded, isolationMode, cameraView, vrEye, scene, currentMode]);
 
   useFrame((_, delta) => {
     // Hide floor elements when camera goes below y = -0.5 (underview exploration)
@@ -256,30 +263,41 @@ export function Scene({ controlsRef, vrEye }: SceneProps) {
         <Environment preset="warehouse" background />
 
         {/* Ambient & Soft Directional Lighting representing warehouse skylights */}
-        <ambientLight intensity={0.65} color="#dbeafe" />
+        <ambientLight intensity={0.4} color="#dbeafe" />
         
         <directionalLight
           position={[12, 20, 8]}
-          intensity={1.8}
+          intensity={1.2}
           castShadow
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
           shadow-bias={-0.0001}
         />
         
+        {/* Volumetric cyber spotlight focused on the drone */}
+        <spotLight
+          position={[0, 8, 0]}
+          angle={0.45}
+          penumbra={0.8}
+          intensity={6}
+          color="#00A3FF"
+          castShadow
+          shadow-bias={-0.0001}
+        />
+        
         {/* Soft fill light representing reflective surfaces in the warehouse */}
         <directionalLight
           position={[-10, 8, -10]}
-          intensity={0.5}
-          color="#fef08a"
+          intensity={0.4}
+          color="#38bdf8"
         />
 
         {/* Environment floor elements */}
         <group ref={floorGroupRef}>
-          {/* Realistic industrial concrete floor */}
+          {/* Realistic industrial concrete floor with high specular reflection */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.6, 0]} receiveShadow>
             <planeGeometry args={[100, 100]} />
-            <meshStandardMaterial color="#22252c" roughness={0.85} metalness={0.1} />
+            <meshStandardMaterial color="#080c16" roughness={0.2} metalness={0.7} />
           </mesh>
 
           {/* Muted industrial grid lines for spatial alignment */}
@@ -287,13 +305,13 @@ export function Scene({ controlsRef, vrEye }: SceneProps) {
             position={[0, -0.59, 0]}
             args={[30, 30]}
             cellSize={1.0}
-            cellThickness={0.4}
-            cellColor="#334155"
+            cellThickness={0.5}
+            cellColor="#0044cc"
             sectionSize={5.0}
-            sectionThickness={1.0}
-            sectionColor="#475569"
-            fadeDistance={15}
-            fadeStrength={1}
+            sectionThickness={1.2}
+            sectionColor="#00a3ff"
+            fadeDistance={20}
+            fadeStrength={1.2}
             infiniteGrid
           />
 
@@ -302,26 +320,35 @@ export function Scene({ controlsRef, vrEye }: SceneProps) {
             {/* Metallic landing plate */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
               <circleGeometry args={[2.5, 64]} />
-              <meshStandardMaterial color="#1e293b" roughness={0.5} metalness={0.6} />
+              <meshStandardMaterial color="#0b1329" roughness={0.35} metalness={0.85} />
             </mesh>
-            {/* Painted yellow border ring */}
+            {/* Painted cyber cyan border ring */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
               <ringGeometry args={[2.4, 2.5, 64]} />
-              <meshBasicMaterial color="#eab308" toneMapped={false} />
+              <meshBasicMaterial color="#00a3ff" toneMapped={false} />
+            </mesh>
+            {/* Blueprint concentric rings */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
+              <ringGeometry args={[1.5, 1.54, 64]} />
+              <meshBasicMaterial color="#0055ff" transparent opacity={0.35} toneMapped={false} />
+            </mesh>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
+              <ringGeometry args={[3.5, 3.54, 64]} />
+              <meshBasicMaterial color="#0055ff" transparent opacity={0.15} toneMapped={false} />
             </mesh>
             {/* Inner crosshairs target */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, 0]}>
               <ringGeometry args={[0.0, 0.4, 4]} />
-              <meshBasicMaterial color="#eab308" toneMapped={false} transparent opacity={0.3} />
+              <meshBasicMaterial color="#00a3ff" toneMapped={false} transparent opacity={0.4} />
             </mesh>
           </group>
 
           {/* Soft ground shadows sitting directly on the landing pad */}
           <ContactShadows
             position={[0, -0.57, 0]}
-            opacity={0.7}
+            opacity={0.85}
             scale={5}
-            blur={2.0}
+            blur={1.8}
             far={10}
             resolution={1024}
           />
