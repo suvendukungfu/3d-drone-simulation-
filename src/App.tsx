@@ -1,10 +1,15 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Scene } from './components/Scene';
+import { FlightScene } from './components/FlightScene';
+import { TelemetryDashboard } from './components/UI/TelemetryDashboard';
+import { TrainingMissionSystem } from './components/UI/TrainingMissionSystem';
 import { useDroneStore } from './store/useDroneStore';
 import { droneComponents } from './data/droneComponents';
+import { SimulatorOrchestrator } from './utils/drone/SimulatorOrchestrator';
+import { Checkpoint } from './utils/drone/types';
 import { 
   Layers, Info, ShieldAlert, Wrench, Activity, ChevronRight, 
-  Eye, Cpu, Power, CheckCircle, RefreshCcw 
+  Eye, Cpu, Power, CheckCircle, RefreshCcw, Gamepad2 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProgress } from '@react-three/drei';
@@ -17,11 +22,25 @@ function App() {
   // Loading progress of 3D GLTF assets
   const { active: isLoading, progress } = useProgress();
 
+  // Unified Flight Simulator Orchestrator Instance
+  const orchestratorRef = useRef<SimulatorOrchestrator | null>(null);
+  if (!orchestratorRef.current) {
+    orchestratorRef.current = new SimulatorOrchestrator();
+  }
+
+  // Active checkpoints to render in the environment
+  const [activeCheckpoints, setActiveCheckpoints] = useState<Checkpoint[]>([]);
+
+  // State of keyboard sticks for UI visualizer
+  const [stickState, setStickState] = useState({ throttle: 0, yaw: 0, pitch: 0, roll: 0 });
+
   // Zustand Store mappings
+  const currentMode = useDroneStore((state) => state.currentMode);
   const hoveredComponent = useDroneStore((state) => state.hoveredComponent);
   const selectedComponent = useDroneStore((state) => state.selectedComponent);
   const isExploded = useDroneStore((state) => state.isExploded);
   const isolationMode = useDroneStore((state) => state.isolationMode);
+  const activeMissionIndex = useDroneStore((state) => state.activeMissionIndex);
   
   const cameraView = useDroneStore((state) => state.cameraView);
   const autoRotate = useDroneStore((state) => state.autoRotate);
@@ -30,7 +49,6 @@ function App() {
   const activeMotors = useDroneStore((state) => state.activeMotors);
   const motorRPMs = useDroneStore((state) => state.motorRPMs);
   const showRotationDirections = useDroneStore((state) => state.showRotationDirections);
-  const currentMode = useDroneStore((state) => state.currentMode);
 
   const hoverComponent = useDroneStore((state) => state.hoverComponent);
   const selectComponent = useDroneStore((state) => state.selectComponent);
@@ -47,12 +65,65 @@ function App() {
   const setShowRotationDirections = useDroneStore((state) => state.setShowRotationDirections);
   const setMode = useDroneStore((state) => state.setMode);
   const startLearning = useDroneStore((state) => state.startLearning);
+  const selectMission = useDroneStore((state) => state.selectMission);
 
   const selectedData = selectedComponent ? droneComponents[selectedComponent] : null;
 
   // Determine if a motor or propeller is selected to inject educational STEM highlights
   const isPropSelected = selectedComponent === 'propellerA' || selectedComponent === 'propellerB';
   const isMotorSelected = selectedComponent && selectedComponent.includes('motor');
+
+  // Register / Unregister Keyboard Input System for Simulator Mode
+  useEffect(() => {
+    if (currentMode === 'flight' && orchestratorRef.current) {
+      orchestratorRef.current.init();
+      
+      // Pull stick inputs for visual overlay at 20Hz
+      const interval = setInterval(() => {
+        if (orchestratorRef.current) {
+          const sticks = orchestratorRef.current.input.getStickState();
+          setStickState(sticks);
+        }
+      }, 50);
+      
+      return () => {
+        clearInterval(interval);
+        if (orchestratorRef.current) {
+          orchestratorRef.current.destroy();
+        }
+      };
+    }
+  }, [currentMode]);
+
+  // Synchronize App Mode & Environment with Active Training Module
+  useEffect(() => {
+    if (activeMissionIndex >= 0) {
+      if (activeMissionIndex <= 3) {
+        if (currentMode !== 'explore') {
+          setMode('explore');
+        }
+      } else {
+        if (currentMode !== 'flight') {
+          setMode('flight');
+        }
+        
+        // Sync environment to match mission theme
+        const envs: Record<number, any> = {
+          4: 'room',        // Module 5
+          5: 'lab',         // Module 6
+          6: 'lab',         // Module 7
+          7: 'classroom',   // Module 8
+          8: 'field',       // Module 9
+          9: 'warehouse',   // Module 10
+          10: 'course'      // Module 11
+        };
+        const targetEnv = envs[activeMissionIndex];
+        if (targetEnv) {
+          useDroneStore.getState().setFlightEnvironment(targetEnv);
+        }
+      }
+    }
+  }, [activeMissionIndex, currentMode, setMode]);
 
   // Reset all camera/scene attributes to default
   const handleResetAll = () => {
@@ -69,6 +140,29 @@ function App() {
     }
     if (leftControlsRef.current) {
       leftControlsRef.current.reset();
+    }
+  };
+
+  const handleResetSimulator = () => {
+    if (orchestratorRef.current) {
+      // Clear failure flags first so keyboard input is unblocked
+      useDroneStore.getState().setDroneInitFailed(false);
+      useDroneStore.getState().setModelLoadStatus('loading');
+      orchestratorRef.current.reset();
+      const missionIdx = useDroneStore.getState().activeMissionIndex;
+      selectMission(missionIdx); // restarts mission
+    }
+  };
+
+  const handleCalibrateSensors = () => {
+    if (orchestratorRef.current) {
+      orchestratorRef.current.calibrate(); // force-calibrate sensors immediately
+    }
+  };
+
+  const handleToggleAltHold = (active: boolean) => {
+    if (orchestratorRef.current) {
+      orchestratorRef.current.setAltitudeHold(active);
     }
   };
 
@@ -108,302 +202,322 @@ function App() {
         )}
       </AnimatePresence>
 
-      {/* 2. LEFT SIDEBAR: Simplified Diagnostics & Presets Control Panel */}
-      <AnimatePresence>
-        {!immersiveMode && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 320, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 120 }}
-            style={{ overflow: 'hidden' }}
-            className="h-full bg-slate-950/80 backdrop-blur-md border-r border-slate-800/80 z-10 flex flex-col justify-between shrink-0"
-          >
-            <div className="w-[320px] p-5 h-full flex flex-col justify-between overflow-y-auto scrollbar-thin scrollbar-thumb-slate-850">
-              <div className="space-y-6">
-                {/* Mode Switcher Tabs & Reset */}
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 flex bg-slate-900/60 p-1 rounded-lg border border-slate-850 text-[10px] font-bold uppercase tracking-wider">
-                    <button
-                      onClick={() => setMode('explore')}
-                      className={`flex-1 py-1.5 rounded transition ${
-                        currentMode === 'explore'
-                          ? 'bg-blue-600 text-white shadow shadow-blue-500/10'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
+      {/* 2. LEFT SIDEBAR: Conditional rendering depending on Avionics Lab vs Flight Simulator */}
+      <AnimatePresence mode="wait">
+        {currentMode === 'flight' || activeMissionIndex >= 0 ? (
+          // A. PILOT TRAINING MISSION LIST (FLIGHT MODE)
+          <TrainingMissionSystem 
+            key="flight-sidebar"
+            orchestrator={orchestratorRef.current!} 
+            onCheckpointsUpdated={(cps) => setActiveCheckpoints(cps)}
+          />
+        ) : (
+          // B. PRE-FLIGHT AVIONICS DIAGNOSTICS PANELS (INSPECTION MODE)
+          !immersiveMode && (
+            <motion.div
+              key="explore-sidebar"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 320, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 120 }}
+              style={{ overflow: 'hidden' }}
+              className="h-full bg-slate-950/80 backdrop-blur-md border-r border-slate-800/80 z-10 flex flex-col justify-between shrink-0"
+            >
+              <div className="w-[320px] p-5 h-full flex flex-col justify-between overflow-y-auto scrollbar-thin scrollbar-thumb-slate-850">
+                <div className="space-y-6">
+                  {/* Mode Switcher Tabs */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex bg-slate-900/60 p-1 rounded-lg border border-slate-850 text-[10px] font-bold uppercase tracking-wider">
+                      <button
+                        onClick={() => setMode('explore')}
+                        className={`flex-1 py-1.5 rounded transition ${
+                          currentMode === 'explore'
+                            ? 'bg-blue-600 text-white shadow shadow-blue-500/10'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Explorer
+                      </button>
+                      <button
+                        onClick={() => startLearning()}
+                        className={`flex-1 py-1.5 rounded transition ${
+                          currentMode === 'learning'
+                            ? 'bg-amber-600 text-white shadow shadow-amber-500/10'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Training
+                      </button>
+                    </div>
+                    <button 
+                      onClick={handleResetAll}
+                      className="p-2 rounded-lg bg-slate-900 border border-slate-850 text-slate-400 hover:text-white transition shrink-0"
+                      title="Reset Workspace"
                     >
-                      Explorer
-                    </button>
-                    <button
-                      onClick={() => startLearning()}
-                      className={`flex-1 py-1.5 rounded transition ${
-                        currentMode === 'learning'
-                          ? 'bg-amber-600 text-white shadow shadow-amber-500/10'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Training
-                    </button>
-                  </div>
-                  <button 
-                    onClick={handleResetAll}
-                    className="p-2 rounded-lg bg-slate-900 border border-slate-850 text-slate-400 hover:text-white transition shrink-0"
-                    title="Reset Workspace"
-                  >
-                    <RefreshCcw className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* SECTION A: Camera Presets */}
-                <div className="space-y-2.5">
-                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <Eye className="w-3.5 h-3.5 text-blue-400" />
-                    Camera Angles
-                  </h3>
-                  <div className="grid grid-cols-2 gap-1.5 text-[11px] font-bold uppercase tracking-wider">
-                    <button
-                      onClick={() => setCameraView('orbit')}
-                      className={`col-span-2 py-2 rounded-lg border transition ${
-                        cameraView === 'orbit' 
-                          ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.15)]' 
-                          : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Free Orbit Look
-                    </button>
-                    <button
-                      onClick={() => setCameraView('top')}
-                      className={`py-2 rounded-lg border transition ${
-                        cameraView === 'top' 
-                          ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
-                          : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Top View
-                    </button>
-                    <button
-                      onClick={() => setCameraView('bottom')}
-                      className={`py-2 rounded-lg border transition ${
-                        cameraView === 'bottom' 
-                          ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
-                          : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Bottom View
-                    </button>
-                    <button
-                      onClick={() => setCameraView('left')}
-                      className={`py-2 rounded-lg border transition ${
-                        cameraView === 'left' 
-                          ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
-                          : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Left Side
-                    </button>
-                    <button
-                      onClick={() => setCameraView('right')}
-                      className={`py-2 rounded-lg border transition ${
-                        cameraView === 'right' 
-                          ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
-                          : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Right Side
-                    </button>
-                    <button
-                      onClick={() => setCameraView('front')}
-                      className={`py-2 rounded-lg border transition ${
-                        cameraView === 'front' 
-                          ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
-                          : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Front Nose
-                    </button>
-                    <button
-                      onClick={() => setCameraView('back')}
-                      className={`py-2 rounded-lg border transition ${
-                        cameraView === 'back' 
-                          ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
-                          : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Back Tail
+                      <RefreshCcw className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  {/* Auto Rotate Toggle */}
-                  <button
-                    onClick={toggleAutoRotate}
-                    className={`w-full py-2 border rounded-lg text-xs font-bold uppercase tracking-wider transition ${
-                      autoRotate
-                        ? 'bg-emerald-600/10 border-emerald-500 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]'
-                        : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    Auto Rotate View: {autoRotate ? 'ON' : 'OFF'}
-                  </button>
 
-                  {/* Environment & VR Views */}
-                  <div className="pt-3 border-t border-slate-900/60 space-y-2.5">
+                  {/* SECTION A: Camera Presets */}
+                  <div className="space-y-2.5">
                     <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-blue-400" />
-                      Immersive Modes
+                      <Eye className="w-3.5 h-3.5 text-blue-400" />
+                      Camera Angles
                     </h3>
                     <div className="grid grid-cols-2 gap-1.5 text-[11px] font-bold uppercase tracking-wider">
                       <button
-                        onClick={toggleImmersiveMode}
-                        className={`py-2 px-1 rounded-lg border transition flex flex-col items-center justify-center gap-0.5 ${
-                          immersiveMode 
+                        onClick={() => setCameraView('orbit')}
+                        className={`col-span-2 py-2 rounded-lg border transition ${
+                          cameraView === 'orbit' 
                             ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.15)]' 
                             : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
                         }`}
-                        title="Cinematic 360° Free Look (Hides HUD)"
                       >
-                        <span>Cinematic 360°</span>
-                        <span className="text-[8px] opacity-60 font-medium">Free Look</span>
+                        Free Orbit Look
                       </button>
                       <button
-                        onClick={toggleVrMode}
-                        className={`py-2 px-1 rounded-lg border transition flex flex-col items-center justify-center gap-0.5 ${
-                          vrMode 
-                            ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.15)]' 
+                        onClick={() => setCameraView('top')}
+                        className={`py-2 rounded-lg border transition ${
+                          cameraView === 'top' 
+                            ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
                             : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
                         }`}
-                        title="Stereoscopic VR Split-screen Mode"
                       >
-                        <span>Stereoscopic VR</span>
-                        <span className="text-[8px] opacity-60 font-medium">SBS Split</span>
+                        Top View
+                      </button>
+                      <button
+                        onClick={() => setCameraView('bottom')}
+                        className={`py-2 rounded-lg border transition ${
+                          cameraView === 'bottom' 
+                            ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
+                            : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Bottom View
+                      </button>
+                      <button
+                        onClick={() => setCameraView('left')}
+                        className={`py-2 rounded-lg border transition ${
+                          cameraView === 'left' 
+                            ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
+                            : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Left Side
+                      </button>
+                      <button
+                        onClick={() => setCameraView('right')}
+                        className={`py-2 rounded-lg border transition ${
+                          cameraView === 'right' 
+                            ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
+                            : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Right Side
+                      </button>
+                      <button
+                        onClick={() => setCameraView('front')}
+                        className={`py-2 rounded-lg border transition ${
+                          cameraView === 'front' 
+                            ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
+                            : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Front Nose
+                      </button>
+                      <button
+                        onClick={() => setCameraView('back')}
+                        className={`py-2 rounded-lg border transition ${
+                          cameraView === 'back' 
+                            ? 'bg-blue-600/10 border-blue-500 text-blue-400' 
+                            : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Back Tail
+                      </button>
+                    </div>
+                    {/* Auto Rotate Toggle */}
+                    <button
+                      onClick={toggleAutoRotate}
+                      className={`w-full py-2 border rounded-lg text-xs font-bold uppercase tracking-wider transition ${
+                        autoRotate
+                          ? 'bg-emerald-600/10 border-emerald-500 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]'
+                          : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Auto Rotate View: {autoRotate ? 'ON' : 'OFF'}
+                    </button>
+
+                    {/* Environment & VR Views */}
+                    <div className="pt-3 border-t border-slate-900/60 space-y-2.5">
+                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-blue-400" />
+                        Immersive Modes
+                      </h3>
+                      <div className="grid grid-cols-2 gap-1.5 text-[11px] font-bold uppercase tracking-wider">
+                        <button
+                          onClick={toggleImmersiveMode}
+                          className={`py-2 px-1 rounded-lg border transition flex flex-col items-center justify-center gap-0.5 ${
+                            immersiveMode 
+                              ? 'bg-blue-600/10 border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.15)]' 
+                              : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
+                          }`}
+                          title="Cinematic 360° Free Look (Hides HUD)"
+                        >
+                          <span>Cinematic 360°</span>
+                          <span className="text-[8px] opacity-60 font-medium">Free Look</span>
+                        </button>
+                        <button
+                          onClick={toggleVrMode}
+                          className={`py-2 px-1 rounded-lg border transition flex flex-col items-center justify-center gap-0.5 ${
+                            vrMode 
+                              ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.15)]' 
+                              : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
+                          }`}
+                          title="Stereoscopic VR Split-screen Mode"
+                        >
+                          <span>Stereoscopic VR</span>
+                          <span className="text-[8px] opacity-60 font-medium">SBS Split</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION B: Motor Demonstrator Systems */}
+                  <div className="space-y-3 pt-4 border-t border-slate-900">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <Power className="w-3.5 h-3.5 text-blue-400" />
+                        Motor Diagnostic Test
+                      </h3>
+                      <button
+                        onClick={() => setShowRotationDirections(!showRotationDirections)}
+                        className={`px-2 py-0.5 rounded border text-[9px] font-bold transition ${
+                          showRotationDirections
+                            ? 'bg-orange-600/10 border-orange-500 text-orange-400'
+                            : 'bg-slate-900 border-slate-800 text-slate-500'
+                        }`}
+                      >
+                        Directions
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      {(['motor1', 'motor2', 'motor3', 'motor4'] as const).map((id, index) => {
+                        const active = activeMotors[id];
+                        const rpm = motorRPMs[id];
+                        const cornerNames = ['FL (CW)', 'FR (CCW)', 'RL (CCW)', 'RR (CW)'];
+                        
+                        return (
+                          <div key={id} className="flex gap-2 items-center">
+                            <button
+                              onClick={() => toggleMotor(id)}
+                              className={`flex-1 flex justify-between items-center px-3.5 py-2.5 rounded-lg border text-xs font-bold uppercase transition ${
+                                active 
+                                  ? 'bg-orange-600/10 border-orange-500 text-orange-400' 
+                                  : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              <span>Motor {index + 1} ({cornerNames[index]})</span>
+                              <span className="text-[9px] font-mono opacity-80">{active ? 'RUNNING' : 'STOPPED'}</span>
+                            </button>
+                            {active && (
+                              <div className="w-16 text-center font-mono text-[10px] text-orange-400 border border-orange-500/20 bg-orange-950/10 py-1.5 rounded">
+                                {rpm} RPM
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1.5">
+                      <button
+                        onClick={testAllMotors}
+                        className="py-2.5 bg-blue-600 hover:bg-blue-500 text-white border border-blue-500 text-xs font-bold uppercase rounded-lg transition"
+                      >
+                        Test All
+                      </button>
+                      <button
+                        onClick={stopAllMotors}
+                        className="py-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 text-xs font-bold uppercase rounded-lg transition"
+                      >
+                        Kill All
                       </button>
                     </div>
                   </div>
-                </div>
 
-                {/* SECTION B: Motor Demonstrator Systems */}
-                <div className="space-y-3 pt-4 border-t border-slate-900">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <Power className="w-3.5 h-3.5 text-blue-400" />
-                      Motor Diagnostic Test
+                  {/* SECTION C: Component Legend */}
+                  <div className="space-y-2 pt-4 border-t border-slate-900">
+                    <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Component Registry
                     </h3>
-                    <button
-                      onClick={() => setShowRotationDirections(!showRotationDirections)}
-                      className={`px-2 py-0.5 rounded border text-[9px] font-bold transition ${
-                        showRotationDirections
-                          ? 'bg-orange-600/10 border-orange-500 text-orange-400'
-                          : 'bg-slate-900 border-slate-800 text-slate-500'
-                      }`}
-                    >
-                      Directions
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-1.5">
-                    {(['motor1', 'motor2', 'motor3', 'motor4'] as const).map((id, index) => {
-                      const active = activeMotors[id];
-                      const rpm = motorRPMs[id];
-                      const cornerNames = ['FL (CW)', 'FR (CCW)', 'RL (CCW)', 'RR (CW)'];
-                      
-                      return (
-                        <div key={id} className="flex gap-2 items-center">
+                    <div className="space-y-1 max-h-52 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-900">
+                      {Object.values(droneComponents).map((comp) => {
+                        const isHovered = hoveredComponent === comp.id;
+                        const isSelected = selectedComponent === comp.id;
+                        
+                        return (
                           <button
-                            onClick={() => toggleMotor(id)}
-                            className={`flex-1 flex justify-between items-center px-3.5 py-2.5 rounded-lg border text-xs font-bold uppercase transition ${
-                              active 
-                                ? 'bg-orange-600/10 border-orange-500 text-orange-400' 
-                                : 'bg-slate-900/50 border-slate-850 text-slate-400 hover:text-slate-200'
+                            key={comp.id}
+                            onMouseEnter={() => hoverComponent(comp.id)}
+                            onMouseLeave={() => hoverComponent(null)}
+                            onClick={() => selectComponent(isSelected ? null : comp.id)}
+                            className={`w-full text-left px-3 py-1.5 rounded text-[11px] font-semibold uppercase tracking-wider transition-all flex items-center justify-between border ${
+                              isSelected
+                                ? 'bg-blue-600/10 border-blue-500 text-blue-400 font-bold'
+                                : isHovered
+                                  ? 'bg-slate-900/50 border-slate-800 text-white'
+                                  : 'border-transparent text-slate-500 hover:text-slate-300'
                             }`}
                           >
-                            <span>Motor {index + 1} ({cornerNames[index]})</span>
-                            <span className="text-[9px] font-mono opacity-80">{active ? 'RUNNING' : 'STOPPED'}</span>
+                            <span>{comp.name}</span>
+                            <ChevronRight className={`w-3 h-3 transition-transform ${isSelected ? 'rotate-90 text-blue-400' : 'text-slate-600'}`} />
                           </button>
-                          {active && (
-                            <div className="w-16 text-center font-mono text-[10px] text-orange-400 border border-orange-500/20 bg-orange-950/10 py-1.5 rounded">
-                              {rpm} RPM
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 pt-1.5">
-                    <button
-                      onClick={testAllMotors}
-                      className="py-2.5 bg-blue-600 hover:bg-blue-500 text-white border border-blue-500 text-xs font-bold uppercase rounded-lg transition"
-                    >
-                      Test All
-                    </button>
-                    <button
-                      onClick={stopAllMotors}
-                      className="py-2.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 text-xs font-bold uppercase rounded-lg transition"
-                    >
-                      Kill All
-                    </button>
-                  </div>
                 </div>
 
-                {/* SECTION C: Component Legend */}
-                <div className="space-y-2 pt-4 border-t border-slate-900">
-                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    Component Registry
-                  </h3>
-                  <div className="space-y-1 max-h-52 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-900">
-                    {Object.values(droneComponents).map((comp) => {
-                      const isHovered = hoveredComponent === comp.id;
-                      const isSelected = selectedComponent === comp.id;
-                      
-                      return (
-                        <button
-                          key={comp.id}
-                          onMouseEnter={() => hoverComponent(comp.id)}
-                          onMouseLeave={() => hoverComponent(null)}
-                          onClick={() => selectComponent(isSelected ? null : comp.id)}
-                          className={`w-full text-left px-3 py-1.5 rounded text-[11px] font-semibold uppercase tracking-wider transition-all flex items-center justify-between border ${
-                            isSelected
-                              ? 'bg-blue-600/10 border-blue-500 text-blue-400 font-bold'
-                              : isHovered
-                                ? 'bg-slate-900/50 border-slate-800 text-white'
-                                : 'border-transparent text-slate-500 hover:text-slate-300'
-                          }`}
-                        >
-                          <span>{comp.name}</span>
-                          <ChevronRight className={`w-3 h-3 transition-transform ${isSelected ? 'rotate-90 text-blue-400' : 'text-slate-600'}`} />
-                        </button>
-                      );
-                    })}
-                  </div>
+                {/* Brand Credit */}
+                <div className="text-[8px] font-mono text-slate-500 uppercase tracking-widest pt-4 border-t border-slate-900">
+                  Telemetry Link Status: Secure
                 </div>
-
               </div>
-
-              {/* Brand Credit */}
-              <div className="text-[8px] font-mono text-slate-500 uppercase tracking-widest pt-4 border-t border-slate-900">
-                Telemetry Link Status: Secure
-              </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          )
         )}
       </AnimatePresence>
 
-      {/* 3. CENTER: 3D Scene Viewport */}
+      {/* 3. CENTER: 3D Scene Viewport (Conditional between Lab inspection vs Pilot simulator) */}
       <div className="flex-1 h-full relative z-0 flex bg-[#070a13]">
-        {vrMode ? (
-          <>
-            <div className="w-1/2 h-full relative border-r border-slate-950">
-              <Scene controlsRef={leftControlsRef} vrEye="left" />
-            </div>
-            <div className="w-1/2 h-full relative">
-              <Scene controlsRef={rightControlsRef} vrEye="right" />
-            </div>
-          </>
+        {currentMode === 'flight' ? (
+          // PILOT SIMULATOR FLIGHT VIEWPORT
+          <FlightScene 
+            orchestrator={orchestratorRef.current!} 
+            activeCheckpoints={activeCheckpoints}
+          />
         ) : (
-          <Scene controlsRef={controlsRef} />
+          // CORE AVIONICS EXPLORER VIEWPORT (including split-screen VR SBS)
+          vrMode ? (
+            <>
+              <div className="w-1/2 h-full relative border-r border-slate-950">
+                <Scene controlsRef={leftControlsRef} vrEye="left" />
+              </div>
+              <div className="w-1/2 h-full relative">
+                <Scene controlsRef={rightControlsRef} vrEye="right" />
+              </div>
+            </>
+          ) : (
+            <Scene controlsRef={controlsRef} />
+          )
         )}
 
-        {/* BOTTOM CONTROLS: Simple exploded and isolate view controls */}
+        {/* BOTTOM CONTROLS: Simple exploded and isolate view controls (Only visible in explorer mode) */}
         <AnimatePresence>
-          {!immersiveMode && (
+          {currentMode !== 'flight' && !immersiveMode && (
             <motion.div
               initial={{ y: 50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -440,11 +554,23 @@ function App() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* DYNAMIC TELEMETRY HUD & DASHBOARD OVERLAY (Visible in Flight mode) */}
+        {currentMode === 'flight' && (
+          <TelemetryDashboard 
+            onReset={handleResetSimulator}
+            onCalibrate={handleCalibrateSensors}
+            onToggleAltHold={handleToggleAltHold}
+            stickState={stickState}
+            onArm={() => orchestratorRef.current?.arm()}
+            onDisarm={() => orchestratorRef.current?.disarm()}
+          />
+        )}
       </div>
 
-      {/* 4. RIGHT SIDEBAR: Educational Insights Inspector */}
+      {/* 4. RIGHT SIDEBAR: Avionics Info Inspector (Only in Avionics Lab mode) */}
       <AnimatePresence>
-        {selectedData && !immersiveMode && (
+        {currentMode !== 'flight' && selectedData && !immersiveMode && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 380, opacity: 1 }}
@@ -469,10 +595,6 @@ function App() {
                   
                   const handleToggleProp = () => {
                     associatedMotors.forEach(m => {
-                      const active = activeMotors[m];
-                      if (active !== isSpinning) {
-                        // align states
-                      }
                       toggleMotor(m);
                     });
                   };
@@ -622,9 +744,9 @@ function App() {
         )}
       </AnimatePresence>
 
-      {/* 5. IMMERSIVE / VR HUD OVERLAY */}
+      {/* 5. IMMERSIVE / VR HUD OVERLAY (Only for Avionics Lab free look) */}
       <AnimatePresence>
-        {immersiveMode && (
+        {currentMode !== 'flight' && immersiveMode && (
           <motion.div
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -660,6 +782,40 @@ function App() {
               </button>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 6. MODE SELECTION OVERHEAD RIBBON (Visible in normal panels) */}
+      <AnimatePresence>
+        {!immersiveMode && (
+          <motion.header
+            initial={{ y: -40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-950/85 backdrop-blur-md border border-slate-800/80 p-1.5 rounded-2xl flex gap-1.5 pointer-events-auto z-20 shadow-2xl"
+          >
+            <button
+              onClick={() => setMode('explore')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
+                currentMode === 'explore' || currentMode === 'learning' || currentMode === 'inspect'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+              }`}
+            >
+              <Cpu className="w-4 h-4" />
+              <span>Avionics & Component Lab</span>
+            </button>
+            <button
+              onClick={() => setMode('flight')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
+                currentMode === 'flight'
+                  ? 'bg-orange-600 text-white shadow-lg shadow-orange-500/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+              }`}
+            >
+              <Gamepad2 className="w-4 h-4" />
+              <span>Pilot Simulator</span>
+            </button>
+          </motion.header>
         )}
       </AnimatePresence>
 

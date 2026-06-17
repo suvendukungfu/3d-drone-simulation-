@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { useGLTF, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useDroneStore } from '../store/useDroneStore';
@@ -75,9 +75,21 @@ export function getComponentIdByMeshName(meshName: string): string | null {
   return null;
 }
 
-export function PlutoXModel() {
+interface PlutoXModelProps {
+  isFlightMode?: boolean;
+  onLoad?: (scene: THREE.Group) => void;
+}
+
+export function PlutoXModel({ isFlightMode = false, onLoad }: PlutoXModelProps = {}) {
   const { scene: originalScene } = useGLTF('/models/plutox.glb');
   const scene = useMemo(() => originalScene.clone(true), [originalScene]);
+
+  useEffect(() => {
+    if (scene && onLoad) {
+      onLoad(scene);
+    }
+  }, [scene, onLoad]);
+  const currentMode = useDroneStore((state) => state.currentMode);
   const hoveredComponent = useDroneStore((state) => state.hoveredComponent);
   const selectedComponent = useDroneStore((state) => state.selectedComponent);
   const isExploded = useDroneStore((state) => state.isExploded);
@@ -98,9 +110,12 @@ export function PlutoXModel() {
   const meshCache = useMemo(() => {
     const list: {
       mesh: THREE.Mesh;
-      originalOpacity: number;
-      originalTransparent: boolean;
-      originalEmissive: THREE.Color;
+      materials: {
+        mat: THREE.MeshStandardMaterial;
+        originalOpacity: number;
+        originalTransparent: boolean;
+        originalEmissive: THREE.Color;
+      }[];
       componentId: string | null;
       motorKey: 'motor1' | 'motor2' | 'motor3' | 'motor4' | null;
       cornerIndex: 1 | 2 | 3 | 4;
@@ -111,7 +126,36 @@ export function PlutoXModel() {
     scene.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         // Clone material so we can highlight/opacity-shift individual meshes
-        child.material = child.material.clone();
+        let materials: {
+          mat: THREE.MeshStandardMaterial;
+          originalOpacity: number;
+          originalTransparent: boolean;
+          originalEmissive: THREE.Color;
+        }[] = [];
+
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material = child.material.map((m: THREE.Material) => m.clone());
+            materials = child.material.map((m: THREE.Material) => {
+              const standardMat = m as THREE.MeshStandardMaterial;
+              return {
+                mat: standardMat,
+                originalOpacity: standardMat.opacity ?? 1,
+                originalTransparent: standardMat.transparent ?? false,
+                originalEmissive: standardMat.emissive ? standardMat.emissive.clone() : new THREE.Color(0, 0, 0)
+              };
+            });
+          } else {
+            child.material = child.material.clone();
+            const standardMat = child.material as THREE.MeshStandardMaterial;
+            materials = [{
+              mat: standardMat,
+              originalOpacity: standardMat.opacity ?? 1,
+              originalTransparent: standardMat.transparent ?? false,
+              originalEmissive: standardMat.emissive ? standardMat.emissive.clone() : new THREE.Color(0, 0, 0)
+            }];
+          }
+        }
 
         // Climb up parent chain to resolve component mapping
         let componentId: string | null = null;
@@ -147,13 +191,9 @@ export function PlutoXModel() {
           }
         }
 
-        const mat = child.material as THREE.MeshStandardMaterial;
-
         list.push({
           mesh: child,
-          originalOpacity: mat.opacity,
-          originalTransparent: mat.transparent,
-          originalEmissive: mat.emissive ? mat.emissive.clone() : new THREE.Color(0,0,0),
+          materials,
           componentId,
           motorKey,
           cornerIndex: matchedCorner
@@ -268,6 +308,8 @@ export function PlutoXModel() {
 
   // Main animation frame loop
   useFrame((_, delta) => {
+    if (currentMode === 'flight') return;
+    
     // 1. Exploded view calculations
     explodeTargets.forEach(({ object, originalX, originalY, originalZ }) => {
       let targetX = originalX;
@@ -292,44 +334,47 @@ export function PlutoXModel() {
     });
 
     // 2. High-performance material updates, glows, and propeller/motor casing spins
-    meshCache.forEach(({ mesh, originalOpacity, originalTransparent, originalEmissive, componentId, motorKey, cornerIndex }) => {
-      const mat = mesh.material as THREE.MeshStandardMaterial;
+    meshCache.forEach(({ mesh, materials, componentId, motorKey, cornerIndex }) => {
       const isHovered = componentId && hoveredComponent === componentId;
       const isSelected = componentId && selectedComponent === componentId;
       const isRunning = motorKey && activeMotors[motorKey];
 
-      // A. Emissive glows
-      if (isHovered) {
-        mat.emissive.setHex(0x00A3FF); // Cyan hover glow
-        mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 0.8, delta * 12);
-      } else if (isSelected) {
-        mat.emissive.setHex(0x00FF88); // Green selection glow
-        mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 1.2, delta * 12);
-      } else if (isRunning) {
-        mat.emissive.setHex(0xFF7700); // Orange motor running glow
-        mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 1.0, delta * 10);
-      } else {
-        mat.emissive.copy(originalEmissive);
-        mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 0.0, delta * 8);
-      }
+      materials.forEach(({ mat, originalOpacity, originalTransparent, originalEmissive }) => {
+        // A. Emissive glows
+        if (mat.emissive) {
+          if (isHovered) {
+            mat.emissive.setHex(0x00A3FF); // Cyan hover glow
+            mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 0.8, delta * 12);
+          } else if (isSelected) {
+            mat.emissive.setHex(0x00FF88); // Green selection glow
+            mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 1.2, delta * 12);
+          } else if (isRunning) {
+            mat.emissive.setHex(0xFF7700); // Orange motor running glow
+            mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 1.0, delta * 10);
+          } else {
+            mat.emissive.copy(originalEmissive);
+            mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 0.0, delta * 8);
+          }
+        }
 
-      // B. Isolation opacity shifting
-      if (isolationMode && selectedComponent) {
-        const isComponentPart = componentId === selectedComponent;
-        mat.transparent = true;
-        mat.opacity = THREE.MathUtils.lerp(mat.opacity, isComponentPart ? 1.0 : 0.05, delta * 8);
-      } else {
-        mat.transparent = originalTransparent;
-        mat.opacity = THREE.MathUtils.lerp(mat.opacity, originalOpacity, delta * 8);
-      }
+        // B. Isolation opacity shifting
+        if (isolationMode && selectedComponent) {
+          const isComponentPart = componentId === selectedComponent;
+          mat.transparent = true;
+          mat.opacity = THREE.MathUtils.lerp(mat.opacity, isComponentPart ? 1.0 : 0.05, delta * 8);
+        } else {
+          mat.transparent = originalTransparent;
+          mat.opacity = THREE.MathUtils.lerp(mat.opacity, originalOpacity, delta * 8);
+        }
+      });
 
       // C. Active propeller/motor casing rotation (spinning around local Z axis)
       const shouldSpin = componentId && (componentId.startsWith('propellerA') || componentId.startsWith('propellerB') || componentId.startsWith('motor'));
       if (isRunning && shouldSpin) {
         const rpm = motorRPMs[motorKey];
         if (rpm > 0) {
-          // CW (1 & 4) vs CCW (2 & 3)
-          const direction = (cornerIndex === 1 || cornerIndex === 4) ? -1 : 1;
+          // CW (2 & 3) vs CCW (1 & 4)
+          const direction = (cornerIndex === 2 || cornerIndex === 3) ? -1 : 1;
           const rotationSpeed = (rpm / 60) * Math.PI * 2 * delta * 0.02;
           
           const spinKey = `${mesh.uuid}`;
@@ -350,10 +395,10 @@ export function PlutoXModel() {
 
   // Coordinates of the 4 propellers in world space (at scale 18.0)
   const propLocations = [
-    { corner: 1, label: 'FL (CW)', pos: [-0.48 * 18, 0.12 * 18, 0.48 * 18] as [number, number, number], active: activeMotors.motor1 },
-    { corner: 2, label: 'FR (CCW)', pos: [0.48 * 18, 0.12 * 18, 0.48 * 18] as [number, number, number], active: activeMotors.motor2 },
-    { corner: 3, label: 'RL (CCW)', pos: [-0.48 * 18, 0.12 * 18, -0.48 * 18] as [number, number, number], active: activeMotors.motor3 },
-    { corner: 4, label: 'RR (CW)', pos: [0.48 * 18, 0.12 * 18, -0.48 * 18] as [number, number, number], active: activeMotors.motor4 },
+    { corner: 1, label: 'FL (CCW)', pos: [-0.48 * 18, 0.12 * 18, 0.48 * 18] as [number, number, number], active: activeMotors.motor1 },
+    { corner: 2, label: 'FR (CW)', pos: [0.48 * 18, 0.12 * 18, 0.48 * 18] as [number, number, number], active: activeMotors.motor2 },
+    { corner: 3, label: 'RL (CW)', pos: [-0.48 * 18, 0.12 * 18, -0.48 * 18] as [number, number, number], active: activeMotors.motor3 },
+    { corner: 4, label: 'RR (CCW)', pos: [0.48 * 18, 0.12 * 18, -0.48 * 18] as [number, number, number], active: activeMotors.motor4 },
   ];
 
 
@@ -361,8 +406,8 @@ export function PlutoXModel() {
     <>
       <primitive
         object={scene}
-        scale={18.0}
-        position={[0, -0.5, 0]}
+        scale={isFlightMode ? 1.0 : 18.0}
+        position={isFlightMode ? [0, 0, 0] : [0, -0.5, 0]}
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
         onClick={handleClick}
