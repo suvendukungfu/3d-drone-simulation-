@@ -1,3 +1,23 @@
+/**
+ * SensorSimulation.ts
+ * ───────────────────
+ * Realistic IMU, barometer, and magnetometer noise simulation.
+ *
+ * Noise Models:
+ *   - Gyroscope:      Additive white Gaussian noise + random-walk bias drift.
+ *   - Accelerometer:  Additive white Gaussian noise + random-walk bias drift.
+ *   - Barometer:      Gaussian altitude noise + slow-drift random walk.
+ *   - Magnetometer:   Gaussian noise on body-frame earth magnetic field vector.
+ *
+ * Calibration Pipeline:
+ *   1. On power-up, the sensor system enters a calibration phase (2 seconds).
+ *   2. During calibration, gyro and accelerometer samples are accumulated.
+ *   3. After 120 samples (at 60 Hz), bias offsets are computed and subtracted.
+ *   4. If the drone moves during calibration, a failure is triggered.
+ *   5. Force-calibration is available for simulator reset scenarios.
+ *
+ * Gaussian noise is generated via Box-Muller transform (zero allocation).
+ */
 import * as THREE from 'three';
 import { DroneSensorData, RigidBodyState } from './types';
 
