@@ -4,6 +4,8 @@ import { FlightScene } from './components/FlightScene';
 import { TelemetryDashboard } from './components/UI/TelemetryDashboard';
 import { TrainingMissionSystem } from './components/UI/TrainingMissionSystem';
 import { useDroneStore } from './store/useDroneStore';
+import { IntroOverlay } from './components/UI/IntroOverlay';
+import { ARSimulator } from './components/UI/ARSimulator';
 import { droneComponents } from './data/droneComponents';
 import { SimulatorOrchestrator } from './utils/drone/SimulatorOrchestrator';
 import { Checkpoint } from './utils/drone/types';
@@ -168,6 +170,7 @@ function App() {
 
   return (
     <div className="w-full h-full relative overflow-hidden bg-[#070a13] font-sans antialiased text-white select-none flex">
+      <ARSimulator />
       
       {/* 1. IMMERSIVE GLB LOADING PROGRESS BAR */}
       <AnimatePresence>
@@ -213,7 +216,7 @@ function App() {
           />
         ) : (
           // B. PRE-FLIGHT AVIONICS DIAGNOSTICS PANELS (INSPECTION MODE)
-          !immersiveMode && (
+          currentMode !== 'home' && !immersiveMode && (
             <motion.div
               key="explore-sidebar"
               initial={{ width: 0, opacity: 0 }}
@@ -224,7 +227,15 @@ function App() {
               className="h-full bg-slate-950/80 backdrop-blur-md border-r border-slate-800/80 z-10 flex flex-col justify-between shrink-0"
             >
               <div className="w-[320px] p-5 h-full flex flex-col justify-between overflow-y-auto scrollbar-thin scrollbar-thumb-slate-850">
-                <div className="space-y-6">
+                <div className="space-y-4">
+                  {/* Back to Home CTA */}
+                  <button
+                    onClick={() => setMode('home')}
+                    className="w-full py-2 bg-slate-950 border border-slate-850 hover:bg-slate-900 hover:border-slate-800 text-[10px] font-mono font-bold uppercase tracking-widest rounded-lg transition flex items-center justify-center gap-1.5"
+                  >
+                    ← Back to Main Menu
+                  </button>
+
                   {/* Mode Switcher Tabs */}
                   <div className="flex items-center gap-2">
                     <div className="flex-1 flex bg-slate-900/60 p-1 rounded-lg border border-slate-850 text-[10px] font-bold uppercase tracking-wider">
@@ -787,7 +798,7 @@ function App() {
 
       {/* 6. MODE SELECTION OVERHEAD RIBBON (Visible in normal panels) */}
       <AnimatePresence>
-        {!immersiveMode && (
+        {!immersiveMode && currentMode !== 'home' && (
           <motion.header
             initial={{ y: -40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -818,6 +829,9 @@ function App() {
           </motion.header>
         )}
       </AnimatePresence>
+
+      {/* 7. HOME SCREEN MAIN NAVIGATION HUB */}
+      <IntroOverlay />
 
       {/* Decorative top-edge accent line */}
       <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-blue-500/25 to-transparent pointer-events-none z-10" />

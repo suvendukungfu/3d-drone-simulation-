@@ -1,9 +1,50 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useDroneStore } from '../../store/useDroneStore';
-import { Award, CheckCircle, Circle, AlertCircle, Sparkles, Navigation, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Award, CheckCircle, Circle, AlertCircle, Sparkles, Navigation, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { MissionDef, Checkpoint } from '../../utils/drone/types';
 import { SimulatorOrchestrator } from '../../utils/drone/SimulatorOrchestrator';
+
+// Define the 5 Levels curriculum as specified in the PDF
+export interface LevelDef {
+  levelNumber: number;
+  title: string;
+  description: string;
+  moduleIndex: number;
+}
+
+export const LEVELS: LevelDef[] = [
+  {
+    levelNumber: 1,
+    title: 'Level 1: Pre-Flight Check',
+    description: 'Arm the PlutoX system (Spacebar) and connect the simulated motors safely.',
+    moduleIndex: 4 // Module 5: Arm & Disarm
+  },
+  {
+    levelNumber: 2,
+    title: 'Level 2: Liftoff & Hover',
+    description: 'Stabilize in throttle hover at 1.0 - 1.5 meters altitude for 5 seconds.',
+    moduleIndex: 6 // Module 7: Hover Arena
+  },
+  {
+    levelNumber: 3,
+    title: 'Level 3: Pitch and Roll',
+    description: 'Pitch/roll around the arena to reach the waypoint and return to home pad.',
+    moduleIndex: 8 // Module 9: Translation Arena
+  },
+  {
+    levelNumber: 4,
+    title: 'Level 4: Yaw Control',
+    description: 'Maintain altitude and yaw rotate to face North, East, South, and West.',
+    moduleIndex: 7 // Module 8: Yaw Arena
+  },
+  {
+    levelNumber: 5,
+    title: 'Level 5: The Final Exam',
+    description: 'Fly through 3 elevated neon obstacle hoops sequentially under 60 seconds.',
+    moduleIndex: 10 // Module 11: Certification Assessment
+  }
+];
 
 // Define the 11 guided academy modules
 export const MISSIONS: MissionDef[] = [
@@ -233,6 +274,7 @@ export function TrainingMissionSystem({
   const isAcademyOpen = useDroneStore((state) => state.isAcademyOpen);
   const toggleAcademy = useDroneStore((state) => state.toggleAcademy);
   const droneInitFailed = useDroneStore((state) => state.droneInitFailed);
+  const unlockedLevels = useDroneStore((state) => state.unlockedLevels);
   
   // Bench states
   const stickInputsTested = useDroneStore((state) => state.stickInputsTested);
@@ -433,6 +475,12 @@ export function TrainingMissionSystem({
         clearInterval(interval);
         if (examTimerRef.current) clearInterval(examTimerRef.current);
         
+        // Unlock next level in progression
+        const matchedLevel = LEVELS.find(l => l.moduleIndex === activeMissionIndex);
+        if (matchedLevel) {
+          useDroneStore.getState().completeLevelAction(matchedLevel.levelNumber - 1);
+        }
+
         // Award Pilot Certification upon Module 11 completion!
         if (activeMissionIndex === 10) {
           earnCertification(true);
@@ -453,9 +501,15 @@ export function TrainingMissionSystem({
   }, [activeMissionIndex, checkpoints, missionStatus, examTimer, earnCertification, telemetry.isArmed, telemetry.altitude]);
 
   const handleNextMission = () => {
-    if (activeMissionIndex < 10) {
-      selectMission(activeMissionIndex + 1);
+    const currentLevel = LEVELS.find(l => l.moduleIndex === activeMissionIndex);
+    if (currentLevel) {
+      const nextLevel = LEVELS.find(l => l.levelNumber === currentLevel.levelNumber + 1);
+      if (nextLevel) {
+        selectMission(nextLevel.moduleIndex);
+        return;
+      }
     }
+    selectMission(-1);
   };
 
   const handleRestartMission = () => {
@@ -507,24 +561,52 @@ export function TrainingMissionSystem({
           </h2>
         </div>
 
-        {/* 1. MISSION LIST */}
+        {/* 1. LEVEL PROGRESSION SELECTOR */}
         {activeMissionIndex < 0 ? (
-          <div className="space-y-2.5">
+          <div className="space-y-3.5">
+            <button
+              onClick={() => useDroneStore.getState().setMode('home')}
+              className="w-full py-2.5 bg-slate-950 border border-slate-800/80 hover:bg-slate-900 hover:border-slate-700 text-[10px] font-mono font-bold uppercase tracking-widest rounded-xl transition flex items-center justify-center gap-2 pointer-events-auto shadow-md"
+            >
+              ← Back to Main Menu
+            </button>
+
             <span className="text-[10px] text-slate-500 font-mono tracking-widest uppercase block mb-1">
               Select Lesson
             </span>
-            <div className="space-y-1.5">
-              {MISSIONS.map((mission, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => selectMission(idx)}
-                  disabled={droneInitFailed}
-                  className="w-full text-left p-3 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-850/80 text-xs text-slate-300 hover:text-white transition-all flex items-center gap-3 disabled:opacity-40 disabled:hover:bg-slate-900/40 disabled:hover:text-slate-500 disabled:border-slate-900 disabled:cursor-not-allowed"
-                >
-                  <Circle className="w-4 h-4 text-slate-600 shrink-0" />
-                  <span className="font-semibold uppercase tracking-wide truncate">{mission.title}</span>
-                </button>
-              ))}
+            
+            <div className="space-y-2">
+              {LEVELS.map((level, idx) => {
+                const isUnlocked = unlockedLevels[idx];
+                return (
+                  <button
+                    key={level.levelNumber}
+                    onClick={() => isUnlocked && selectMission(level.moduleIndex)}
+                    disabled={droneInitFailed || !isUnlocked}
+                    className={`w-full text-left p-3 rounded-xl border transition-all flex items-start gap-3 pointer-events-auto ${
+                      isUnlocked
+                        ? 'bg-slate-900/40 hover:bg-slate-900 border-slate-850/85 text-slate-300 hover:text-white shadow-sm'
+                        : 'bg-slate-950/20 border-slate-900/40 text-slate-600 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    <div className="mt-0.5 shrink-0">
+                      {isUnlocked ? (
+                        <Circle className="w-4 h-4 text-cyan-500" />
+                      ) : (
+                        <Lock className="w-4 h-4 text-slate-700" />
+                      )}
+                    </div>
+                    <div>
+                      <span className="font-extrabold uppercase tracking-wider text-[11px] block">
+                        {level.title}
+                      </span>
+                      <span className="text-[9px] text-slate-500 font-light mt-1 block leading-normal">
+                        {level.description}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : (
@@ -812,7 +894,7 @@ export function TrainingMissionSystem({
             PlutoX UAV Certification
           </h3>
           <p className="text-[10px] text-slate-400 leading-relaxed font-light mt-1.5">
-            Congratulations! You have completed all 11 training modules and passed the certification exam.
+            Congratulations! You have completed all 5 pilot training levels and passed the certification exam.
           </p>
           <div className="border border-emerald-500/20 bg-emerald-950/10 py-1.5 px-3 rounded-lg text-[9px] font-mono text-emerald-400 mt-3.5 uppercase tracking-widest font-bold">
             UAV PILOT CERTIFIED

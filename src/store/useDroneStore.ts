@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { sound } from '../utils/soundController';
 import { TelemetryData } from '../utils/drone/types';
 
-export type AppMode = 'explore' | 'inspect' | 'learning' | 'flight';
+export type AppMode = 'home' | 'explore' | 'inspect' | 'learning' | 'flight';
 export type CameraView = 'orbit' | 'inspect' | 'top' | 'bottom' | 'left' | 'right' | 'front' | 'back';
 export type FlightCameraView = 'chase' | 'fpv' | 'orbit';
 export type FlightEnvironment = 'room' | 'lab' | 'classroom' | 'warehouse' | 'field' | 'course';
@@ -193,18 +193,29 @@ interface DroneState {
   setAppLinkStatus: (status: AppLinkStatus) => void;
   addTelemetryPacket: (packet: string) => void;
   clearTelemetryPackets: () => void;
+  // --- LEVEL PROGRESSION & MODAL STATES ---
+  unlockedLevels: boolean[];
+  completeLevelAction: (levelIndex: number) => void;
+  isFlightSimModalOpen: boolean;
+  setFlightSimModalOpen: (open: boolean) => void;
+  isARActive: boolean;
+  setARActive: (active: boolean) => void;
 }
 
 export const useDroneStore = create<DroneState>((set, get) => ({
   // Core Exploration Lab
-  currentMode: 'explore',
+  currentMode: 'home',
   hoveredComponent: null,
   selectedComponent: null,
   isExploded: false,
   isolationMode: false,
+
+  unlockedLevels: [true, false, false, false, false],
+  isFlightSimModalOpen: false,
+  isARActive: false,
   
   cameraView: 'orbit',
-  autoRotate: false,
+  autoRotate: true,
   immersiveMode: false,
   vrMode: false,
   vrCameraPosition: [5.0, 3.5, 6.0],
@@ -285,7 +296,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       hoveredComponent: null,
       isExploded: false,
       cameraView: 'orbit',
-      autoRotate: false,
+      autoRotate: mode === 'home',
       learningStatus: mode === 'learning' ? 'identifying' : 'idle'
     });
   },
@@ -645,7 +656,24 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   setModelDiagnostics: (diagnostics) => set({ modelDiagnostics: diagnostics }),
   setDroneSpawnDiagnostics: (diagnostics) => set({ droneSpawnDiagnostics: diagnostics }),
   setDroneInitFailed: (failed) => set({ droneInitFailed: failed }),
-  toggleSpawnDebugMode: () => set((state) => ({ isSpawnDebugMode: !state.isSpawnDebugMode }))
+  toggleSpawnDebugMode: () => set((state) => ({ isSpawnDebugMode: !state.isSpawnDebugMode })),
+  
+  // --- LEVEL PROGRESSION & MODAL ACTIONS ---
+  completeLevelAction: (levelIndex) => set((state) => {
+    const nextLevels = [...state.unlockedLevels];
+    if (levelIndex + 1 < nextLevels.length) {
+      nextLevels[levelIndex + 1] = true;
+    }
+    return { unlockedLevels: nextLevels };
+  }),
+  setFlightSimModalOpen: (open) => {
+    sound.playClick();
+    set({ isFlightSimModalOpen: open });
+  },
+  setARActive: (active) => {
+    sound.playClick();
+    set({ isARActive: active });
+  }
 }));
 
 // Fluctuates RPM of active diagnostic motors in Explore mode
