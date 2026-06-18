@@ -49,10 +49,22 @@ export interface TelemetryData {
   yaw: number;                  // degrees
   heading: number;              // degrees (0-360)
   motorRPMs: [number, number, number, number];
-  battery: number;              // 0 to 100
+
+  // ── Battery (enhanced) ────────────────────────────────────────────────────
+  battery: number;              // 0 to 100 (State of Charge %)
+  batteryVoltage: number;       // Terminal voltage under load (Volts)
+  batteryCurrent: number;       // Estimated current draw (Amperes)
+  batteryMahUsed: number;       // Cumulative mAh consumed
+  isBatteryCritical: boolean;   // True when voltage < 3.40V
+
+  // ── Timing ────────────────────────────────────────────────────────────────
   flightTime: number;           // seconds
+
+  // ── System Health ─────────────────────────────────────────────────────────
   sensorError: boolean;
   calibrationActive: boolean;
+  linkQuality: number;          // 0-100 RSSI-like link quality
+  gpsSatsLocked: number;        // 0-8 GPS satellite count
 }
 
 export interface Checkpoint {
