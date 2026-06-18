@@ -1,18 +1,37 @@
 import * as THREE from 'three';
 import { RigidBodyState, TelemetryData } from './types';
+import { BatteryModel } from './BatteryModel';
 
 export class TelemetryEngine {
-  private batteryPct = 100.0;
+  // ── Battery model (replaces simple linear drain) ──────────────────────────
+  private batteryModel = new BatteryModel();
+
+  // ── Flight timing ────────────────────────────────────────────────────────
   private flightTime = 0.0;
-  private maxFlightDuration = 480.0; // 8 minutes max flight time
+
+  // ── Compass calibration offset ───────────────────────────────────────────
   private yawOffset = 0.0;
-  
+
+  // ── Link Quality simulation (RSSI-like 0–100) ─────────────────────────────
+  // Degrades stochastically when altitude > 8m or speed > 3 m/s
+  private linkQuality = 100;
+  private linkNoiseTime = 0;
+
+  // ── GPS lock simulation ───────────────────────────────────────────────────
+  // Satellites locked increase from 0 → 8 over first 20 s of session.
+  private gpsSatsLocked = 0;
+  private gpsTimer = 0;
+
   constructor() {}
-  
+
   public reset(): void {
-    this.batteryPct = 100.0;
+    this.batteryModel.reset();
     this.flightTime = 0.0;
     this.yawOffset = 0.0;
+    this.linkQuality = 100;
+    this.linkNoiseTime = 0;
+    this.gpsSatsLocked = 0;
+    this.gpsTimer = 0;
   }
   
   public setYawOffset(offset: number): void {
@@ -31,14 +50,24 @@ export class TelemetryEngine {
     // 1. Flight time increments when armed
     if (isArmed && !calibrationActive) {
       this.flightTime += dt;
-      
-      // 2. Battery drainage: idle draw is small, full motor draw is large
-      const totalMotorLoad = motorCommands.reduce((sum, val) => sum + val, 0); // 0 to 4
-      const baseConsumptionRate = 100.0 / this.maxFlightDuration; // ~0.208% per sec at average load
-      const currentConsumption = baseConsumptionRate * (0.15 + 0.85 * (totalMotorLoad / 4.0));
-      
-      this.batteryPct = Math.max(0.0, this.batteryPct - currentConsumption * dt);
     }
+
+    // 2. Physics-accurate battery drain via LiPo OCV/SoC model
+    const batterySnapshot = this.batteryModel.update(motorCommands, isArmed && !calibrationActive, dt);
+
+    // 3. GPS satellite acquisition (simulates cold-start lock)
+    this.gpsTimer += dt;
+    if (this.gpsSatsLocked < 8) {
+      this.gpsSatsLocked = Math.min(8, Math.floor(this.gpsTimer / 2.5));
+    }
+
+    // 4. Link quality simulation — mild stochastic noise
+    this.linkNoiseTime += dt;
+    const altitudePenalty = Math.max(0, (state.position.y - 8) * 2.0);
+    const speedPenalty = Math.max(0, (new THREE.Vector3(state.velocity.x, 0, state.velocity.z).length() - 3) * 3.0);
+    const baseLink = Math.max(60, 100 - altitudePenalty - speedPenalty);
+    const linkNoise = Math.sin(this.linkNoiseTime * 3.7) * 3 + Math.sin(this.linkNoiseTime * 11.3) * 2;
+    this.linkQuality = Math.round(Math.max(60, Math.min(100, baseLink + linkNoise)));
     
     // 3. Compute pitch, roll, yaw (in degrees) from quaternion
     const euler = new THREE.Euler().setFromQuaternion(state.quaternion, 'YXZ');
@@ -84,14 +113,26 @@ export class TelemetryEngine {
       yaw: yawDeg,
       heading,
       motorRPMs: rpms,
-      battery: Math.round(this.batteryPct),
+      battery: batterySnapshot.percentage,
+      batteryVoltage: batterySnapshot.voltage,
+      batteryCurrent: batterySnapshot.currentA,
+      batteryMahUsed: batterySnapshot.mAhUsed,
+      isBatteryCritical: batterySnapshot.isCritical,
       flightTime: Math.round(this.flightTime),
       sensorError,
-      calibrationActive
+      calibrationActive,
+      linkQuality: this.linkQuality,
+      gpsSatsLocked: this.gpsSatsLocked,
     };
   }
   
+  /** Returns battery percentage (0–100) for orchestrator failsafe checks. */
   public getBattery(): number {
-    return this.batteryPct;
+    return this.batteryModel.getPercentage();
+  }
+
+  /** Returns motor thrust derate factor [0.7–1.0] due to voltage sag. */
+  public getThrustDerateFactor(): number {
+    return this.batteryModel.getThrustDerateFactor();
   }
 }
