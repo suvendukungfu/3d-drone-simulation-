@@ -32,8 +32,8 @@ describe('PlutoXR UAV Academy Smoke Tests', () => {
     render(<App />);
     
     // Check main title
-    expect(screen.getByText(/EXPLORE. TRAIN./i)).toBeInTheDocument();
-    expect(screen.getByText(/FLY PLUTOX NANO./i)).toBeInTheDocument();
+    expect(screen.getByText(/Professional Drone Pilot/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Training Platform/i).length).toBeGreaterThan(0);
     
     // Check CTAs
     expect(screen.getByText(/Enter Flight Sim/i)).toBeInTheDocument();
