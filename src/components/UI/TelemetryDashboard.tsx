@@ -160,7 +160,7 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
 
       {/* Floating Quest Checklist Overlay (visible when sidebar is closed) */}
       {activeMissionIndex >= 0 && !isAcademyOpen && showChecklist && (
-        <div className="absolute top-20 left-4 bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-4 rounded-xl w-64 shadow-[0_8px_25px_rgba(0,0,0,0.03)] pointer-events-auto z-20 flex flex-col gap-2.5">
+        <div className="hidden md:flex absolute top-20 left-4 bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-4 rounded-xl w-64 shadow-[0_8px_25px_rgba(0,0,0,0.03)] pointer-events-auto z-20 flex-col gap-2.5">
           <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800/80 pb-1.5">
             <Award className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider truncate">
@@ -190,7 +190,7 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
         
         {/* Left Side: Diagnostics and Calibration Status */}
         {showTelemetryDashboard ? (
-          <div className="flex flex-col gap-2">
+          <div className="hidden md:flex flex-col gap-2">
             <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl flex items-center gap-4 shadow-[0_8px_25px_rgba(0,0,0,0.02)]">
               <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400">
                 <Cpu className="w-5 h-5" />
@@ -239,7 +239,7 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
 
         {/* Center: Heading Tape & Artificial Horizon Pitch indicators */}
         {showTelemetryDashboard ? (
-          <div className="flex flex-col items-center flex-1 max-w-[400px]">
+          <div className="hidden md:flex flex-col items-center flex-1 max-w-[400px]">
             {/* Compass Ribbon */}
             <div className="w-full bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 h-12 rounded-xl relative overflow-hidden flex flex-col justify-between items-center shadow-[0_8px_25px_rgba(0,0,0,0.02)] pt-1">
               <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent"></div>
@@ -288,7 +288,7 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
         ) : <div className="flex-1" />}
 
         {/* Right Side: Battery, Arm State, Camera presets */}
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-start w-full md:w-auto gap-2">
           {/* Battery Status Panel */}
           {showTelemetryDashboard && (
             <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 rounded-xl flex items-center gap-3.5 shadow-[0_8px_25px_rgba(0,0,0,0.02)]">
@@ -351,7 +351,7 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
 
       {/* Collapsible Digital Twin AppLink Panel */}
       <div 
-        className={`absolute right-4 top-24 bottom-36 w-[280px] pointer-events-auto flex flex-col z-20 transition-all duration-350`}
+        className={`hidden md:flex absolute right-4 top-24 bottom-36 w-[280px] pointer-events-auto flex-col z-20 transition-all duration-350`}
         style={{
           transform: linkOpen ? 'translateX(0)' : 'translateX(242px)'
         }}
@@ -506,7 +506,7 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
       </div>
 
       {/* 3. BOTTOM PILOT CONTROLS HUD */}
-      <div className="w-full flex justify-between items-end pointer-events-auto gap-4">
+      <div className="hidden md:flex w-full justify-between items-end pointer-events-auto gap-4">
         
         {/* Left Side: Flight Mode Controller panel & HUD Toggles */}
         <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-2xl w-[280px] shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex flex-col gap-3">
