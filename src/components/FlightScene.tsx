@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, Component } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Environment, OrbitControls } from '@react-three/drei';
+import { Environment, OrbitControls, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
 import { useDroneStore } from '../store/useDroneStore';
 import { SimulatorOrchestrator } from '../utils/drone/SimulatorOrchestrator';
@@ -300,6 +300,25 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
   const modelLoadStatus = useDroneStore((state) => state.modelLoadStatus);
   const theme = useDroneStore((state) => state.theme);
   const isDark = theme === 'dark';
+  const envType = useDroneStore((state) => state.flightEnvironment);
+
+  // Dynamic fog config for realistic spatial depth and infinite horizon blending
+  const getFogConfig = () => {
+    if (envType === 'field') {
+      return {
+        color: isDark ? '#040712' : '#cbd5e1',
+        near: 15,
+        far: 45
+      };
+    }
+    return {
+      color: isDark ? '#070a13' : '#f1f5f9',
+      near: 8,
+      far: 25
+    };
+  };
+
+  const fogConfig = getFogConfig();
   const droneGroupRef = useRef<THREE.Group>(null);
   const shadowMeshRef = useRef<THREE.Mesh>(null);
   
@@ -472,13 +491,20 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
         camera={{ position: [0, 1.5, -2], fov: 50 }}
         gl={{ antialias: true, preserveDrawingBuffer: true }}
       >
-        <color attach="background" args={[isDark ? '#070a13' : '#F8FAFC']} />
+        <color attach="background" args={[fogConfig.color]} />
+        <fog attach="fog" args={[fogConfig.color, fogConfig.near, fogConfig.far]} />
         
         {/* Environment HDRI sky map */}
         <Environment preset="city" />
 
         {/* Studio and Outdoor Lighting — boosted for drone visibility */}
-        <ambientLight intensity={isDark ? 0.8 : 1.2} color={isDark ? '#e2e8f0' : '#ffffff'} />
+        <ambientLight intensity={isDark ? 0.4 : 0.6} color={isDark ? '#e2e8f0' : '#ffffff'} />
+        
+        <hemisphereLight
+          color={isDark ? '#3b82f6' : '#ffffff'}
+          groundColor={isDark ? '#070a13' : '#94a3b8'}
+          intensity={isDark ? 0.6 : 0.8}
+        />
         
         <directionalLight
           position={[15, 30, 15]}
@@ -494,6 +520,18 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
           intensity={0.7}
           color="#94a3b8"
         />
+
+        {/* Floating holographic data/telemetry particles */}
+        {isDark && (
+          <Sparkles
+            count={75}
+            scale={[16, 8, 16]}
+            size={1.2}
+            speed={0.15}
+            color="#60a5fa"
+            opacity={0.3}
+          />
+        )}
 
         {/* 3D Static Environments & Checkpoints */}
         <EnvironmentManager activeCheckpoints={activeCheckpoints} />
