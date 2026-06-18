@@ -3,8 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useDroneStore } from '../../store/useDroneStore';
 import { 
   Gamepad2, Cpu, GraduationCap, Camera, Box, X, 
-  Wifi, Cpu as CpuIcon, BatteryCharging, 
-  Orbit, Database, Radio, ClipboardList, Sun, Moon
+  Database, ClipboardList, Sun, Moon, ArrowRight
 } from 'lucide-react';
 
 export function IntroOverlay() {
@@ -17,19 +16,22 @@ export function IntroOverlay() {
   const theme = useDroneStore((state) => state.theme);
   const toggleTheme = useDroneStore((state) => state.toggleTheme);
 
-  const [mockPing, setMockPing] = useState(12);
-  const [mockCpu, setMockCpu] = useState(42);
-  const [mockLinkQuality, setMockLinkQuality] = useState(98);
+  const heroImages = [
+    '/plutox_hero_1.png',
+    '/plutox_hero_2.png',
+    '/plutox_hero_3.png',
+    '/plutox_hero_4.png',
+    '/plutox_hero_5.png'
+  ];
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
     if (currentMode !== 'home') return;
-    const interval = setInterval(() => {
-      setMockPing(Math.round(10 + Math.random() * 5));
-      setMockCpu(Math.round(38 + Math.random() * 8));
-      setMockLinkQuality(Math.round(96 + Math.random() * 4));
-    }, 1500);
-    return () => clearInterval(interval);
-  }, [currentMode]);
+    const slideshowTimer = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % heroImages.length);
+    }, 4500);
+    return () => clearInterval(slideshowTimer);
+  }, [currentMode, heroImages.length]);
 
   const handleEnterFlightSim = () => {
     setFlightSimModalOpen(true);
@@ -66,181 +68,464 @@ export function IntroOverlay() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.4 }}
-      className="absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-6 overflow-hidden select-none font-sans text-slate-800 dark:text-slate-200"
+      className="absolute inset-0 z-20 pointer-events-auto flex flex-col justify-between p-6 overflow-y-auto md:overflow-hidden select-none font-sans text-slate-800 dark:text-slate-200 bg-blueprint-grid bg-[#F8FAFC] dark:bg-[#070a13]"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(241,245,249,0.35)_95%)] dark:bg-[radial-gradient(circle_at_center,transparent_30%,rgba(7,10,19,0.55)_95%)] pointer-events-none" />
+      {/* Subtle Radial Gradients */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(59,130,246,0.02),transparent_70%)] dark:bg-[radial-gradient(circle_at_50%_30%,rgba(6,182,212,0.04),transparent_70%)] pointer-events-none" />
 
-      <header className="w-full flex flex-col md:flex-row gap-4 justify-between items-center pointer-events-auto bg-white/90 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 backdrop-blur-xl px-6 py-3 rounded-2xl relative shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
-        <div className="flex items-center gap-3 z-10">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-blue-500 to-cyan-400 flex items-center justify-center text-white font-black tracking-tighter shadow-md relative overflow-hidden group">
-            <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-            <Orbit className="w-5 h-5 animate-spin" style={{ animationDuration: '12s' }} />
-          </div>
-          <div>
-            <h1 className="text-md font-extrabold uppercase tracking-wider bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 dark:from-white dark:via-slate-100 dark:to-slate-350 bg-clip-text text-transparent flex items-center gap-1.5 leading-none">
-              PlutoXR <span className="text-[7.5px] bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 text-blue-600 dark:text-blue-400 font-bold px-1.5 py-0.5 rounded-full font-mono tracking-normal">ACTIVE TWIN</span>
-            </h1>
-            <span className="text-[7.5px] font-mono text-blue-600/80 dark:text-blue-450 uppercase tracking-widest block mt-1">
-              3D Autonomous Aerospace Simulator
-            </span>
-          </div>
-        </div>
+      {/* Dynamic Ambient Aerospace Layer (Ultra-subtle blueprint, trajectory, waypoints, radar) */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none opacity-[0.32] dark:opacity-[0.24]">
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes slow-radar {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          @keyframes waypoint-pulse {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(2.2); opacity: 0; }
+          }
+          .animate-radar-sweep {
+            transform-origin: center;
+            animation: slow-radar 120s linear infinite;
+          }
+          .pulse-ring {
+            transform-origin: center;
+            animation: waypoint-pulse 4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+          }
 
-        <div className="flex items-center gap-6 font-mono text-[9px] text-slate-500 dark:text-slate-400 uppercase z-10">
-          <div className="hidden lg:flex items-center gap-2 border-r border-slate-200 dark:border-slate-800 pr-6">
-            <CpuIcon className="w-3 h-3 text-blue-500" />
-            <span>FCS Load: <strong className="text-slate-800 dark:text-slate-200 font-bold">{mockCpu}%</strong></span>
-          </div>
-          <div className="hidden sm:flex items-center gap-2 border-r border-slate-200 dark:border-slate-800 pr-6">
-            <Wifi className="w-3 h-3 text-blue-500" />
-            <span>Link Quality: <strong className="text-blue-600 dark:text-blue-400 font-bold">{mockLinkQuality}% ({mockPing}ms)</strong></span>
-          </div>
-          <div className="flex items-center gap-2">
-            <BatteryCharging className="w-3 h-3 text-emerald-500 animate-pulse" />
-            <span>Battery: <strong className="text-slate-700 dark:text-slate-350 font-bold">12.6V (100%)</strong></span>
-          </div>
+          /* Animated Drone Keyframes */
+          @keyframes patrol-horizontal {
+            0% { transform: translate(250px, 150px) scale(0.55) rotate(90deg); }
+            45% { transform: translate(950px, 150px) scale(0.55) rotate(90deg); }
+            50% { transform: translate(950px, 150px) scale(0.55) rotate(270deg); }
+            95% { transform: translate(250px, 150px) scale(0.55) rotate(270deg); }
+            100% { transform: translate(250px, 150px) scale(0.55) rotate(450deg); }
+          }
+          @keyframes path-follow-1 {
+            0% { offset-distance: 0%; }
+            100% { offset-distance: 100%; }
+          }
+          @keyframes path-follow-2 {
+            0% { offset-distance: 0%; }
+            100% { offset-distance: 100%; }
+          }
+          @keyframes orbit-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          @keyframes hover-drift {
+            0% { transform: translate(450px, 800px) scale(1.30) rotate(0deg); }
+            20% { transform: translate(458px, 792px) scale(1.30) rotate(2deg); }
+            40% { transform: translate(442px, 805px) scale(1.30) rotate(-3deg); }
+            60% { transform: translate(455px, 808px) scale(1.30) rotate(1deg); }
+            80% { transform: translate(446px, 795px) scale(1.30) rotate(-1deg); }
+            100% { transform: translate(450px, 800px) scale(1.30) rotate(0deg); }
+          }
+
+          /* Drone Silhouette Styles */
+          .drone-silhouette {
+            transition: color 0.3s;
+          }
           
-          <div className="flex items-center gap-2 border-l border-slate-200 dark:border-slate-800 pl-4">
-            <button
-              onClick={toggleTheme}
-              className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-850 transition-all shadow-sm flex items-center justify-center shrink-0"
-              title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-            >
-              {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-            </button>
-          </div>
+          /* Light Mode Colors (Aerospace Blue) and Opacities (Increased for high visibility) */
+          .drone-1 {
+            color: #2563eb;
+            opacity: 0.55; /* Net: ~17.6% */
+            animation: patrol-horizontal 28s ease-in-out infinite;
+          }
+          .drone-2 {
+            color: #2563eb;
+            opacity: 0.65; /* Net: ~20.8% */
+            offset-path: path('M 100,100 C 600,-50 1100,400 1800,150');
+            offset-rotate: auto 90deg;
+            animation: path-follow-1 32s ease-in-out infinite alternate;
+          }
+          .drone-3 {
+            color: #2563eb;
+            opacity: 0.50; /* Net: ~16% */
+            animation: orbit-spin 26s linear infinite;
+            transform-origin: 0px 0px;
+          }
+          .drone-4 {
+            color: #2563eb;
+            opacity: 0.72; /* Net: ~23% */
+            animation: hover-drift 22s ease-in-out infinite;
+          }
+          .drone-5 {
+            color: #2563eb;
+            opacity: 0.60; /* Net: ~19.2% */
+            offset-path: path('M 150,950 C 450,600 1350,900 1750,100');
+            offset-rotate: auto 90deg;
+            animation: path-follow-2 38s ease-in-out infinite alternate;
+          }
+
+          /* Dark Mode Colors and Opacities (Increased for high visibility) */
+          .dark .drone-1 { color: #06b6d4; opacity: 0.75; } /* Net: ~18.0% */
+          .dark .drone-2 { color: #06b6d4; opacity: 0.88; } /* Net: ~21.1% */
+          .dark .drone-3 { color: #06b6d4; opacity: 0.67; } /* Net: ~16.0% */
+          .dark .drone-4 { color: #06b6d4; opacity: 0.96; } /* Net: ~23.0% */
+          .dark .drone-5 { color: #06b6d4; opacity: 0.80; } /* Net: ~19.2% */
+        ` }} />
+
+        <svg
+          width="100%"
+          height="100%"
+          viewBox="0 0 1920 1080"
+          preserveAspectRatio="xMidYMid slice"
+          className="w-full h-full text-slate-500/10 dark:text-cyan-500/10 fill-none"
+        >
+          <defs>
+            <linearGradient id="radarGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
+              <stop offset="100%" stopColor="currentColor" stopOpacity="0.4" />
+            </linearGradient>
+
+            {/* Reusable Quadcopter Blueprint Outline */}
+            <g id="drone-blueprint" stroke="currentColor" fill="none">
+              {/* Central core ring */}
+              <circle cx="0" cy="0" r="18" strokeWidth="1" />
+              <circle cx="0" cy="0" r="8" strokeWidth="0.6" strokeDasharray="1 1" />
+              {/* Arms */}
+              <line x1="-12" y1="-12" x2="-45" y2="-45" strokeWidth="1" />
+              <line x1="12" y1="-12" x2="45" y2="-45" strokeWidth="1" />
+              <line x1="-12" y1="12" x2="-45" y2="45" strokeWidth="1" />
+              <line x1="12" y1="12" x2="45" y2="45" strokeWidth="1" />
+              {/* Motors */}
+              <circle cx="-45" cy="-45" r="10" strokeWidth="0.8" />
+              <circle cx="45" cy="-45" r="10" strokeWidth="0.8" />
+              <circle cx="-45" cy="45" r="10" strokeWidth="0.8" />
+              <circle cx="45" cy="45" r="10" strokeWidth="0.8" />
+              {/* Propellers */}
+              <circle cx="-45" cy="-45" r="32" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.6" />
+              <circle cx="45" cy="-45" r="32" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.6" />
+              <circle cx="-45" cy="45" r="32" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.6" />
+              <circle cx="45" cy="45" r="32" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.6" />
+              {/* Propeller blades */}
+              <path d="M -77,-45 L -13,-45" strokeWidth="0.6" opacity="0.8" />
+              <path d="M 13,-45 L 77,-45" strokeWidth="0.6" opacity="0.8" />
+              <path d="M -77,45 L -13,45" strokeWidth="0.6" opacity="0.8" />
+              <path d="M 13,45 L 77,45" strokeWidth="0.6" opacity="0.8" />
+              {/* Forward arrow */}
+              <path d="M 0,-28 L -5,-20 L 5,-20 Z" strokeWidth="1" />
+              {/* IMU Vectors */}
+              <line x1="0" y1="0" x2="0" y2="-60" strokeWidth="0.8" strokeDasharray="2 2" />
+              <line x1="0" y1="0" x2="60" y2="0" strokeWidth="0.8" strokeDasharray="2 2" />
+              <text x="5" y="-50" fontSize="8" fontFamily="monospace" stroke="none" fill="currentColor" opacity="0.6">Y+(FPV)</text>
+              <text x="45" y="12" fontSize="8" fontFamily="monospace" stroke="none" fill="currentColor" opacity="0.6">X+(LAT)</text>
+            </g>
+
+            {/* Reusable Quadcopter Silhouette (Glassmorphism style) */}
+            <g id="drone-silhouette" fill="none">
+              {/* Drone arms */}
+              <line x1="-12" y1="-12" x2="-35" y2="-35" stroke="currentColor" strokeWidth="1.5" />
+              <line x1="12" y1="-12" x2="35" y2="-35" stroke="currentColor" strokeWidth="1.5" />
+              <line x1="-12" y1="12" x2="-35" y2="35" stroke="currentColor" strokeWidth="1.5" />
+              <line x1="12" y1="12" x2="35" y2="35" stroke="currentColor" strokeWidth="1.5" />
+              
+              {/* Propeller guard rings */}
+              <circle cx="-35" cy="-35" r="13" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="0.8" />
+              <circle cx="35" cy="-35" r="13" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="0.8" />
+              <circle cx="-35" cy="35" r="13" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="0.8" />
+              <circle cx="35" cy="35" r="13" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="0.8" />
+
+              {/* Propeller sweep lines */}
+              <circle cx="-35" cy="-35" r="11" fill="none" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.4" />
+              <circle cx="35" cy="-35" r="11" fill="none" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.4" />
+              <circle cx="-35" cy="35" r="11" fill="none" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.4" />
+              <circle cx="35" cy="35" r="11" fill="none" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.4" />
+
+              {/* Motors */}
+              <circle cx="-35" cy="-35" r="3" fill="currentColor" />
+              <circle cx="35" cy="-35" r="3" fill="currentColor" />
+              <circle cx="-35" cy="35" r="3" fill="currentColor" />
+              <circle cx="35" cy="35" r="3" fill="currentColor" />
+
+              {/* Central fuselage body */}
+              <rect x="-10" y="-18" width="20" height="36" rx="8" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="1.2" />
+              
+              {/* Inner electronics/battery block - translucent white highlight */}
+              <rect x="-6" y="-10" width="12" height="20" rx="3" fill="white" fillOpacity="0.25" stroke="currentColor" strokeWidth="0.6" />
+
+              {/* Camera nose */}
+              <path d="M -4,-18 L 4,-18 L 2,-23 L -2,-23 Z" fill="currentColor" />
+              <circle cx="0" cy="-21" r="1.2" fill="white" />
+            </g>
+          </defs>
+
+          {/* 1. Radar Sweep */}
+          <g transform="translate(960, 540)">
+            <circle cx="0" cy="0" r="380" stroke="currentColor" strokeWidth="0.5" strokeDasharray="4 4" opacity="0.4" />
+            <circle cx="0" cy="0" r="580" stroke="currentColor" strokeWidth="0.5" strokeDasharray="4 4" opacity="0.3" />
+            <line x1="-620" y1="0" x2="620" y2="0" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
+            <line x1="0" y1="-620" x2="0" y2="620" stroke="currentColor" strokeWidth="0.5" opacity="0.2" />
+            
+            <g className="animate-radar-sweep">
+              <line x1="0" y1="0" x2="580" y2="0" stroke="currentColor" strokeWidth="0.8" opacity="0.8" />
+              <path d="M 0,0 L 560,-150 A 580,580 0 0,0 580,0 Z" fill="url(#radarGradient)" opacity="0.25" />
+            </g>
+          </g>
+
+          {/* 2. Flight Trajectory Curves */}
+          <path d="M 100,100 C 600,-50 1100,400 1800,150" stroke="currentColor" strokeWidth="0.8" strokeDasharray="4 6" opacity="0.5" />
+          <path d="M 150,950 C 450,600 1350,900 1750,100" stroke="currentColor" strokeWidth="0.8" strokeDasharray="4 6" opacity="0.5" />
+
+          {/* 3. Navigation Waypoints & Pulsing rings */}
+          {/* Waypoint 1 */}
+          <g transform="translate(100, 100)" opacity="0.6">
+            <circle cx="0" cy="0" r="4" fill="currentColor" />
+            <circle cx="0" cy="0" r="4" stroke="currentColor" strokeWidth="1" className="pulse-ring" />
+            <text x="10" y="4" fontSize="8" fontFamily="monospace" fill="currentColor" stroke="none" opacity="0.8">WP-01 [ALT: 2.0m]</text>
+          </g>
+          {/* Waypoint 2 */}
+          <g transform="translate(960, 240)" opacity="0.6">
+            <circle cx="0" cy="0" r="4" fill="currentColor" />
+            <circle cx="0" cy="0" r="4" stroke="currentColor" strokeWidth="1" className="pulse-ring" />
+            <text x="10" y="4" fontSize="8" fontFamily="monospace" fill="currentColor" stroke="none" opacity="0.8">WP-02 [ALT: 12.4m]</text>
+          </g>
+          {/* Waypoint 3 */}
+          <g transform="translate(1800, 150)" opacity="0.6">
+            <circle cx="0" cy="0" r="4" fill="currentColor" />
+            <circle cx="0" cy="0" r="4" stroke="currentColor" strokeWidth="1" className="pulse-ring" />
+            <text x="-95" y="4" fontSize="8" fontFamily="monospace" fill="currentColor" stroke="none" opacity="0.8">WP-03 [END_HOLD]</text>
+          </g>
+          {/* Waypoint 4 */}
+          <g transform="translate(150, 950)" opacity="0.6">
+            <circle cx="0" cy="0" r="4" fill="currentColor" />
+            <circle cx="0" cy="0" r="4" stroke="currentColor" strokeWidth="1" className="pulse-ring" />
+            <text x="10" y="4" fontSize="8" fontFamily="monospace" fill="currentColor" stroke="none" opacity="0.8">NAV-START</text>
+          </g>
+          {/* Waypoint 5 */}
+          <g transform="translate(900, 750)" opacity="0.6">
+            <circle cx="0" cy="0" r="4" fill="currentColor" />
+            <circle cx="0" cy="0" r="4" stroke="currentColor" strokeWidth="1" className="pulse-ring" />
+            <text x="10" y="4" fontSize="8" fontFamily="monospace" fill="currentColor" stroke="none" opacity="0.8">NAV-CORR_01</text>
+          </g>
+          {/* Waypoint 6 */}
+          <g transform="translate(1750, 100)" opacity="0.6">
+            <circle cx="0" cy="0" r="4" fill="currentColor" />
+            <circle cx="0" cy="0" r="4" stroke="currentColor" strokeWidth="1" className="pulse-ring" />
+            <text x="-80" y="4" fontSize="8" fontFamily="monospace" fill="currentColor" stroke="none" opacity="0.8">NAV-TARGET</text>
+          </g>
+
+          {/* 4. Technical Blueprint Graphics */}
+          <g transform="translate(1700, 260)" opacity="0.5" stroke="currentColor" fill="none">
+            <text x="0" y="-15" fontSize="8" fontFamily="monospace" stroke="none" fill="currentColor" opacity="0.6">IMU ACCELEROMETER/GYRO</text>
+            <line x1="0" y1="0" x2="40" y2="0" strokeWidth="0.8" />
+            <line x1="0" y1="0" x2="0" y2="-40" strokeWidth="0.8" />
+            <line x1="0" y1="0" x2="-25" y2="25" strokeWidth="0.8" />
+            <text x="45" y="2" fontSize="7" fontFamily="monospace" stroke="none" fill="currentColor">X</text>
+            <text x="-2" y="-45" fontSize="7" fontFamily="monospace" stroke="none" fill="currentColor">Y</text>
+            <text x="-32" y="32" fontSize="7" fontFamily="monospace" stroke="none" fill="currentColor">Z</text>
+            <circle cx="0" cy="0" r="3" fill="none" strokeWidth="0.8" />
+            <path d="M -15,-15 A 20,20 0 0,1 15,-15" strokeWidth="0.6" strokeDasharray="1 1" />
+          </g>
+
+          <g transform="translate(180, 700)" opacity="0.5" stroke="currentColor" fill="none">
+            <text x="0" y="-15" fontSize="8" fontFamily="monospace" stroke="none" fill="currentColor" opacity="0.6">FLIGHT LEVEL CONTROLLER CONFIG</text>
+            <rect x="0" y="0" width="80" height="50" rx="4" strokeWidth="0.8" />
+            <line x1="40" y1="0" x2="40" y2="50" strokeWidth="0.6" strokeDasharray="2 2" />
+            <circle cx="40" cy="25" r="10" strokeWidth="0.8" />
+            <text x="6" y="15" fontSize="6" fontFamily="monospace" stroke="none" fill="currentColor">Kp: 1.25</text>
+            <text x="6" y="27" fontSize="6" fontFamily="monospace" stroke="none" fill="currentColor">Ki: 0.04</text>
+            <text x="6" y="39" fontSize="6" fontFamily="monospace" stroke="none" fill="currentColor">Kd: 0.12</text>
+            <text x="46" y="15" fontSize="6" fontFamily="monospace" stroke="none" fill="currentColor">ROLL: OK</text>
+            <text x="46" y="27" fontSize="6" fontFamily="monospace" stroke="none" fill="currentColor">PTCH: OK</text>
+            <text x="46" y="39" fontSize="6" fontFamily="monospace" stroke="none" fill="currentColor">YAW: OK</text>
+          </g>
+
+          {/* 5. Animated Drone Silhouettes (3 to 5 total, opacities 5%-12% net, glassmorphism style) */}
+          {/* Drone 1: Slow horizontal patrol */}
+          <g className="drone-1">
+            <use href="#drone-silhouette" />
+          </g>
+
+          {/* Drone 2: Waypoint navigation path */}
+          <g className="drone-2">
+            <use href="#drone-silhouette" transform="scale(0.90)" />
+          </g>
+
+          {/* Drone 3: Circular orbit */}
+          <g transform="translate(960, 540)">
+            <g className="drone-3">
+              <use href="#drone-silhouette" transform="translate(380, 0) rotate(90deg) scale(0.70)" />
+            </g>
+          </g>
+
+          {/* Drone 4: Hover drift */}
+          <g className="drone-4">
+            <use href="#drone-silhouette" />
+          </g>
+
+          {/* Drone 5: Diagonal route */}
+          <g className="drone-5">
+            <use href="#drone-silhouette" transform="scale(1.65)" />
+          </g>
+        </svg>
+      </div>
+
+      {/* 1. REFINED NAVBAR */}
+      <header className="w-full h-14 flex justify-between items-center relative z-30 max-w-7xl mx-auto pointer-events-auto border-b border-slate-200/30 dark:border-slate-800/35 px-4 md:px-6">
+        <div className="flex items-center">
+          <img 
+            src="/drona_logo.png" 
+            alt="Drona Aviation Logo" 
+            className="h-9 w-auto object-contain dark:invert select-none" 
+          />
+        </div>
+        {/* Theme Toggle */}
+        <div className="flex items-center">
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/50 dark:hover:bg-slate-900/40 transition-colors flex items-center justify-center shrink-0"
+            title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+          >
+            {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+          </button>
         </div>
       </header>
 
-      <div className="flex-1 flex flex-row items-center justify-between gap-6 my-6 overflow-hidden">
-        <motion.div 
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8 }}
-          className="w-full md:w-[420px] max-w-full flex flex-col justify-between h-full bg-white/95 dark:bg-slate-950/95 border border-slate-200/80 dark:border-slate-800 backdrop-blur-xl p-6 rounded-[2rem] shadow-[0_15px_40px_rgba(0,0,0,0.03)] pointer-events-auto relative overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.003)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.003)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.003)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.003)_1px,transparent_1px)] bg-[size:16px_16px] opacity-40 pointer-events-none" />
+      {/* 2. SPLIT-SCREEN LAYOUT */}
+      <div className="flex-1 flex flex-col md:flex-row items-center justify-between gap-8 lg:gap-12 my-6 md:my-8 w-full max-w-7xl mx-auto px-4 md:px-6 relative z-10 overflow-visible pointer-events-auto">
+        
+        {/* A. LEFT COLUMN: Content, Headline, and Minimal CTA Cards (40% width) */}
+        <div className="w-full md:w-[40%] flex flex-col justify-center space-y-6 text-left py-4 md:py-0">
+          <div className="space-y-3">
+            <div className="text-[10px] font-mono font-bold tracking-widest text-blue-600 dark:text-cyan-400 uppercase">
+              Aerospace Training Platform
+            </div>
+            
+            <h1 className="text-3xl sm:text-4xl lg:text-[2.6rem] font-bold tracking-tight leading-[1.15] text-slate-900 dark:text-white font-sans">
+              Professional Drone Pilot<br />
+              <span className="text-blue-600 dark:text-cyan-400 font-extrabold">Training Platform</span>
+            </h1>
+            
+            <p className="text-xs sm:text-[12.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-normal max-w-md">
+              Welcome to the pilot academy for Drona Aviation's flagship PlutoX nano-drone. Dissect 3D avionics systems, perform hardware-in-the-loop diagnostics, and master flight controllers inside our high-fidelity physics simulator.
+            </p>
+          </div>
 
-          <div className="space-y-6 my-auto z-10 relative">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 text-[8.5px] font-mono font-bold tracking-widest text-blue-600 dark:text-blue-400 uppercase shadow-sm">
-                <Radio className="w-3 h-3 text-blue-500" />
-                AeroSys Console Linked
+          <div className="flex flex-col gap-2.5 w-full">
+            {/* Card 1: Enter Flight Sim */}
+            <button
+              onClick={handleEnterFlightSim}
+              className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
+            >
+              <div className="flex items-center gap-3 w-full">
+                <Gamepad2 className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors shrink-0" />
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-900 dark:text-white">Enter Flight Sim</span>
+                    <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/15 uppercase tracking-wider scale-90 origin-left">
+                      {appLinkStatus === 'connected' ? 'Link Active' : 'Ready'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
+                    AR passthrough overlay or closed virtual sim
+                  </span>
+                </div>
               </div>
               
-              <h2 className="text-3xl font-black tracking-tight uppercase leading-none text-slate-900 dark:text-white">
-                EXPLORE. TRAIN.<br/>
-                <span className="bg-gradient-to-r from-blue-600 via-blue-555 to-emerald-600 dark:from-blue-400 dark:via-blue-500 dark:to-emerald-500 bg-clip-text text-transparent">
-                  FLY PLUTOX NANO.
-                </span>
-              </h2>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
+            </button>
+
+            {/* Card 2: Explore Anatomy */}
+            <button
+              onClick={handleExploreAnatomy}
+              className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
+            >
+              <div className="flex items-center gap-3 w-full">
+                <Cpu className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-purple-650 dark:group-hover:text-purple-400 transition-colors shrink-0" />
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-900 dark:text-white">Explore Anatomy</span>
+                    <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/15 uppercase tracking-wider scale-90 origin-left">
+                      {clickedCount > 0 ? `${clickedCount}/11 Explored` : '11 Avionics Nodes'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
+                    Dissect 3D parts & read aerospace descriptions
+                  </span>
+                </div>
+              </div>
               
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-light">
-                Welcome to the professional pilot curriculum for Drona Aviation's flagship nano-drone. Dissect 3D avionics, test components, and earn your pilot certification.
-              </p>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
+            </button>
+
+            {/* Card 3: Learn to Fly Pluto */}
+            <button
+              onClick={handleLearnToFly}
+              className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
+            >
+              <div className="flex items-center gap-3 w-full">
+                <GraduationCap className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-emerald-650 dark:group-hover:text-emerald-450 transition-colors shrink-0" />
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-900 dark:text-white">Learn to Fly Pluto</span>
+                    <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/15 uppercase tracking-wider scale-90 origin-left">
+                      Level {unlockedCount}/5 Unlocked
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
+                    Clear pilot certification academy levels
+                  </span>
+                </div>
+              </div>
+              
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
+            </button>
+          </div>
+        </div>
+
+        {/* B. RIGHT COLUMN: Centered static drone showcase frame (60% width) */}
+        <div className="w-full md:w-[60%] flex items-center justify-center relative py-4 md:py-0">
+          <div className="w-full max-w-[450px] aspect-square relative flex items-center justify-center overflow-hidden rounded-3xl border border-slate-200/35 dark:border-slate-800/45 bg-slate-50/10 dark:bg-slate-950/15 backdrop-blur-[2px]">
+            {/* Subtle Blueprint Grid Pattern */}
+            <div className="absolute inset-0 bg-blueprint-grid opacity-60 dark:opacity-40 pointer-events-none" />
+
+            {/* Spotlight Glow Effect projection */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[280px] h-[380px] bg-gradient-to-b from-blue-500/[0.03] dark:from-cyan-500/[0.04] to-transparent blur-2xl pointer-events-none rounded-full" />
+
+            {/* Soft Shadow Underneath */}
+            <div className="absolute bottom-[23%] left-1/2 w-[240px] h-[24px] pointer-events-none" style={{ transform: 'translateX(-50%) rotateX(75deg)' }}>
+              <div className="w-full h-full bg-slate-950/10 dark:bg-black/35 rounded-full blur-md animate-shadow-pulse" />
             </div>
 
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={handleEnterFlightSim}
-                className="w-full flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-blue-50 via-blue-50/50 to-white dark:from-blue-950/40 dark:via-blue-950/20 dark:to-slate-955 hover:from-blue-100/70 hover:via-blue-50 hover:to-white dark:hover:from-blue-900/30 dark:hover:via-blue-950/40 dark:hover:to-slate-955 text-slate-800 dark:text-slate-200 font-bold uppercase transition-all duration-300 shadow-sm border border-blue-150 dark:border-blue-900/50 hover:border-blue-300 dark:hover:border-blue-800 relative overflow-hidden active:scale-[0.99] text-left group"
-              >
-                <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent)] translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                
-                <div className="flex items-center gap-3 z-10 w-full">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 shrink-0 group-hover:scale-105 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
-                    <Gamepad2 className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0 pr-2">
-                    <div className="flex justify-between items-center w-full">
-                      <span className="text-xs tracking-wider block font-black text-slate-900 dark:text-white">Enter Flight Sim</span>
-                      <span className="text-[7.5px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 tracking-wide uppercase scale-90 origin-right">
-                        {appLinkStatus === 'connected' ? 'Link Active' : 'Ready'}
-                      </span>
-                    </div>
-                    <span className="text-[9px] font-mono font-normal text-slate-505 dark:text-slate-450 group-hover:text-slate-650 dark:group-hover:text-slate-350 tracking-wide block mt-1 truncate">
-                      AR passthrough overlay or closed virtual sim
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="w-7 h-7 rounded-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-slate-900 flex items-center justify-center text-blue-600 shadow-sm group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0">
-                  →
-                </div>
-              </button>
-
-              <button
-                onClick={handleExploreAnatomy}
-                className="w-full flex items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-900/40 hover:bg-slate-50/80 dark:hover:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500 text-slate-800 dark:text-slate-200 transition-all duration-300 group relative overflow-hidden active:scale-[0.99] text-left"
-              >
-                <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.03),transparent)] translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                
-                <div className="flex items-center gap-3 z-10 w-full">
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 group-hover:text-blue-600 group-hover:border-blue-200 shrink-0 group-hover:scale-105 transition-all duration-300">
-                    <Cpu className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0 pr-2">
-                    <div className="flex justify-between items-center w-full">
-                      <span className="text-xs tracking-wider block font-bold text-slate-900 dark:text-white">Explore Anatomy</span>
-                      <span className="text-[7.5px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-650 dark:text-blue-400 border border-blue-500/20 tracking-wide uppercase scale-90 origin-right">
-                        {clickedCount > 0 ? `${clickedCount}/11 Explored` : '11 Avionics Nodes'}
-                      </span>
-                    </div>
-                    <span className="text-[9px] font-mono font-normal text-slate-500 dark:text-slate-450 group-hover:text-slate-650 dark:group-hover:text-slate-350 tracking-wide block mt-1 truncate">
-                      Dissect 3D parts & read aerospace descriptions
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="w-7 h-7 rounded-full border border-slate-202 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-550 dark:text-slate-400 shadow-sm group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0">
-                  →
-                </div>
-              </button>
-
-              <button
-                onClick={handleLearnToFly}
-                className="w-full flex items-center justify-between p-4 rounded-2xl bg-white dark:bg-slate-900/40 hover:bg-slate-50/80 dark:hover:bg-slate-900/80 border border-slate-202 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-500 text-slate-800 dark:text-slate-200 transition-all duration-300 group relative overflow-hidden active:scale-[0.99] text-left"
-              >
-                <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(16,185,129,0.03),transparent)] translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                
-                <div className="flex items-center gap-3 z-10 w-full">
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-550 dark:text-slate-400 group-hover:text-emerald-600 group-hover:border-emerald-250 shrink-0 group-hover:scale-105 transition-all duration-300">
-                    <GraduationCap className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0 pr-2">
-                    <div className="flex justify-between items-center w-full">
-                      <span className="text-xs tracking-wider block font-bold text-slate-900 dark:text-white">Learn to Fly Pluto</span>
-                      <span className="text-[7.5px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-605 dark:text-emerald-400 border border-emerald-500/20 tracking-wide uppercase scale-90 origin-right">
-                        Level {unlockedCount}/5 Unlocked
-                      </span>
-                    </div>
-                    <span className="text-[9px] font-mono font-normal text-slate-500 dark:text-slate-450 group-hover:text-slate-650 dark:group-hover:text-slate-350 tracking-wide block mt-1 truncate">
-                      Clear pilot certification academy levels
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="w-7 h-7 rounded-full border border-slate-202 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-550 dark:text-slate-400 shadow-sm group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0">
-                  →
-                </div>
-              </button>
+            {/* Static Centered Drone Hero Image SlideShow */}
+            <div className="absolute z-10 w-[85%] max-w-[380px] lg:max-w-[430px] aspect-square flex items-center justify-center pointer-events-none animate-float-drone">
+              <AnimatePresence mode="wait">
+                <motion.img
+                  key={currentImageIndex}
+                  src={heroImages[currentImageIndex]}
+                  alt={`PlutoX Nano Drone View ${currentImageIndex + 1}`}
+                  initial={{ opacity: 0, scale: 0.97, x: 12 }}
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={{ opacity: 0, scale: 1.03, x: -12 }}
+                  transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+                  className="w-full h-auto object-contain select-none"
+                  loading="lazy"
+                />
+              </AnimatePresence>
+            </div>
+            
+            {/* Slide Presentation Controls / Indicators */}
+            <div className="absolute bottom-[8%] flex gap-2 z-20 pointer-events-auto">
+              {heroImages.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentImageIndex(idx)}
+                  className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                    idx === currentImageIndex 
+                      ? 'bg-blue-600 dark:bg-cyan-400 w-4 shadow-[0_0_8px_rgba(6,182,212,0.3)]' 
+                      : 'bg-slate-300 dark:bg-slate-700 hover:bg-slate-450 dark:hover:bg-slate-550'
+                  }`}
+                  aria-label={`Go to slide ${idx + 1}`}
+                />
+              ))}
             </div>
           </div>
-
-          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-900 flex justify-between items-center text-[8px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest z-10 relative">
-            <div className="flex items-center gap-2">
-              <span>SYS_LOC: 192.168.4.1</span>
-              <span className="text-slate-200 dark:text-slate-800">//</span>
-              <span className="text-blue-500/80 dark:text-blue-400/80">PING: OK</span>
-            </div>
-            <div>DRONAVIA © 2026 // SIMCORE</div>
-          </div>
-        </motion.div>
-
-        <div className="hidden md:flex flex-1 h-full items-center justify-center pointer-events-none relative">
-          <div className="absolute w-[400px] h-[400px] rounded-full bg-blue-500/5 blur-[120px] pointer-events-none translate-x-[40px] translate-y-[-20px]" />
         </div>
       </div>
+
 
       <AnimatePresence>
         {isFlightSimModalOpen && (
@@ -262,18 +547,18 @@ export function IntroOverlay() {
               </button>
 
               <div className="space-y-3 pr-8 relative">
-                <div className="flex items-center gap-4 text-[8px] font-mono tracking-widest uppercase">
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 text-blue-605 dark:text-blue-400 font-bold">
+                <div className="flex items-center gap-4 text-[9px] font-mono tracking-wide">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 text-blue-605 dark:text-blue-400 font-semibold">
                     <Database className="w-2.5 h-2.5 text-blue-500" /> Simulation Core Online
                   </span>
-                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Flight Systems Ready
                   </span>
                 </div>
-                <h3 className="text-xl font-black uppercase tracking-widest text-slate-900 dark:text-white">
-                  Mission Mode Selection
+                <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white font-sans">
+                  Mission mode selection
                 </h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-light leading-relaxed">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-normal leading-relaxed font-sans">
                   Configure simulation arena parameters. Authorize localized AR hardware pass-through telemetry or initialize the closed virtual 6-DOF physics sandbox environment.
                 </p>
               </div>
@@ -290,39 +575,45 @@ export function IntroOverlay() {
                       <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                         <Camera className="w-5 h-5" />
                       </div>
-                      <span className="text-[7.5px] font-mono font-bold tracking-widest px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-950/30 text-blue-605 dark:text-blue-400 uppercase">
+                      <span className="text-[9px] font-sans font-semibold tracking-normal px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-950/30 text-blue-605 dark:text-blue-400">
                         Experimental
                       </span>
                     </div>
 
-                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-250 group-hover:text-slate-900 dark:group-hover:text-white">
+                    <h4 className="text-sm font-semibold tracking-normal text-slate-800 dark:text-slate-250 group-hover:text-slate-900 dark:group-hover:text-white font-sans">
                       AR Passthrough
                     </h4>
                     
-                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-light leading-relaxed mt-2">
+                    <p className="text-[11px] text-slate-550 dark:text-slate-400 font-normal leading-relaxed mt-2 font-sans">
                       Stream your live room camera feed and steer the 3D model using floating virtual joystick knobs.
                     </p>
 
-                    <div className="space-y-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-900 text-[8.5px] font-mono text-slate-500 dark:text-slate-450">
+                    <div className="space-y-2.5 mt-4 pt-4 border-t border-slate-100 dark:border-slate-900">
                       <div>
-                        <span className="text-slate-400 dark:text-slate-500 uppercase">Use Case:</span>
-                        <p className="text-slate-650 dark:text-slate-350 mt-0.5">View Pluto drone inside your physical room using camera passthrough.</p>
+                        <span className="text-slate-400 dark:text-slate-500 font-sans font-medium text-[9px] uppercase tracking-normal">Use Case</span>
+                        <p className="text-[11px] text-slate-650 dark:text-slate-350 mt-0.5 font-sans font-normal leading-relaxed">View Pluto drone inside your physical room using camera passthrough.</p>
                       </div>
-                      <div className="flex justify-between">
-                        <span><span className="text-slate-400 dark:text-slate-500 uppercase">Hardware:</span> <strong className="text-slate-700 dark:text-slate-350">Webcam</strong></span>
-                        <span><span className="text-slate-400 dark:text-slate-500 uppercase">Diff:</span> <strong className="text-slate-700 dark:text-slate-350">Intermediate</strong></span>
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span>
+                          <span className="text-slate-400 dark:text-slate-500 font-sans font-medium text-[9px] uppercase tracking-normal">Hardware: </span>
+                          <strong className="text-slate-700 dark:text-slate-350 font-mono font-semibold">Webcam</strong>
+                        </span>
+                        <span>
+                          <span className="text-slate-400 dark:text-slate-500 font-sans font-medium text-[9px] uppercase tracking-normal">Diff: </span>
+                          <strong className="text-slate-700 dark:text-slate-350 font-mono font-semibold">Intermediate</strong>
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  <span className="text-[8px] font-mono text-blue-600 dark:text-blue-400 font-bold uppercase tracking-widest mt-6 block group-hover:translate-x-1 transition-transform">
+                  <span className="text-[11px] font-sans font-semibold text-blue-600 dark:text-blue-400 mt-6 block group-hover:translate-x-1 transition-transform">
                     Launch Camera →
                   </span>
                 </button>
 
                 <button
                   onClick={startClosedSim}
-                  className="flex flex-col text-left p-6 rounded-2xl bg-blue-50/25 dark:bg-blue-950/20 border-2 border-blue-500/25 dark:border-blue-500/20 hover:border-blue-500/60 dark:hover:border-blue-500 transition-all duration-300 group relative overflow-hidden active:scale-[0.98] flex-1 justify-between h-full"
+                  className="flex flex-col text-left p-6 rounded-2xl bg-blue-55/25 dark:bg-blue-95/20 border-2 border-blue-500/25 dark:border-blue-500/20 hover:border-blue-500/60 dark:hover:border-blue-550 transition-all duration-300 group relative overflow-hidden active:scale-[0.98] flex-1 justify-between h-full"
                 >
                   <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
                   <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.02),transparent)] translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
@@ -332,42 +623,48 @@ export function IntroOverlay() {
                       <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                         <Box className="w-5 h-5" />
                       </div>
-                      <span className="text-[7.5px] font-mono font-bold tracking-widest px-2 py-0.5 rounded border border-emerald-500/20 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-605 dark:text-emerald-400 uppercase">
+                      <span className="text-[9px] font-sans font-semibold tracking-normal px-2 py-0.5 rounded border border-emerald-500/20 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-605 dark:text-emerald-400">
                         Recommended
                       </span>
                     </div>
 
-                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-250 group-hover:text-slate-900 dark:group-hover:text-white">
+                    <h4 className="text-sm font-semibold tracking-normal text-slate-800 dark:text-slate-250 group-hover:text-slate-900 dark:group-hover:text-white font-sans">
                       Closed Simulator
                     </h4>
                     
-                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-light leading-relaxed mt-2">
+                    <p className="text-[11px] text-slate-550 dark:text-slate-400 font-normal leading-relaxed mt-2 font-sans">
                       Load detailed virtual environments (Warehouse, Lab, Hoop Arena) with full 6-DOF physics and keyboard flight loops.
                     </p>
 
-                    <div className="space-y-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-900 text-[8.5px] font-mono text-slate-500 dark:text-slate-455">
+                    <div className="space-y-2.5 mt-4 pt-4 border-t border-slate-100 dark:border-slate-900">
                       <div>
-                        <span className="text-slate-400 dark:text-slate-500 uppercase">Use Case:</span>
-                        <p className="text-slate-650 dark:text-slate-350 mt-0.5">Professional pilot training using virtual environments.</p>
+                        <span className="text-slate-400 dark:text-slate-550 font-sans font-medium text-[9px] uppercase tracking-normal">Use Case</span>
+                        <p className="text-[11px] text-slate-650 dark:text-slate-350 mt-0.5 font-sans font-normal leading-relaxed">Professional pilot training using virtual environments.</p>
                       </div>
-                      <div className="flex justify-between">
-                        <span><span className="text-slate-400 dark:text-slate-500 uppercase">Hardware:</span> <strong className="text-slate-700 dark:text-slate-350">Keyboard</strong></span>
-                        <span><span className="text-slate-400 dark:text-slate-500 uppercase">Diff:</span> <strong className="text-slate-700 dark:text-slate-350">Beginner-Friendly</strong></span>
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span>
+                          <span className="text-slate-400 dark:text-slate-555 font-sans font-medium text-[9px] uppercase tracking-normal">Hardware: </span>
+                          <strong className="text-slate-700 dark:text-slate-350 font-mono font-semibold">Keyboard</strong>
+                        </span>
+                        <span>
+                          <span className="text-slate-400 dark:text-slate-555 font-sans font-medium text-[9px] uppercase tracking-normal">Diff: </span>
+                          <strong className="text-slate-700 dark:text-slate-350 font-mono font-semibold">Beginner-Friendly</strong>
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  <span className="text-[8px] font-mono text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 font-bold uppercase tracking-widest mt-6 block group-hover:translate-x-1 transition-transform">
+                  <span className="text-[11px] font-sans font-semibold text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 mt-6 block group-hover:translate-x-1 transition-transform">
                     Enter Sandbox →
                   </span>
                 </button>
               </div>
 
-              <div className="flex gap-3 items-start p-4 bg-amber-50 dark:bg-amber-950/25 border border-amber-200 dark:border-amber-900/40 rounded-2xl text-[9.5px] text-amber-800 dark:text-amber-300 leading-relaxed relative overflow-hidden">
-                <ClipboardList className="w-5 h-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
+              <div className="flex gap-3 items-start p-4 bg-amber-50 dark:bg-amber-955/25 border border-amber-200 dark:border-amber-900/40 rounded-2xl text-slate-800 dark:text-slate-200 leading-relaxed relative overflow-hidden">
+                <ClipboardList className="w-5 h-5 text-amber-600 dark:text-amber-505 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <span className="font-mono text-[8px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400 block">Mission Briefing & Diagnostics</span>
-                  <p className="font-light">
+                  <span className="font-sans text-xs font-semibold tracking-normal text-amber-850 dark:text-amber-400 block">Mission Briefing & Diagnostics</span>
+                  <p className="font-sans text-[11px] font-normal text-amber-800/95 dark:text-amber-300/90 leading-relaxed">
                     Camera permissions are strictly required for AR mode passthrough telemetry. Closed Simulator sandbox courses are recommended for training and level certification.
                   </p>
                 </div>
