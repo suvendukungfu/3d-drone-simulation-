@@ -4,6 +4,9 @@ import { FlightController } from './FlightController';
 import { InputSystem } from './InputSystem';
 import { SensorSimulation } from './SensorSimulation';
 import { TelemetryEngine } from './TelemetryEngine';
+import { FlightLogger } from './FlightLogger';
+import { WindSimulation } from './WindSimulation';
+import { FlightPerformanceAnalyzer } from './FlightPerformanceAnalyzer';
 import { RigidBodyState, TelemetryData } from './types';
 import { useDroneStore } from '../../store/useDroneStore';
 
@@ -14,6 +17,11 @@ export class SimulatorOrchestrator {
   public input = new InputSystem();
   public sensors = new SensorSimulation();
   public telemetry = new TelemetryEngine();
+
+  // Extended Systems
+  public logger = new FlightLogger(10, 6000); // record at 10 Hz
+  public wind = new WindSimulation();         // atmospheric disturbances
+  public performance = new FlightPerformanceAnalyzer(); // real-time scoring
   
   // Simulation States
   private state: RigidBodyState = {
@@ -161,7 +169,10 @@ export class SimulatorOrchestrator {
     this.sensors.reset();
     this.telemetry.reset();
     this.input.reset();
-    
+    this.logger.reset();
+    this.wind.reset();
+    this.performance.reset();
+
     // Clear store failure/diagnostics so pre-flight boot restarts cleanly
     const store = useDroneStore.getState();
     store.setDroneInitFailed(false);
@@ -306,7 +317,7 @@ export class SimulatorOrchestrator {
     
     // Sync telemetry state with warning conditions
     const wasLowBattery = this.lowBattery;
-    this.lowBattery = telemetryData.battery < 15;
+    this.lowBattery = telemetryData.isBatteryCritical ?? telemetryData.battery < 15;
     if (this.lowBattery && !wasLowBattery && this.isArmed && !this.hasWarnedLowBattery) {
       this.hasWarnedLowBattery = true;
       const store = useDroneStore.getState() as any;
@@ -316,7 +327,11 @@ export class SimulatorOrchestrator {
     } else if (!this.lowBattery) {
       this.hasWarnedLowBattery = false;
     }
-    
+
+    // Update flight logger and performance analyzer every frame
+    this.logger.update(telemetryData, dt);
+    this.performance.update(telemetryData, dt);
+
     return telemetryData;
   }
   
@@ -415,14 +430,27 @@ export class SimulatorOrchestrator {
       this.motorCommands = [0, 0, 0, 0];
     }
     
-    // 6. Run Physics Integrator Step
+    // 6. Run Physics Integrator Step (with wind disturbance force)
     const oldVelocity = this.state.velocity.clone();
-    
+
+    // Compute wind force and inject it as an external disturbance before physics step
+    if (this.isArmed && !this.isCalibrating) {
+      const windForce = this.wind.getForce(
+        this.state.position,
+        this.physics.mass,
+        dt
+      );
+      // Add wind acceleration directly to the pre-step velocity
+      // (lightweight external impulse, avoids modifying physics internals)
+      const windAccel = windForce.multiplyScalar(1.0 / this.physics.mass);
+      this.state.velocity.addScaledVector(windAccel, dt);
+    }
+
     this.state = this.physics.step(this.state, this.motorCommands, dt);
-    
+
     // Calculate acceleration vector for sensors: dv/dt
     this.linearAcceleration.subVectors(this.state.velocity, oldVelocity).multiplyScalar(1.0 / dt);
-    
+
     // 7. Safety Audits (Crashes and landing collisions)
     this.auditSafety(oldVelocity, dt);
   }
