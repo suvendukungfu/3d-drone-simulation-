@@ -26,3 +26,138 @@ html.dark, html.dark body, html.dark #root {
   animation: scan-laser 8s ease-in-out infinite;
 }
 
+/* =============================================================
+   Virtual Joysticks Layout
+   ============================================================= */
+.virtual-joysticks {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  display: none;
+  justify-content: space-between;
+  z-index: 85;
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .virtual-joysticks {
+    display: flex;
+  }
+}
+
+/* =============================================================
+   Aerospace Redesign Custom CSS Utilities
+   ============================================================= */
+
+@keyframes float-drone {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(1deg);
+  }
+}
+
+.animate-float-drone {
+  animation: float-drone 6s ease-in-out infinite;
+}
+
+@keyframes spin-blueprint {
+  0% {
+    transform: rotateX(70deg) rotateZ(0deg);
+  }
+  100% {
+    transform: rotateX(70deg) rotateZ(360deg);
+  }
+}
+
+.animate-spin-blueprint {
+  animation: spin-blueprint 40s linear infinite;
+}
+
+@keyframes pulse-cyan {
+  0%, 100% {
+    opacity: 0.25;
+    box-shadow: 0 0 15px rgba(6, 182, 212, 0.1);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 30px rgba(6, 182, 212, 0.35);
+  }
+}
+
+.animate-pulse-cyan {
+  animation: pulse-cyan 3s ease-in-out infinite;
+}
+
+/* Engineering Blueprint Dot Matrix Pattern */
+.bg-blueprint-grid {
+  background-image: 
+    radial-gradient(rgba(59, 130, 246, 0.04) 1px, transparent 0),
+    radial-gradient(rgba(59, 130, 246, 0.04) 1px, transparent 0);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+}
+
+.dark .bg-blueprint-grid {
+  background-image: 
+    radial-gradient(rgba(6, 182, 212, 0.06) 1.5px, transparent 0),
+    radial-gradient(rgba(6, 182, 212, 0.06) 1.5px, transparent 0);
+  background-size: 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
+
+@keyframes shadow-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.95;
+    filter: blur(8px);
+  }
+  50% {
+    transform: scale(0.85);
+    opacity: 0.55;
+    filter: blur(10px);
+  }
+}
+
+.animate-shadow-pulse {
+  animation: shadow-pulse 6s ease-in-out infinite;
+}
+/* Custom loading animation styles */
+@keyframes spin-fast {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.animate-spin-fast {
+  animation: spin-fast 0.15s linear infinite;
+}
+
+@keyframes spin-fast-reverse {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-360deg); }
+}
+.animate-spin-fast-reverse {
+  animation: spin-fast-reverse 0.15s linear infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+.animate-dot-1 {
+  animation: dot-pulse 1.2s ease-in-out infinite;
+}
+.animate-dot-2 {
+  animation: dot-pulse 1.2s ease-in-out infinite 0.2s;
+}
+.animate-dot-3 {
+  animation: dot-pulse 1.2s ease-in-out infinite 0.4s;
+}
+
