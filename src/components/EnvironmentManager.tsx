@@ -27,6 +27,30 @@ function CubeObstacle({ position, args, color = '#334155', label }: ObstacleProp
   );
 }
 
+// Vertical wall grid overlay for blueprint aesthetics
+interface WallGridProps {
+  position: [number, number, number];
+  rotation: [number, number, number];
+  args: [number, number];
+  cellColor: string;
+  sectionColor: string;
+  fadeDistance: number;
+}
+
+function WallGrid({ position, rotation, args, cellColor, sectionColor, fadeDistance }: WallGridProps) {
+  return (
+    <Grid
+      position={position}
+      rotation={rotation}
+      args={args}
+      cellColor={cellColor}
+      sectionColor={sectionColor}
+      fadeDistance={fadeDistance}
+      infiniteGrid={false}
+    />
+  );
+}
+
 // Visual school desk for Classroom environment
 function ClassroomDesk({ position }: { position: [number, number, number] }) {
   return (
@@ -148,6 +172,8 @@ function FlightGate({ position, rotation = [0, 0, 0], radius = 0.65, thickness =
 
 export function EnvironmentManager({ activeCheckpoints }: { activeCheckpoints?: any[] }) {
   const envType = useDroneStore((state) => state.flightEnvironment);
+  const theme = useDroneStore((state) => state.theme);
+  const isDark = theme === 'dark';
   
   return (
     <group>
@@ -193,30 +219,79 @@ export function EnvironmentManager({ activeCheckpoints }: { activeCheckpoints?: 
       {/* A. COZY INDOOR ROOM */}
       {envType === 'room' && (
         <group>
-          <Grid position={[0, 0.001, 0]} args={[16, 16]} cellColor="#1e293b" sectionColor="#334155" fadeDistance={12} infiniteGrid={false} />
+          <Grid 
+            position={[0, 0.001, 0]} 
+            args={[16, 16]} 
+            cellColor={isDark ? "#1e293b" : "#cbd5e1"} 
+            sectionColor={isDark ? "#334155" : "#94a3b8"} 
+            fadeDistance={12} 
+            infiniteGrid={false} 
+          />
           
           {/* Room Boundaries (walls) */}
           <mesh position={[0, 3, -8]} receiveShadow>
             <planeGeometry args={[16, 6]} />
-            <meshStandardMaterial color="#111827" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#111827" : "#f8fafc"} roughness={0.9} />
           </mesh>
           <mesh position={[0, 3, 8]} rotation={[0, Math.PI, 0]} receiveShadow>
             <planeGeometry args={[16, 6]} />
-            <meshStandardMaterial color="#111827" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#111827" : "#f8fafc"} roughness={0.9} />
           </mesh>
           <mesh position={[-8, 3, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
             <planeGeometry args={[16, 6]} />
-            <meshStandardMaterial color="#0f172a" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#0f172a" : "#f1f5f9"} roughness={0.9} />
           </mesh>
           <mesh position={[8, 3, 0]} rotation={[0, -Math.PI / 2, 0]} receiveShadow>
             <planeGeometry args={[16, 6]} />
-            <meshStandardMaterial color="#0f172a" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#0f172a" : "#f1f5f9"} roughness={0.9} />
           </mesh>
           
           <mesh position={[0, 6, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <planeGeometry args={[16, 16]} />
-            <meshStandardMaterial color="#030712" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#030712" : "#e2e8f0"} roughness={0.9} />
           </mesh>
+
+          {/* Vertical and Ceiling Blueprint Grids */}
+          <WallGrid 
+            position={[0, 3, -7.99]} 
+            rotation={[Math.PI / 2, 0, 0]} 
+            args={[16, 6]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#3b82f6" : "#3b82f6"} 
+            fadeDistance={12} 
+          />
+          <WallGrid 
+            position={[0, 3, 7.99]} 
+            rotation={[Math.PI / 2, 0, 0]} 
+            args={[16, 6]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#3b82f6" : "#3b82f6"} 
+            fadeDistance={12} 
+          />
+          <WallGrid 
+            position={[-7.99, 3, 0]} 
+            rotation={[0, 0, Math.PI / 2]} 
+            args={[6, 16]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#3b82f6" : "#3b82f6"} 
+            fadeDistance={12} 
+          />
+          <WallGrid 
+            position={[7.99, 3, 0]} 
+            rotation={[0, 0, Math.PI / 2]} 
+            args={[6, 16]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#3b82f6" : "#3b82f6"} 
+            fadeDistance={12} 
+          />
+          <Grid 
+            position={[0, 5.99, 0]} 
+            args={[16, 16]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#334155" : "#94a3b8"} 
+            fadeDistance={12} 
+            infiniteGrid={false} 
+          />
           
           <CubeObstacle position={[-2.5, 0.4, -2.5]} args={[1.5, 0.8, 1.5]} color="#1e293b" label="Desk Table" />
           <CubeObstacle position={[2.5, 0.6, -1.0]} args={[0.8, 1.2, 0.8]} color="#0f172a" label="Book Shelf" />
@@ -227,30 +302,79 @@ export function EnvironmentManager({ activeCheckpoints }: { activeCheckpoints?: 
       {/* B. STEM FLIGHT LAB */}
       {envType === 'lab' && (
         <group>
-          <Grid position={[0, 0.001, 0]} args={[20, 20]} cellColor="#0f172a" sectionColor="#0284c7" fadeDistance={15} infiniteGrid={false} />
+          <Grid 
+            position={[0, 0.001, 0]} 
+            args={[20, 20]} 
+            cellColor={isDark ? "#0f172a" : "#cbd5e1"} 
+            sectionColor={isDark ? "#0284c7" : "#0284c7"} 
+            fadeDistance={15} 
+            infiniteGrid={false} 
+          />
           
           {/* Tech grid walls */}
           <mesh position={[0, 3.5, -10]} receiveShadow>
             <planeGeometry args={[20, 7]} />
-            <meshStandardMaterial color="#070a13" roughness={0.95} />
+            <meshStandardMaterial color={isDark ? "#070a13" : "#f8fafc"} roughness={0.95} />
           </mesh>
           <mesh position={[0, 3.5, 10]} rotation={[0, Math.PI, 0]} receiveShadow>
             <planeGeometry args={[20, 7]} />
-            <meshStandardMaterial color="#070a13" roughness={0.95} />
+            <meshStandardMaterial color={isDark ? "#070a13" : "#f8fafc"} roughness={0.95} />
           </mesh>
           <mesh position={[-10, 3.5, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
             <planeGeometry args={[20, 7]} />
-            <meshStandardMaterial color="#05070f" roughness={0.95} />
+            <meshStandardMaterial color={isDark ? "#05070f" : "#f1f5f9"} roughness={0.95} />
           </mesh>
           <mesh position={[10, 3.5, 0]} rotation={[0, -Math.PI / 2, 0]} receiveShadow>
             <planeGeometry args={[20, 7]} />
-            <meshStandardMaterial color="#05070f" roughness={0.95} />
+            <meshStandardMaterial color={isDark ? "#05070f" : "#f1f5f9"} roughness={0.95} />
           </mesh>
           
           <mesh position={[0, 7, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <planeGeometry args={[20, 20]} />
-            <meshStandardMaterial color="#030712" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#030712" : "#e2e8f0"} roughness={0.9} />
           </mesh>
+
+          {/* Vertical and Ceiling Blueprint Grids */}
+          <WallGrid 
+            position={[0, 3.5, -9.99]} 
+            rotation={[Math.PI / 2, 0, 0]} 
+            args={[20, 7]} 
+            cellColor={isDark ? "#0f172a" : "#e2e8f0"} 
+            sectionColor={isDark ? "#0284c7" : "#0284c7"} 
+            fadeDistance={15} 
+          />
+          <WallGrid 
+            position={[0, 3.5, 9.99]} 
+            rotation={[Math.PI / 2, 0, 0]} 
+            args={[20, 7]} 
+            cellColor={isDark ? "#0f172a" : "#e2e8f0"} 
+            sectionColor={isDark ? "#0284c7" : "#0284c7"} 
+            fadeDistance={15} 
+          />
+          <WallGrid 
+            position={[-9.99, 3.5, 0]} 
+            rotation={[0, 0, Math.PI / 2]} 
+            args={[7, 20]} 
+            cellColor={isDark ? "#0f172a" : "#e2e8f0"} 
+            sectionColor={isDark ? "#0284c7" : "#0284c7"} 
+            fadeDistance={15} 
+          />
+          <WallGrid 
+            position={[9.99, 3.5, 0]} 
+            rotation={[0, 0, Math.PI / 2]} 
+            args={[7, 20]} 
+            cellColor={isDark ? "#0f172a" : "#e2e8f0"} 
+            sectionColor={isDark ? "#0284c7" : "#0284c7"} 
+            fadeDistance={15} 
+          />
+          <Grid 
+            position={[0, 6.99, 0]} 
+            args={[20, 20]} 
+            cellColor={isDark ? "#0f172a" : "#e2e8f0"} 
+            sectionColor={isDark ? "#0284c7" : "#0284c7"} 
+            fadeDistance={15} 
+            infiniteGrid={false} 
+          />
           
           <CubeObstacle position={[-3.5, 0.5, -3.5]} args={[2.5, 1.0, 1.2]} color="#161e2e" label="Bench A" />
           <CubeObstacle position={[3.5, 0.5, -3.5]} args={[2.5, 1.0, 1.2]} color="#161e2e" label="Bench B" />
@@ -261,31 +385,80 @@ export function EnvironmentManager({ activeCheckpoints }: { activeCheckpoints?: 
       {/* C. STEM CLASSROOM */}
       {envType === 'classroom' && (
         <group>
-          <Grid position={[0, 0.001, 0]} args={[20, 20]} cellColor="#1e293b" sectionColor="#4f46e5" fadeDistance={15} infiniteGrid={false} />
+          <Grid 
+            position={[0, 0.001, 0]} 
+            args={[20, 20]} 
+            cellColor={isDark ? "#1e293b" : "#cbd5e1"} 
+            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
+            fadeDistance={15} 
+            infiniteGrid={false} 
+          />
 
           {/* Classroom Walls */}
           <mesh position={[0, 3.0, -10]} receiveShadow>
             <planeGeometry args={[20, 6]} />
-            <meshStandardMaterial color="#0f172a" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#0f172a" : "#f8fafc"} roughness={0.9} />
           </mesh>
           <mesh position={[0, 3.0, 10]} rotation={[0, Math.PI, 0]} receiveShadow>
             <planeGeometry args={[20, 6]} />
-            <meshStandardMaterial color="#0f172a" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#0f172a" : "#f8fafc"} roughness={0.9} />
           </mesh>
           <mesh position={[-10, 3.0, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
             <planeGeometry args={[20, 6]} />
-            <meshStandardMaterial color="#0b0f19" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#0b0f19" : "#f1f5f9"} roughness={0.9} />
           </mesh>
           <mesh position={[10, 3.0, 0]} rotation={[0, -Math.PI / 2, 0]} receiveShadow>
             <planeGeometry args={[20, 6]} />
-            <meshStandardMaterial color="#0b0f19" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#0b0f19" : "#f1f5f9"} roughness={0.9} />
           </mesh>
 
           {/* Classroom ceiling */}
           <mesh position={[0, 6, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <planeGeometry args={[20, 20]} />
-            <meshStandardMaterial color="#030712" roughness={0.95} />
+            <meshStandardMaterial color={isDark ? "#030712" : "#e2e8f0"} roughness={0.95} />
           </mesh>
+
+          {/* Vertical and Ceiling Blueprint Grids */}
+          <WallGrid 
+            position={[0, 3, -9.99]} 
+            rotation={[Math.PI / 2, 0, 0]} 
+            args={[20, 6]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
+            fadeDistance={15} 
+          />
+          <WallGrid 
+            position={[0, 3, 9.99]} 
+            rotation={[Math.PI / 2, 0, 0]} 
+            args={[20, 6]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
+            fadeDistance={15} 
+          />
+          <WallGrid 
+            position={[-9.99, 3, 0]} 
+            rotation={[0, 0, Math.PI / 2]} 
+            args={[6, 20]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
+            fadeDistance={15} 
+          />
+          <WallGrid 
+            position={[9.99, 3, 0]} 
+            rotation={[0, 0, Math.PI / 2]} 
+            args={[6, 20]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
+            fadeDistance={15} 
+          />
+          <Grid 
+            position={[0, 5.99, 0]} 
+            args={[20, 20]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
+            fadeDistance={15} 
+            infiniteGrid={false} 
+          />
 
           {/* Whiteboard with STEM equations at the front */}
           <group position={[0, 1.9, -9.8]}>
@@ -345,30 +518,79 @@ export function EnvironmentManager({ activeCheckpoints }: { activeCheckpoints?: 
       {/* D. INDUSTRIAL WAREHOUSE */}
       {envType === 'warehouse' && (
         <group>
-          <Grid position={[0, 0.001, 0]} args={[30, 30]} cellColor="#1e293b" sectionColor="#64748b" fadeDistance={22} infiniteGrid={false} />
+          <Grid 
+            position={[0, 0.001, 0]} 
+            args={[30, 30]} 
+            cellColor={isDark ? "#1e293b" : "#cbd5e1"} 
+            sectionColor={isDark ? "#64748b" : "#64748b"} 
+            fadeDistance={22} 
+            infiniteGrid={false} 
+          />
           
           {/* Concrete boundary walls */}
           <mesh position={[0, 5, -15]} receiveShadow>
             <planeGeometry args={[30, 10]} />
-            <meshStandardMaterial color="#2d3139" roughness={0.8} />
+            <meshStandardMaterial color={isDark ? "#2d3139" : "#f8fafc"} roughness={0.8} />
           </mesh>
           <mesh position={[0, 5, 15]} rotation={[0, Math.PI, 0]} receiveShadow>
             <planeGeometry args={[30, 10]} />
-            <meshStandardMaterial color="#2d3139" roughness={0.8} />
+            <meshStandardMaterial color={isDark ? "#2d3139" : "#f8fafc"} roughness={0.8} />
           </mesh>
           <mesh position={[-15, 5, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
             <planeGeometry args={[30, 10]} />
-            <meshStandardMaterial color="#22252b" roughness={0.8} />
+            <meshStandardMaterial color={isDark ? "#22252b" : "#f1f5f9"} roughness={0.8} />
           </mesh>
           <mesh position={[15, 5, 0]} rotation={[0, -Math.PI / 2, 0]} receiveShadow>
             <planeGeometry args={[30, 10]} />
-            <meshStandardMaterial color="#22252b" roughness={0.8} />
+            <meshStandardMaterial color={isDark ? "#22252b" : "#f1f5f9"} roughness={0.8} />
           </mesh>
           
           <mesh position={[0, 10, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <planeGeometry args={[30, 30]} />
-            <meshStandardMaterial color="#111317" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#111317" : "#e2e8f0"} roughness={0.9} />
           </mesh>
+
+          {/* Vertical and Ceiling Blueprint Grids */}
+          <WallGrid 
+            position={[0, 5, -14.99]} 
+            rotation={[Math.PI / 2, 0, 0]} 
+            args={[30, 10]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#64748b" : "#64748b"} 
+            fadeDistance={22} 
+          />
+          <WallGrid 
+            position={[0, 5, 14.99]} 
+            rotation={[Math.PI / 2, 0, 0]} 
+            args={[30, 10]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#64748b" : "#64748b"} 
+            fadeDistance={22} 
+          />
+          <WallGrid 
+            position={[-14.99, 5, 0]} 
+            rotation={[0, 0, Math.PI / 2]} 
+            args={[10, 30]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#64748b" : "#64748b"} 
+            fadeDistance={22} 
+          />
+          <WallGrid 
+            position={[14.99, 5, 0]} 
+            rotation={[0, 0, Math.PI / 2]} 
+            args={[10, 30]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#64748b" : "#64748b"} 
+            fadeDistance={22} 
+          />
+          <Grid 
+            position={[0, 9.99, 0]} 
+            args={[30, 30]} 
+            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
+            sectionColor={isDark ? "#64748b" : "#64748b"} 
+            fadeDistance={22} 
+            infiniteGrid={false} 
+          />
           
           <CubeObstacle position={[-5.0, 1.5, -4.0]} args={[2.0, 3.0, 1.2]} color="#1e293b" label="Storage Rack A" />
           <CubeObstacle position={[5.0, 1.5, -4.0]} args={[2.0, 3.0, 1.2]} color="#1e293b" label="Storage Rack B" />
@@ -405,25 +627,66 @@ export function EnvironmentManager({ activeCheckpoints }: { activeCheckpoints?: 
       {envType === 'course' && (
         <group>
           {/* Industrial training pad floor */}
-          <Grid position={[0, 0.001, 0]} args={[40, 40]} cellColor="#111827" sectionColor="#ea580c" fadeDistance={25} infiniteGrid={false} />
+          <Grid 
+            position={[0, 0.001, 0]} 
+            args={[40, 40]} 
+            cellColor={isDark ? "#111827" : "#cbd5e1"} 
+            sectionColor={isDark ? "#ea580c" : "#ea580c"} 
+            fadeDistance={25} 
+            infiniteGrid={false} 
+          />
 
           {/* Boundary course fences (visual) */}
           <mesh position={[0, 4, -20]} receiveShadow>
             <planeGeometry args={[40, 8]} />
-            <meshStandardMaterial color="#0f172a" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#0f172a" : "#f8fafc"} roughness={0.9} />
           </mesh>
           <mesh position={[0, 4, 20]} rotation={[0, Math.PI, 0]} receiveShadow>
             <planeGeometry args={[40, 8]} />
-            <meshStandardMaterial color="#0f172a" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#0f172a" : "#f8fafc"} roughness={0.9} />
           </mesh>
           <mesh position={[-20, 4, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
             <planeGeometry args={[40, 8]} />
-            <meshStandardMaterial color="#0c101d" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#0c101d" : "#f1f5f9"} roughness={0.9} />
           </mesh>
           <mesh position={[20, 4, 0]} rotation={[0, -Math.PI / 2, 0]} receiveShadow>
             <planeGeometry args={[40, 8]} />
-            <meshStandardMaterial color="#0c101d" roughness={0.9} />
+            <meshStandardMaterial color={isDark ? "#0c101d" : "#f1f5f9"} roughness={0.9} />
           </mesh>
+
+          {/* Vertical Blueprint Wall Grids */}
+          <WallGrid 
+            position={[0, 4, -19.99]} 
+            rotation={[Math.PI / 2, 0, 0]} 
+            args={[40, 8]} 
+            cellColor={isDark ? "#111827" : "#e2e8f0"} 
+            sectionColor={isDark ? "#ea580c" : "#ea580c"} 
+            fadeDistance={25} 
+          />
+          <WallGrid 
+            position={[0, 4, 19.99]} 
+            rotation={[Math.PI / 2, 0, 0]} 
+            args={[40, 8]} 
+            cellColor={isDark ? "#111827" : "#e2e8f0"} 
+            sectionColor={isDark ? "#ea580c" : "#ea580c"} 
+            fadeDistance={25} 
+          />
+          <WallGrid 
+            position={[-19.99, 4, 0]} 
+            rotation={[0, 0, Math.PI / 2]} 
+            args={[8, 40]} 
+            cellColor={isDark ? "#111827" : "#e2e8f0"} 
+            sectionColor={isDark ? "#ea580c" : "#ea580c"} 
+            fadeDistance={25} 
+          />
+          <WallGrid 
+            position={[19.99, 4, 0]} 
+            rotation={[0, 0, Math.PI / 2]} 
+            args={[8, 40]} 
+            cellColor={isDark ? "#111827" : "#e2e8f0"} 
+            sectionColor={isDark ? "#ea580c" : "#ea580c"} 
+            fadeDistance={25} 
+          />
 
           {/* Permanent course structures */}
           <CourseArch position={[0, 0, 1.5]} rotation={[0, 0, 0]} width={2.5} height={2.2} color="#3b82f6" />
