@@ -5,6 +5,7 @@ import { TelemetryDashboard } from './components/UI/TelemetryDashboard';
 import { TrainingMissionSystem } from './components/UI/TrainingMissionSystem';
 import { useDroneStore } from './store/useDroneStore';
 import { IntroOverlay } from './components/UI/IntroOverlay';
+import VirtualJoysticks from './components/UI/VirtualJoysticks';
 import { ARSimulator } from './components/UI/ARSimulator';
 import { LearningWorkflow } from './components/UI/LearningWorkflow';
 import { droneComponents } from './data/droneComponents';
@@ -80,8 +81,8 @@ function App() {
 
   const selectedData = selectedComponent ? droneComponents[selectedComponent] : null;
 
-  const btnActiveStyle = 'bg-blue-550/10 border-blue-500 text-blue-600 shadow-[0_4px_12px_rgba(59,130,246,0.08)] dark:bg-blue-950/40 dark:border-blue-500 dark:text-blue-400';
-  const btnInactiveStyle = 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-850 dark:hover:text-white';
+  const btnActiveStyle = 'bg-blue-500/10 border-blue-500 text-blue-600 shadow-[0_4px_12px_rgba(59,130,246,0.08)] dark:bg-blue-950/40 dark:border-blue-500 dark:text-blue-400';
+  const btnInactiveStyle = 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white';
 
   // Determine if a motor or propeller is selected to inject educational STEM highlights
   const isPropSelected = selectedComponent === 'propellerA' || selectedComponent === 'propellerB';
@@ -241,32 +242,90 @@ function App() {
           <motion.div
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-[#F8FAFC] dark:bg-[#070a13] z-50 flex flex-col items-center justify-center p-6"
+            className="absolute inset-0 bg-[#F8FAFC] dark:bg-[#070a13] z-50 flex flex-col items-center justify-center p-6 select-none"
           >
-            <div className="max-w-md w-full flex flex-col items-center text-center space-y-6">
-              <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-500 dark:text-blue-400 shadow-[0_0_20px_rgba(0,163,255,0.15)] animate-pulse">
-                <Cpu className="w-8 h-8" />
+            <div className="flex flex-col items-center text-center space-y-6 max-w-md w-full">
+              {/* Floating Robot Drone */}
+              <div className="relative w-48 h-48 flex items-center justify-center animate-float-drone">
+                {/* Drone Arms & Motors */}
+                <svg viewBox="0 0 200 200" className="w-full h-full absolute top-0 left-0 text-slate-300 dark:text-slate-700 pointer-events-none">
+                  {/* Arms */}
+                  <line x1="100" y1="100" x2="40" y2="40" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+                  <line x1="100" y1="100" x2="160" y2="40" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+                  <line x1="100" y1="100" x2="40" y2="160" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+                  <line x1="100" y1="100" x2="160" y2="160" stroke="currentColor" strokeWidth="8" strokeLinecap="round" />
+                  
+                  {/* Motors (Dark grey/black circles) */}
+                  <circle cx="40" cy="40" r="10" fill="#1e293b" />
+                  <circle cx="160" cy="40" r="10" fill="#1e293b" />
+                  <circle cx="40" cy="160" r="10" fill="#1e293b" />
+                  <circle cx="160" cy="160" r="10" fill="#1e293b" />
+                </svg>
+                
+                {/* Propeller Blur Rings & Spins (CSS Animated Overlay) */}
+                {/* Top Left Propeller */}
+                <div className="absolute top-[25px] left-[25px] w-[30px] h-[30px] border border-slate-300/30 dark:border-slate-600/30 rounded-full animate-spin-fast flex items-center justify-center">
+                  <div className="w-[32px] h-[2px] bg-slate-400/40 dark:bg-slate-500/40" />
+                </div>
+                {/* Top Right Propeller */}
+                <div className="absolute top-[25px] right-[25px] w-[30px] h-[30px] border border-slate-300/30 dark:border-slate-600/30 rounded-full animate-spin-fast-reverse flex items-center justify-center">
+                  <div className="w-[32px] h-[2px] bg-slate-400/40 dark:bg-slate-500/40" />
+                </div>
+                {/* Bottom Left Propeller */}
+                <div className="absolute bottom-[25px] left-[25px] w-[30px] h-[30px] border border-slate-300/30 dark:border-slate-600/30 rounded-full animate-spin-fast-reverse flex items-center justify-center">
+                  <div className="w-[32px] h-[2px] bg-slate-400/40 dark:bg-slate-500/40" />
+                </div>
+                {/* Bottom Right Propeller */}
+                <div className="absolute bottom-[25px] right-[25px] w-[30px] h-[30px] border border-slate-300/30 dark:border-slate-600/30 rounded-full animate-spin-fast flex items-center justify-center">
+                  <div className="w-[32px] h-[2px] bg-slate-400/40 dark:bg-slate-500/40" />
+                </div>
+
+                {/* Blue Fuselage Body with face and box shadow glow */}
+                <div className="absolute w-20 h-20 bg-blue-500 rounded-2xl flex flex-col items-center justify-center shadow-[0_0_35px_rgba(59,130,246,0.65)] border border-blue-400/30">
+                  {/* Eyes (Rounded capsules) */}
+                  <div className="flex justify-between w-10 mb-2.5">
+                    <div className="w-3.5 h-3.5 bg-white rounded-full" />
+                    <div className="w-3.5 h-3.5 bg-white rounded-full" />
+                  </div>
+                  {/* Smile */}
+                  <svg width="22" height="10" viewBox="0 0 24 12" fill="none">
+                    <path d="M 2,2 C 2,2 6,10 12,10 C 18,10 22,2 22,2" stroke="white" strokeWidth="4" strokeLinecap="round" />
+                  </svg>
+                </div>
               </div>
-              <div className="space-y-2">
-                <h2 className="text-xl font-bold uppercase tracking-wider text-slate-850 dark:text-white">Loading Drone Laboratory</h2>
-                <p className="text-xs text-slate-400 dark:text-slate-500 font-mono uppercase tracking-widest">
-                  Retrieving high-res Pluto X GLB Asset
-                </p>
+
+              {/* Text and Loader Dots */}
+              <div className="space-y-4 pt-4">
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-805 dark:text-slate-100 font-sans">
+                  Preparing for Takeoff
+                </h2>
+                
+                {/* Bouncing Dot Loader */}
+                <div className="flex justify-center items-center gap-1.5 h-4">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-dot-1" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-dot-2" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-dot-3" />
+                </div>
               </div>
-              
-              {/* Progress Slider */}
-              <div className="w-full bg-slate-205 dark:bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
-                <div 
-                  className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
+
+              {/* Micro-Progress Telemetry Indicator */}
+              <div className="space-y-1.5 pt-2">
+                <span className="text-[10px] font-mono tracking-widest text-slate-400 dark:text-slate-500 uppercase">
+                  Loading Labs: {Math.round(progress)}%
+                </span>
+                {/* Small linear progress bar */}
+                <div className="w-32 bg-slate-200 dark:bg-slate-800 h-1 rounded-full overflow-hidden mx-auto">
+                  <div 
+                    className="bg-blue-500 h-full transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
               </div>
-              
-              <span className="text-sm font-mono text-blue-600 dark:text-blue-400 font-bold">{Math.round(progress)}% Complete</span>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
 
       {/* 2. LEFT SIDEBAR: Conditional rendering depending on Avionics Lab vs Flight Simulator */}
       <AnimatePresence mode="wait">
@@ -293,7 +352,7 @@ function App() {
                 <div className="space-y-4">
                   {/* Mode Switcher Tabs */}
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border border-slate-205 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider">
+                    <div className="flex-1 flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider">
                       <button
                         onClick={() => setMode('explore')}
                         className={`flex-1 py-1.5 rounded transition ${
@@ -401,7 +460,7 @@ function App() {
                     </button>
  
                     {/* Environment & VR Views */}
-                    <div className="pt-3 border-t border-slate-205 dark:border-slate-800 space-y-2.5">
+                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
                       <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
                         <Layers className="w-3.5 h-3.5 text-blue-500" />
                         Immersive Modes
@@ -447,7 +506,7 @@ function App() {
                         className={`px-2 py-0.5 rounded border text-[9px] font-bold transition ${
                           showRotationDirections
                             ? 'bg-orange-50 border-orange-500 text-orange-600 dark:bg-orange-950/30 dark:border-orange-500 dark:text-orange-400'
-                            : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-450 dark:hover:text-white'
+                            : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:text-white'
                         }`}
                       >
                         Directions
@@ -464,10 +523,10 @@ function App() {
                            <div key={id} className="flex gap-2 items-center">
                             <button
                               onClick={() => toggleMotor(id)}
-                              className={`flex-1 flex justify-between items-center px-3.5 py-2.5 rounded-lg border text-xs font-bold uppercase transition ${
+                              className={`flex-1 flex justify-between items-center px-3.5 py-2.5 rounded-lg border text-xs font-bold uppercase tracking-wider transition ${
                                 active 
                                   ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-[0_4px_12px_rgba(249,115,22,0.08)] dark:bg-orange-950/30 dark:border-orange-500 dark:text-orange-400' 
-                                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-850 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-850 dark:hover:text-white'
+                                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
                               }`}
                             >
                               <span>Motor {index + 1} ({cornerNames[index]})</span>
@@ -492,7 +551,7 @@ function App() {
                       </button>
                       <button
                         onClick={stopAllMotors}
-                        className="py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 dark:border-slate-800 dark:text-slate-350 text-xs font-bold uppercase rounded-lg transition"
+                        className="py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 dark:border-slate-800 dark:text-slate-300 text-xs font-bold uppercase rounded-lg transition"
                       >
                         Kill All
                       </button>
@@ -520,11 +579,11 @@ function App() {
                                 ? 'bg-blue-50 border-blue-500 text-blue-600 font-bold dark:bg-blue-950/40 dark:border-blue-500 dark:text-blue-400'
                                 : isHovered
                                   ? 'bg-slate-50 border-slate-200 text-slate-800 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200'
-                                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-450 dark:hover:text-slate-300'
+                                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
                             }`}
                           >
                             <span>{comp.name}</span>
-                            <ChevronRight className={`w-3 h-3 transition-transform ${isSelected ? 'rotate-90 text-blue-550 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600'}`} />
+                            <ChevronRight className={`w-3 h-3 transition-transform ${isSelected ? 'rotate-90 text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600'}`} />
                           </button>
                         );
                       })}
@@ -545,7 +604,9 @@ function App() {
 
       {/* 3. CENTER: 3D Scene Viewport (Conditional between Lab inspection vs Pilot simulator) */}
       <div className={`flex-1 h-full relative z-0 flex ${isDark ? 'bg-[#070a13]' : 'bg-[#F8FAFC]'}`}>
-        {currentMode === 'flight' ? (
+        {currentMode === 'home' ? (
+          null
+        ) : currentMode === 'flight' ? (
           // PILOT SIMULATOR FLIGHT VIEWPORT
           <FlightScene 
             orchestrator={orchestratorRef.current!} 
@@ -582,7 +643,7 @@ function App() {
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border shadow-sm ${
                   isExploded
                     ? 'bg-blue-50 border-blue-400 text-blue-600'
-                    : 'bg-white border-slate-205 text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
                 <Layers className="w-4 h-4" />
@@ -597,7 +658,7 @@ function App() {
                     ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
                     : isolationMode
                       ? 'bg-emerald-50 border-emerald-400 text-emerald-700'
-                      : 'bg-white border-slate-205 text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
                 <ShieldAlert className="w-4 h-4" />
@@ -651,11 +712,11 @@ function App() {
 
                   return (
                     <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg space-y-3 shadow-sm">
-                      <h4 className="text-[10px] font-bold text-blue-605 uppercase tracking-wider flex items-center gap-1.5">
+                      <h4 className="text-[10px] font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
                         <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
                         STEM Insights: Aerodynamic Balance
                       </h4>
-                      <div className="text-[11px] text-slate-655 leading-relaxed font-light space-y-1.5">
+                      <div className="text-[11px] text-slate-600 leading-relaxed font-light space-y-1.5">
                         <p>
                           <strong>Rotation Direction:</strong> {selectedComponent === 'propellerA' ? 'Clockwise (CW)' : 'Counter-Clockwise (CCW)'}
                         </p>
@@ -673,7 +734,7 @@ function App() {
                           className={`w-full py-2 px-3 rounded-lg border text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
                             isSpinning
                               ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-700 shadow-sm'
-                              : 'bg-white border-slate-205 text-slate-700 hover:text-slate-900 hover:bg-slate-50'
+                              : 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50'
                           }`}
                         >
                           <Power className="w-3.5 h-3.5" />
@@ -695,11 +756,11 @@ function App() {
                   const rpm = motorRPMs[motorId];
                   return (
                     <div className="bg-orange-50 border border-orange-200 p-3 rounded-lg space-y-3 shadow-sm">
-                      <h4 className="text-[10px] font-bold text-orange-655 uppercase tracking-wider flex items-center gap-1.5">
+                      <h4 className="text-[10px] font-bold text-orange-600 uppercase tracking-wider flex items-center gap-1.5">
                         <CheckCircle className="w-3.5 h-3.5 text-orange-600" />
                         STEM Insights: Thrust & Lift
                       </h4>
-                      <div className="text-[11px] text-slate-655 leading-relaxed font-light space-y-1.5">
+                      <div className="text-[11px] text-slate-600 leading-relaxed font-light space-y-1.5">
                         <p>
                           <strong>Motor-Propeller Relationship:</strong> Brushless motors convert battery current into rapid rotational torque. The propeller behaves as an airfoil: as it spins, it shapes air velocity, creating a low-pressure zone above the blade and pushing air downwards.
                         </p>
@@ -718,8 +779,8 @@ function App() {
                           onClick={() => toggleMotor(motorId)}
                           className={`w-full py-2 px-3 rounded-lg border text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
                             active
-                              ? 'bg-orange-605 border-orange-500 text-white hover:bg-orange-700 shadow-sm'
-                              : 'bg-white border-slate-205 text-slate-700 hover:text-slate-900 hover:bg-slate-50'
+                              ? 'bg-orange-600 border-orange-500 text-white hover:bg-orange-700 shadow-sm'
+                              : 'bg-white border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-50'
                           }`}
                         >
                           <Power className="w-3.5 h-3.5" />
@@ -776,7 +837,7 @@ function App() {
                     <Wrench className="w-3.5 h-3.5" />
                     Maintenance Notes
                   </h3>
-                  <p className="text-[11px] text-emerald-805 leading-relaxed font-light">{selectedData.maintenanceNotes}</p>
+                  <p className="text-[11px] text-emerald-800 leading-relaxed font-light">{selectedData.maintenanceNotes}</p>
                 </div>
               </div>
 
@@ -784,7 +845,7 @@ function App() {
               <div className="pt-4 border-t border-slate-100">
                 <button
                   onClick={() => selectComponent(null)}
-                  className="w-full py-2.5 bg-slate-50 hover:bg-slate-100 text-xs font-bold uppercase tracking-widest border border-slate-205 hover:border-slate-300 rounded-lg text-slate-700 transition shadow-sm"
+                  className="w-full py-2.5 bg-slate-50 hover:bg-slate-100 text-xs font-bold uppercase tracking-widest border border-slate-200 hover:border-slate-300 rounded-lg text-slate-700 transition shadow-sm"
                 >
                   Close Inspector
                 </button>
@@ -854,36 +915,32 @@ function App() {
                   }
                   setMode('home');
                 }}
-                className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-450 hover:text-slate-850 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-850 hover:border-slate-350 dark:hover:border-slate-700 text-[10px] font-mono uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
+                className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-[10px] font-mono uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
               >
                 ← Menu
               </button>
               <div className="h-5 w-px bg-slate-200 dark:bg-slate-800" />
-              <div>
-                <h1 className="text-xs font-black text-slate-900 dark:text-white tracking-widest uppercase flex items-center gap-1.5">
-                  <span className="text-blue-600">PLUTO</span>
-                  <span className="text-slate-450 dark:text-slate-500 font-light">XR</span>
-                  <span className="text-slate-300 dark:text-slate-750">//</span>
-                  <span className="text-slate-800 dark:text-slate-200 font-extrabold">
-                    {currentMode === 'flight' ? 'PILOT ACADEMY' : 'ANATOMY LAB'}
-                  </span>
-                </h1>
-                <p className="text-[8px] font-mono text-slate-500 dark:text-slate-450 uppercase tracking-widest mt-0.5">
-                  {currentMode === 'flight' 
-                    ? 'Aerospace Ground Control & 6-DOF Simulator' 
-                    : 'Interactive 3D Avionics & Component Dissection'}
-                </p>
+              <div className="flex items-center gap-2">
+                <img 
+                  src="/drona_logo.png" 
+                  alt="Drona Aviation" 
+                  className="h-9 w-auto object-contain dark:invert select-none" 
+                />
+                <span className="hidden sm:inline-block text-slate-300 dark:text-slate-700 font-light">//</span>
+                <span className="hidden sm:inline-block text-slate-800 dark:text-slate-200 text-[10px] font-extrabold uppercase tracking-widest">
+                  {currentMode === 'flight' ? 'PILOT ACADEMY' : 'ANATOMY LAB'}
+                </span>
               </div>
             </div>
 
             {/* Center: Mode switcher ribbon integrated nicely */}
-            <div className="bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-205 dark:border-slate-800 flex gap-1 text-[9px] font-bold uppercase tracking-wider">
+            <div className="bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 flex gap-1 text-[9px] font-bold uppercase tracking-wider">
               <button
                 onClick={() => handleModeSwitch('explore')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-300 ${
                   currentMode === 'explore' || currentMode === 'learning' || currentMode === 'inspect'
                     ? 'bg-blue-600 text-white shadow shadow-blue-500/10'
-                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-450 dark:hover:text-white'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
                 } ${activeMissionIndex >= 0 && missionStatus !== 'passed' ? 'cursor-not-allowed opacity-60' : ''}`}
               >
                 <Cpu className="w-3.5 h-3.5" />
@@ -894,7 +951,7 @@ function App() {
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-300 ${
                   currentMode === 'flight'
                     ? 'bg-orange-600 text-white shadow shadow-orange-500/10'
-                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-450 dark:hover:text-white'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
                 } ${activeMissionIndex >= 0 && missionStatus !== 'passed' ? 'cursor-not-allowed opacity-60' : ''}`}
               >
                 <Gamepad2 className="w-3.5 h-3.5" />
@@ -906,10 +963,10 @@ function App() {
             <div className="flex items-center gap-4 text-[9px] font-mono text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="uppercase tracking-widest text-[8px] font-bold text-slate-500 dark:text-slate-450">Telemetry: Link Active</span>
+                <span className="uppercase tracking-widest text-[8px] font-bold text-slate-500 dark:text-slate-400">Telemetry: Link Active</span>
               </div>
               <div className="hidden sm:flex items-center gap-1.5">
-                <span className="text-slate-350 dark:text-slate-750">//</span>
+                <span className="text-slate-400 dark:text-slate-700">//</span>
                 <span className="uppercase tracking-widest text-[8px] font-bold text-slate-400 dark:text-slate-500">SYS_OK</span>
               </div>
 
@@ -917,7 +974,7 @@ function App() {
               <div className="h-5 w-px bg-slate-200 dark:bg-slate-800" />
               <button
                 onClick={toggleTheme}
-                className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-450 hover:text-slate-850 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-850 transition-all shadow-sm flex items-center justify-center shrink-0"
+                className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shadow-sm flex items-center justify-center shrink-0"
                 title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
               >
                 {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
@@ -931,6 +988,9 @@ function App() {
       <AnimatePresence>
         {currentMode === 'home' && <IntroOverlay />}
       </AnimatePresence>
+
+      {/* 8. VIRTUAL JOYSTICKS FOR MOBILE DEVICES */}
+      <VirtualJoysticks />
 
       {/* Decorative top-edge accent line */}
       <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-blue-500/25 to-transparent pointer-events-none z-10" />
