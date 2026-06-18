@@ -102,12 +102,12 @@ export class FlightPerformanceAnalyzer {
 
   // Landing quality: evaluated on touchdown event
   private landingScore = 100;
-  private lastHeading = 0;
+
+  // Heading precision tracking
   private referenceHeading: number | null = null;
   private headingSetTimer = 0;
 
   // Active flight tracking
-  private wasArmed = false;
   private wasAirborne = false;
 
   // Frame time accumulator for smoothing
@@ -123,10 +123,8 @@ export class FlightPerformanceAnalyzer {
     this.emaSpeed    = 100;
     this.emaHeading  = 100;
     this.landingScore = 100;
-    this.lastHeading = 0;
     this.referenceHeading = null;
     this.headingSetTimer = 0;
-    this.wasArmed = false;
     this.wasAirborne = false;
   }
 
@@ -137,7 +135,6 @@ export class FlightPerformanceAnalyzer {
    */
   public update(tel: TelemetryData, dt: number): void {
     if (!tel.isArmed) {
-      this.wasArmed = false;
       return;
     }
 
@@ -152,7 +149,6 @@ export class FlightPerformanceAnalyzer {
     }
 
     this.wasAirborne = isAirborne;
-    this.wasArmed = true;
 
     if (!isAirborne) return; // don't score pre-takeoff idle
 
@@ -188,8 +184,6 @@ export class FlightPerformanceAnalyzer {
       const headFrame = penaltyScore(headingDrift, HEADING_DRIFT_DEG, 60);
       this.emaHeading = ema(this.emaHeading, headFrame, this.frameAlpha);
     }
-
-    this.lastHeading = tel.heading;
   }
 
   // ─── Report ─────────────────────────────────────────────────────────────────

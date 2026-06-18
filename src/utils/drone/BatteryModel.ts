@@ -53,9 +53,6 @@ const CAPACITY_MAH = 550;
 /** Fully charged LiHV voltage */
 const FULL_VOLTAGE = 4.35;
 
-/** Nominal hover voltage */
-const NOMINAL_VOLTAGE = 3.70;
-
 /** Cut-off voltage (ESC protection triggers below this) */
 const CUTOFF_VOLTAGE = 3.00;
 
@@ -120,9 +117,6 @@ export class BatteryModel {
   /** Cumulative charge extracted in mAh */
   private mAhConsumed = 0;
 
-  /** Full capacity in Ah (for integration) */
-  private readonly capacityAh = CAPACITY_MAH / 1000;
-
   constructor() {}
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -151,6 +145,7 @@ export class BatteryModel {
     }
 
     // ── 2. Integrate charge (Coulomb counting) ───────────────────────────────
+    // Coulomb counting: integrate mAh consumed and derive SoC
     const deltaAh = currentA * (dt / 3600); // seconds → hours
     this.mAhConsumed = Math.min(CAPACITY_MAH, this.mAhConsumed + deltaAh * 1000);
     this.soc = Math.max(0, 1.0 - this.mAhConsumed / CAPACITY_MAH);
