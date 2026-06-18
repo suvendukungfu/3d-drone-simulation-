@@ -123,7 +123,7 @@ export const TAKEOFF_DETECT_ALT_M = 0.15;
 /** Default environment bounds (m) */
 export const ENV_BOUNDS = {
   minX: -15, maxX: 15,
-  minY: 0.02, maxY: 12,
+  minY: 0.05, maxY: 12,
   minZ: -15, maxZ: 15,
 } as const;
 

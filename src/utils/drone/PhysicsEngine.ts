@@ -41,13 +41,13 @@ export class PhysicsEngine {
   public Izz = 5.8e-5;
   
   // Damping coefficients
-  public linearDragCoef = 0.20; // N/(m/s) — reduces drift during hover
-  public angularDragCoef = 0.008; // Nm/(rad/s) — damps rotation for stability
+  public linearDragCoef = 0.22; // N/(m/s) — reduces drift during hover
+  public angularDragCoef = 0.0005; // Nm/(rad/s) — damps rotation for stability
   
   // Boundary properties
   public environmentBounds = {
     minX: -15, maxX: 15,
-    minY: 0.02, maxY: 12, // minY is drone radius offset
+    minY: 0.05, maxY: 12, // minY is drone radius offset
     minZ: -15, maxZ: 15
   };
   
@@ -262,8 +262,18 @@ export class PhysicsEngine {
         state.velocity.z *= (1.0 - this.frictionCoef);
       }
       
-      // Damp rotations on contact
-      state.angularVelocity.multiplyScalar(0.7);
+      // Senior Developer Ground Constraint:
+      // When resting on the ground, the landing gear prevents roll and pitch rotations
+      // through the floor. We zero out roll/pitch and their angular velocities,
+      // keeping only yaw to allow rotation while on the pad.
+      const euler = new THREE.Euler().setFromQuaternion(state.quaternion, 'YXZ');
+      euler.x = 0; // zero pitch
+      euler.z = 0; // zero roll
+      state.quaternion.setFromEuler(euler);
+      
+      state.angularVelocity.x = 0;
+      state.angularVelocity.z = 0;
+      state.angularVelocity.y *= 0.7; // damp yaw on contact
     }
     
     // 2. Ceiling boundary

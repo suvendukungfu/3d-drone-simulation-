@@ -22,36 +22,42 @@
  *   - Low-pass filtered stick inputs (10 Hz) for pilot comfort
  */
 import * as THREE from 'three';
-import { PIDGains, PIDControllerState, FlightControlStick, DroneSensorData } from './types';
+import { PIDGains, FlightControlStick, DroneSensorData } from './types';
 
 export class FlightController {
-  // PID Gains — tuned for stable, beginner-friendly PlutoX flight
-  public rollAngleGains: PIDGains = { kp: 3.0, ki: 0.0, kd: 0.0, iMax: 0.0, dFilterHz: 0.0 };
-  public pitchAngleGains: PIDGains = { kp: 3.0, ki: 0.0, kd: 0.0, iMax: 0.0, dFilterHz: 0.0 };
+  // PID Gains — tuned for responsive, locked-in PlutoX flight
+  public rollAngleGains: PIDGains = { kp: 4.0, ki: 0.0, kd: 0.0, iMax: 0.0, dFilterHz: 0.0 };
+  public pitchAngleGains: PIDGains = { kp: 4.0, ki: 0.0, kd: 0.0, iMax: 0.0, dFilterHz: 0.0 };
   
-  public rollRateGains: PIDGains = { kp: 0.045, ki: 0.025, kd: 0.008, iMax: 0.3, dFilterHz: 25 };
-  public pitchRateGains: PIDGains = { kp: 0.045, ki: 0.025, kd: 0.008, iMax: 0.3, dFilterHz: 25 };
-  public yawRateGains: PIDGains = { kp: 0.12, ki: 0.04, kd: 0.003, iMax: 0.3, dFilterHz: 25 };
+  public rollRateGains: PIDGains = { kp: 0.06, ki: 0.03, kd: 0.001, iMax: 0.3, dFilterHz: 25 };
+  public pitchRateGains: PIDGains = { kp: 0.06, ki: 0.03, kd: 0.001, iMax: 0.3, dFilterHz: 25 };
+  public yawRateGains: PIDGains = { kp: 0.10, ki: 0.03, kd: 0.001, iMax: 0.3, dFilterHz: 25 };
   
   public altitudeGains: PIDGains = { kp: 1.2, ki: 0.0, kd: 0.0, iMax: 0.0, dFilterHz: 0.0 };
   public climbRateGains: PIDGains = { kp: 0.18, ki: 0.08, kd: 0.012, iMax: 0.3, dFilterHz: 15 };
   
   // Controller States
-  private rateState: PIDControllerState = {
+  private rateState = {
     integral: new THREE.Vector3(0, 0, 0),
     prevError: new THREE.Vector3(0, 0, 0),
-    prevDerivative: new THREE.Vector3(0, 0, 0)
+    prevDerivative: new THREE.Vector3(0, 0, 0),
+    prevGyro: new THREE.Vector3(0, 0, 0)
   };
   
   private climbState = {
     integral: 0,
     prevError: 0,
-    prevDerivative: 0
+    prevDerivative: 0,
+    prevClimbRate: 0
   };
   
   // Altitude hold tracker
   public isAltHoldActive = false;
   private lockedAltitude = 0.0;
+  
+  // Diagnostic fields
+  public lastTorqueCor = new THREE.Vector3();
+  public lastMixedThrottle = 0;
   
   // Low-pass filter variables
   private filteredAltitude = 0.0;
@@ -71,13 +77,15 @@ export class FlightController {
     this.rateState = {
       integral: new THREE.Vector3(0, 0, 0),
       prevError: new THREE.Vector3(0, 0, 0),
-      prevDerivative: new THREE.Vector3(0, 0, 0)
+      prevDerivative: new THREE.Vector3(0, 0, 0),
+      prevGyro: new THREE.Vector3(0, 0, 0)
     };
     
     this.climbState = {
       integral: 0,
       prevError: 0,
-      prevDerivative: 0
+      prevDerivative: 0,
+      prevClimbRate: 0
     };
     
     this.isAltHoldActive = false;
@@ -96,7 +104,8 @@ export class FlightController {
     sensorData: DroneSensorData,
     estAttitude: THREE.Euler, // Estimated Roll, Pitch, Yaw from sensors (radians)
     estVelocity: THREE.Vector3, // Estimated velocity (m/s)
-    dt: number
+    dt: number,
+    hasTakenOff: boolean = true
   ): number[] {
     // Apply Low-pass filtering to barometer altitude
     if (!this.isAltInitialized) {
@@ -121,83 +130,119 @@ export class FlightController {
     let mixedThrottle = stick.throttle;
     
     if (this.isAltHoldActive) {
-      // 0% -> Motors Idle
-      // 10%-40% -> Ground Effect Zone (Descent)
-      // 45%-55% -> Hover Zone (Altitude Hold)
-      // 60%-100% -> Climb Zone (Climb)
-      
-      const isThrottleNeutral = stick.throttle >= 0.45 && stick.throttle <= 0.55;
       let targetClimbRate = 0;
       
-      if (isThrottleNeutral) {
-        // Hold locked altitude using filtered altitude error
-        const altError = this.lockedAltitude - this.filteredAltitude;
-        targetClimbRate = THREE.MathUtils.clamp(altError * this.altitudeGains.kp, -1.0, 1.0);
-      } else if (stick.throttle >= 0.60) {
-        // Climb Zone (60% to 100%)
-        // Scale climb rate from 0m/s (at 0.60) to 1.2m/s (at 1.00)
-        targetClimbRate = ((stick.throttle - 0.60) / 0.40) * 1.2;
-        this.lockedAltitude = this.filteredAltitude; // continuously update target
-      } else if (stick.throttle >= 0.10 && stick.throttle < 0.45) {
-        // Descent Zone (10% to 40%)
-        // Scale descent rate from 0m/s (at 0.45) to -1.0m/s (at 0.10)
-        targetClimbRate = ((stick.throttle - 0.45) / 0.35) * 1.0;
-        this.lockedAltitude = this.filteredAltitude; // continuously update target
-      } else {
-        // Landing / Idle Zone (0% to 10%)
-        // Descend gradually to the floor
-        if (this.filteredAltitude > 0.25) {
-          // Moderate descent if high up
-          targetClimbRate = -0.8;
+      if (!hasTakenOff) {
+        // Safe takeoff control: keep motors at idle spin (0.10) if on ground and throttle neutral/low
+        if (stick.throttle > 0.55) {
+          // Commanded takeoff: apply climbing rate and slight takeoff throttle thrust
+          targetClimbRate = 0.5;
+          mixedThrottle = this.hoverThrottleFeedforward + 0.05;
         } else {
-          // Extremely gentle landing descent rate if close to ground
-          targetClimbRate = -0.20;
+          // Keep resting flat on landing pad
+          mixedThrottle = 0.10;
+          this.climbState.integral = 0;
+          this.climbState.prevError = 0;
+          this.climbState.prevDerivative = 0;
+          this.climbState.prevClimbRate = this.filteredClimbRate;
+          this.lockedAltitude = this.filteredAltitude;
+          
+          // Return idle spin immediately for all motors to prevent any ground attitude corrections
+          const idleSpin = 0.10;
+          return [idleSpin, idleSpin, idleSpin, idleSpin];
         }
-        this.lockedAltitude = this.filteredAltitude;
+      } else {
+        // Standard Pilot Flight Altitude Hold Loop
+        const isThrottleNeutral = stick.throttle >= 0.45 && stick.throttle <= 0.55;
+        
+        if (isThrottleNeutral) {
+          // Hold locked altitude using filtered altitude error
+          const altError = this.lockedAltitude - this.filteredAltitude;
+          targetClimbRate = THREE.MathUtils.clamp(altError * this.altitudeGains.kp, -1.0, 1.0);
+        } else if (stick.throttle > 0.55) {
+          // Climb Zone (55% to 100%) - continuous
+          targetClimbRate = ((stick.throttle - 0.55) / 0.45) * 1.5;
+          this.lockedAltitude = this.filteredAltitude;
+        } else if (stick.throttle >= 0.10 && stick.throttle < 0.45) {
+          // Descent Zone (10% to 45%) - continuous
+          targetClimbRate = ((stick.throttle - 0.45) / 0.35) * 1.0;
+          this.lockedAltitude = this.filteredAltitude;
+        } else {
+          // Landing / Idle Zone (0% to 10%)
+          if (this.filteredAltitude > 0.25) {
+            targetClimbRate = -0.8;
+          } else {
+            targetClimbRate = -0.20;
+          }
+          this.lockedAltitude = this.filteredAltitude;
+        }
+        
+        // Reset PID integration on the ground to prevent windup bouncing
+        if (this.filteredAltitude < 0.05 && targetClimbRate <= 0) {
+          this.climbState.integral = 0;
+          this.climbState.prevError = 0;
+          this.climbState.prevDerivative = 0;
+          this.climbState.prevClimbRate = this.filteredClimbRate;
+        }
+        
+        // Climb Rate PID loop
+        const climbError = targetClimbRate - this.filteredClimbRate;
+        const pTerm = climbError * this.climbRateGains.kp;
+        this.climbState.integral = THREE.MathUtils.clamp(
+          this.climbState.integral + climbError * this.climbRateGains.ki * dt,
+          -this.climbRateGains.iMax,
+          this.climbRateGains.iMax
+        );
+        let dTerm = 0;
+        if (dt > 0.0001) {
+          // Calculate derivative on measurement (prevents derivative kick on throttle change)
+          const rawD = -(this.filteredClimbRate - this.climbState.prevClimbRate) / dt;
+          this.climbState.prevClimbRate = this.filteredClimbRate;
+          this.climbState.prevError = climbError;
+          
+          const rc = 1.0 / (2.0 * Math.PI * this.climbRateGains.dFilterHz);
+          const alpha = dt / (dt + rc);
+          dTerm = this.climbState.prevDerivative + alpha * (rawD * this.climbRateGains.kd - this.climbState.prevDerivative);
+          this.climbState.prevDerivative = dTerm;
+        } else {
+          dTerm = this.climbState.prevDerivative;
+        }
+        
+        mixedThrottle = this.hoverThrottleFeedforward + pTerm + this.climbState.integral + dTerm;
+        mixedThrottle = THREE.MathUtils.clamp(mixedThrottle, 0.10, 0.95);
       }
-      
-      // Reset PID integration on the ground to prevent windup bouncing
-      if (this.filteredAltitude < 0.05 && targetClimbRate <= 0) {
-        this.climbState.integral = 0;
-        this.climbState.prevError = 0;
-        this.climbState.prevDerivative = 0;
-      }
-      
-      // Climb Rate PID loop
-      const climbError = targetClimbRate - this.filteredClimbRate;
-      
-      // Proportional
-      const pTerm = climbError * this.climbRateGains.kp;
-      
-      // Integral (with anti-windup clamping)
-      this.climbState.integral = THREE.MathUtils.clamp(
-        this.climbState.integral + climbError * this.climbRateGains.ki * dt,
-        -this.climbRateGains.iMax,
-        this.climbRateGains.iMax
-      );
-      
-      // Derivative (with filter)
-      const rawD = (climbError - this.climbState.prevError) / dt;
-      this.climbState.prevError = climbError;
-      
-      const rc = 1.0 / (2.0 * Math.PI * this.climbRateGains.dFilterHz);
-      const alpha = dt / (dt + rc);
-      const dTerm = this.climbState.prevDerivative + alpha * (rawD * this.climbRateGains.kd - this.climbState.prevDerivative);
-      this.climbState.prevDerivative = dTerm;
-      
-      // Final throttle value
-      mixedThrottle = this.hoverThrottleFeedforward + pTerm + this.climbState.integral + dTerm;
-      mixedThrottle = THREE.MathUtils.clamp(mixedThrottle, 0.10, 0.95); // clamp down to 0.10 (idle spin)
     } else {
-      // Manual throttle - lock target altitude to current whenever we transition back
       this.lockedAltitude = this.filteredAltitude;
     }
     
     // 2. Outer Angle Loop (Roll & Pitch Self-Leveling)
     // Convert stick inputs (-1 to 1) to target Euler angles (radians)
     const maxTiltAngle = 12.0 * (Math.PI / 180.0); // max 12 degrees tilt for slight, responsive movement
-    const targetRoll = -this.smoothedRoll * maxTiltAngle;
-    const targetPitch = -this.smoothedPitch * maxTiltAngle;
+    let targetRoll = -this.smoothedRoll * maxTiltAngle;
+    let targetPitch = -this.smoothedPitch * maxTiltAngle;
+    
+    // Hover stabilization (active braking/drift damping) when sticks are neutral in flight
+    if (hasTakenOff) {
+      const isRollStickNeutral = Math.abs(this.smoothedRoll) < 0.05;
+      const isPitchStickNeutral = Math.abs(this.smoothedPitch) < 0.05;
+      
+      if (isRollStickNeutral || isPitchStickNeutral) {
+        // Rotate world velocities into body-frame coordinates using quaternion from Euler attitude
+        const q = new THREE.Quaternion().setFromEuler(estAttitude);
+        const bodyVel = estVelocity.clone().applyQuaternion(q.invert());
+        
+        if (isRollStickNeutral) {
+          // If roll stick is centered, tilt roll to damp local X velocity
+          const rollBrake = -bodyVel.x * 0.12; // tilt roll proportional to speed
+          targetRoll = THREE.MathUtils.clamp(rollBrake, -0.08, 0.08); // limit max brake angle
+        }
+        if (isPitchStickNeutral) {
+          // If pitch stick is centered, tilt pitch to damp local Z velocity
+          const pitchBrake = bodyVel.z * 0.12; // tilt pitch opposite to forward speed
+          targetPitch = THREE.MathUtils.clamp(pitchBrake, -0.08, 0.08);
+        }
+      }
+    }
     
     // Angle Errors
     const rollAngleErr = targetRoll - estAttitude.z; // roll is stored in Euler.z
@@ -222,44 +267,65 @@ export class FlightController {
     );
     
     // Integral terms (with anti-windup clamping)
-    this.rateState.integral.x = THREE.MathUtils.clamp(
-      this.rateState.integral.x + rateError.x * this.pitchRateGains.ki * dt,
-      -this.pitchRateGains.iMax,
-      this.pitchRateGains.iMax
-    );
-    this.rateState.integral.y = THREE.MathUtils.clamp(
-      this.rateState.integral.y + rateError.y * this.yawRateGains.ki * dt,
-      -this.yawRateGains.iMax,
-      this.yawRateGains.iMax
-    );
-    this.rateState.integral.z = THREE.MathUtils.clamp(
-      this.rateState.integral.z + rateError.z * this.rollRateGains.ki * dt,
-      -this.rollRateGains.iMax,
-      this.rollRateGains.iMax
-    );
+    if (!hasTakenOff) {
+      this.rateState.integral.set(0, 0, 0);
+      this.rateState.prevError.set(0, 0, 0);
+      this.rateState.prevDerivative.set(0, 0, 0);
+      this.rateState.prevGyro.copy(sensorData.gyro);
+    } else {
+      this.rateState.integral.x = THREE.MathUtils.clamp(
+        this.rateState.integral.x + rateError.x * this.pitchRateGains.ki * dt,
+        -this.pitchRateGains.iMax,
+        this.pitchRateGains.iMax
+      );
+      this.rateState.integral.y = THREE.MathUtils.clamp(
+        this.rateState.integral.y + rateError.y * this.yawRateGains.ki * dt,
+        -this.yawRateGains.iMax,
+        this.yawRateGains.iMax
+      );
+      this.rateState.integral.z = THREE.MathUtils.clamp(
+        this.rateState.integral.z + rateError.z * this.rollRateGains.ki * dt,
+        -this.rollRateGains.iMax,
+        this.rollRateGains.iMax
+      );
+    }
     
     // Derivative terms (with low-pass filter)
-    const rawD = new THREE.Vector3().subVectors(rateError, this.rateState.prevError).multiplyScalar(1.0 / dt);
-    this.rateState.prevError.copy(rateError);
-    
-    const dGains = new THREE.Vector3(this.pitchRateGains.kd, this.yawRateGains.kd, this.rollRateGains.kd);
-    const dGainsRaw = new THREE.Vector3(rawD.x * dGains.x, rawD.y * dGains.y, rawD.z * dGains.z);
-    
-    const filterRc = 1.0 / (2.0 * Math.PI * 12.0); // 12Hz cutoff frequency (was 25Hz)
-    const filterAlpha = dt / (dt + filterRc);
-    
-    const D_torque = new THREE.Vector3(
-      this.rateState.prevDerivative.x + filterAlpha * (dGainsRaw.x - this.rateState.prevDerivative.x),
-      this.rateState.prevDerivative.y + filterAlpha * (dGainsRaw.y - this.rateState.prevDerivative.y),
-      this.rateState.prevDerivative.z + filterAlpha * (dGainsRaw.z - this.rateState.prevDerivative.z)
-    );
-    this.rateState.prevDerivative.copy(D_torque);
+    const D_torque = new THREE.Vector3(0, 0, 0);
+    if (dt > 0.0001) {
+      // Calculate derivative on measurement (prevents derivative kick when pilot commands change)
+      const rawD = new THREE.Vector3().subVectors(this.rateState.prevGyro, sensorData.gyro).multiplyScalar(1.0 / dt);
+      this.rateState.prevGyro.copy(sensorData.gyro);
+      this.rateState.prevError.copy(rateError);
+      
+      const dGains = new THREE.Vector3(this.pitchRateGains.kd, this.yawRateGains.kd, this.rollRateGains.kd);
+      const dGainsRaw = new THREE.Vector3(rawD.x * dGains.x, rawD.y * dGains.y, rawD.z * dGains.z);
+      
+      const filterRc = 1.0 / (2.0 * Math.PI * 25.0); // 25Hz cutoff frequency (reduced phase lag)
+      const filterAlpha = dt / (dt + filterRc);
+      
+      D_torque.set(
+        this.rateState.prevDerivative.x + filterAlpha * (dGainsRaw.x - this.rateState.prevDerivative.x),
+        this.rateState.prevDerivative.y + filterAlpha * (dGainsRaw.y - this.rateState.prevDerivative.y),
+        this.rateState.prevDerivative.z + filterAlpha * (dGainsRaw.z - this.rateState.prevDerivative.z)
+      );
+      this.rateState.prevDerivative.copy(D_torque);
+    } else {
+      D_torque.copy(this.rateState.prevDerivative);
+    }
     
     // Total torque corrections
     const torqueCor = new THREE.Vector3()
       .add(P_torque)
       .add(this.rateState.integral)
       .add(D_torque);
+      
+    this.lastTorqueCor.copy(torqueCor);
+    this.lastMixedThrottle = mixedThrottle;
+
+    if (hasTakenOff) {
+      console.log(`[FC roll] rollAngleErr=${rollAngleErr.toFixed(4)}, targetRollRate=${targetRollRate.toFixed(4)}, gyroZ=${sensorData.gyro.z.toFixed(4)}, rateErrorZ=${rateError.z.toFixed(4)}, P=${P_torque.z.toFixed(4)}, I=${this.rateState.integral.z.toFixed(4)}, D=${D_torque.z.toFixed(4)}, total=${torqueCor.z.toFixed(4)}`);
+    }
       
     // 4. Motor Mixer (X Config)
     // Motor 0 (FL): CCW  |  Motor 1 (FR): CW
@@ -277,21 +343,24 @@ export class FlightController {
     let m3 = mixedThrottle - u_r + u_p + u_y; // RL (CW)
     let m4 = mixedThrottle + u_r + u_p - u_y; // RR (CCW)
     
-    // Scale or normalize motor commands if they exceed [0, 1] to preserve control authority
+    // Prioritize attitude control by shifting throttle down when maximum command exceeds 1.0
+    // (preserves differential torque/stabilizing authority, unlike dividing/scaling)
+    const motorMax = Math.max(m1, m2, m3, m4);
+    if (motorMax > 1.0) {
+      const excess = motorMax - 1.0;
+      m1 -= excess;
+      m2 -= excess;
+      m3 -= excess;
+      m4 -= excess;
+    }
+    
+    // Shift up if minimum command goes below 0.0 to prevent motor stalling
     const motorMin = Math.min(m1, m2, m3, m4);
     if (motorMin < 0) {
       m1 -= motorMin;
       m2 -= motorMin;
       m3 -= motorMin;
       m4 -= motorMin;
-    }
-    
-    const motorMax = Math.max(m1, m2, m3, m4);
-    if (motorMax > 1.0) {
-      m1 /= motorMax;
-      m2 /= motorMax;
-      m3 /= motorMax;
-      m4 /= motorMax;
     }
     
     // Clamp to valid range [idleSpin, 1]
