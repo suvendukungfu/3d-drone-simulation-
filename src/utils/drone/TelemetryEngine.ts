@@ -105,7 +105,7 @@ export class TelemetryEngine {
     return {
       isArmed,
       flightMode,
-      altitude: state.position.y - 0.02, // adjust for bottom offset
+      altitude: state.position.y - 0.05, // adjust for bottom offset
       verticalSpeed,
       speed,
       pitch: pitchDeg,

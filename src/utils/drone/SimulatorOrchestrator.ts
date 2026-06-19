@@ -25,21 +25,21 @@ export class SimulatorOrchestrator {
   
   // Simulation States
   private state: RigidBodyState = {
-    position: new THREE.Vector3(0, 0.02, 0), // rest on pad
+    position: new THREE.Vector3(0, 0.05, 0), // rest on pad
     velocity: new THREE.Vector3(0, 0, 0),
     quaternion: new THREE.Quaternion(),
     angularVelocity: new THREE.Vector3(0, 0, 0)
   };
 
   private prevState: RigidBodyState = {
-    position: new THREE.Vector3(0, 0.02, 0),
+    position: new THREE.Vector3(0, 0.05, 0),
     velocity: new THREE.Vector3(0, 0, 0),
     quaternion: new THREE.Quaternion(),
     angularVelocity: new THREE.Vector3(0, 0, 0)
   };
 
   private renderState: RigidBodyState = {
-    position: new THREE.Vector3(0, 0.02, 0),
+    position: new THREE.Vector3(0, 0.05, 0),
     velocity: new THREE.Vector3(0, 0, 0),
     quaternion: new THREE.Quaternion(),
     angularVelocity: new THREE.Vector3(0, 0, 0)
@@ -58,6 +58,14 @@ export class SimulatorOrchestrator {
   private calibrationTimer = 0.0;
   private isFailsafeActive = false;
   
+  // Flip Mode states
+  private isFlipArmed = false;
+  private isFlipping = false;
+  private flipType: 'front' | 'back' | 'left' | 'right' | null = null;
+  private flipTimer = 0.0;
+  private flipDuration = 0.45; // seconds
+  private flipStartQuaternion = new THREE.Quaternion();
+  
   // Warning Systems
   private crashDetected = false;
   private wallCollision = false;
@@ -73,6 +81,9 @@ export class SimulatorOrchestrator {
   
   // Wall collision notification tracker
   private collisionTimer = 0.0;
+
+  // Stored position at the moment of arming (to lock takeoff position)
+  private armPosition = new THREE.Vector3(0, 0.05, 0);
   
   constructor() {
     this.reset();
@@ -84,6 +95,7 @@ export class SimulatorOrchestrator {
     // Register callbacks
     this.input.setCallbacks({
       onArmToggle: () => this.toggleArm(),
+      onFlipToggle: () => this.toggleFlipArmed(),
       onTelemetryToggle: () => {
         const store = useDroneStore.getState() as any;
         if (store.toggleTelemetryDashboard) {
@@ -125,21 +137,21 @@ export class SimulatorOrchestrator {
   
   public reset(): void {
     this.state = {
-      position: new THREE.Vector3(0, 0.02, 0),
+      position: new THREE.Vector3(0, 0.05, 0),
       velocity: new THREE.Vector3(0, 0, 0),
       quaternion: new THREE.Quaternion(),
       angularVelocity: new THREE.Vector3(0, 0, 0)
     };
     
     this.prevState = {
-      position: new THREE.Vector3(0, 0.02, 0),
+      position: new THREE.Vector3(0, 0.05, 0),
       velocity: new THREE.Vector3(0, 0, 0),
       quaternion: new THREE.Quaternion(),
       angularVelocity: new THREE.Vector3(0, 0, 0)
     };
 
     this.renderState = {
-      position: new THREE.Vector3(0, 0.02, 0),
+      position: new THREE.Vector3(0, 0.05, 0),
       velocity: new THREE.Vector3(0, 0, 0),
       quaternion: new THREE.Quaternion(),
       angularVelocity: new THREE.Vector3(0, 0, 0)
@@ -153,6 +165,11 @@ export class SimulatorOrchestrator {
     this.isCalibrating = true;
     this.calibrationTimer = 0.0;
     this.isFailsafeActive = false;
+    
+    this.isFlipArmed = false;
+    this.isFlipping = false;
+    this.flipType = null;
+    this.flipTimer = 0.0;
     
     this.crashDetected = false;
     this.wallCollision = false;
@@ -172,6 +189,7 @@ export class SimulatorOrchestrator {
     this.logger.reset();
     this.wind.reset();
     this.performance.reset();
+    this.armPosition.set(0, 0.05, 0);
 
     // Clear store failure/diagnostics so pre-flight boot restarts cleanly
     const store = useDroneStore.getState();
@@ -182,6 +200,27 @@ export class SimulatorOrchestrator {
     this.controller.isAltHoldActive = true;
   }
   
+  public toggleFlipArmed(): void {
+    if (!this.isArmed || !this.hasTakenOff || this.isFlipping) {
+      const store = useDroneStore.getState() as any;
+      if (store.addNotification) {
+        store.addNotification('FLIP DENIED: MUST BE IN FLIGHT', 'warning');
+      }
+      return;
+    }
+    
+    this.isFlipArmed = !this.isFlipArmed;
+    
+    const store = useDroneStore.getState() as any;
+    if (store.addNotification) {
+      if (this.isFlipArmed) {
+        store.addNotification('FLIP MODE ARMED - PUSH STICK TO FLIP', 'success');
+      } else {
+        store.addNotification('FLIP MODE DISARMED', 'info');
+      }
+    }
+  }
+
   private toggleArm(): void {
     // Cannot arm if sensors failed calibration
     if (this.sensors.hasCalibrationFailed()) {
@@ -198,6 +237,7 @@ export class SimulatorOrchestrator {
   public arm(): void {
     if (this.isArmed) return;
     this.isArmed = true;
+    this.armPosition.copy(this.state.position);
     this.crashDetected = false;
     this.hardLanding = false;
     this.hasTakenOff = false;
@@ -216,9 +256,10 @@ export class SimulatorOrchestrator {
   
   public disarm(): void {
     if (!this.isArmed) return;
+    console.trace('disarm called');
     
     // Check for safe landing
-    const altitude = this.state.position.y - 0.02;
+    const altitude = this.state.position.y - this.physics.environmentBounds.minY;
     const vSpeed = this.state.velocity.y;
     const isSoft = altitude < 0.02 && vSpeed > -0.8;
     
@@ -348,14 +389,54 @@ export class SimulatorOrchestrator {
     // 2. Poll user keyboard input
     const stick = this.input.update(dt, this.isArmed);
     
+    // Check for flip trigger
+    if (this.isFlipArmed && !this.isFlipping && this.hasTakenOff) {
+      let triggered = false;
+      let type: 'front' | 'back' | 'left' | 'right' = 'front';
+      
+      if (stick.pitch < -0.7) {
+        type = 'front';
+        triggered = true;
+      } else if (stick.pitch > 0.7) {
+        type = 'back';
+        triggered = true;
+      } else if (stick.roll < -0.7) {
+        type = 'left';
+        triggered = true;
+      } else if (stick.roll > 0.7) {
+        type = 'right';
+        triggered = true;
+      }
+      
+      if (triggered) {
+        this.isFlipArmed = false;
+        this.isFlipping = true;
+        this.flipType = type;
+        this.flipTimer = 0.0;
+        this.flipStartQuaternion.copy(this.state.quaternion);
+        
+        const store = useDroneStore.getState() as any;
+        if (store.addNotification) {
+          store.addNotification(`FLIP: ${type.toUpperCase()}`, 'info');
+        }
+      }
+    }
+    
     // 3. Process Sensor simulation
     const sensorData = this.sensors.update(this.state, this.linearAcceleration, dt);
     
     // Check for takeoff detected
     if (this.isArmed && !this.hasTakenOff) {
-      const altitude = this.state.position.y - 0.02;
-      if (altitude > 0.15) {
+      const altitude = this.state.position.y - this.physics.environmentBounds.minY;
+      if (altitude > 0.08) {
         this.hasTakenOff = true;
+        
+        // Reset flight controller PIDs to prevent transition jump/wobble
+        this.controller.reset();
+        this.controller.isAltHoldActive = true;
+        const sensorDataForTakeoff = this.sensors.update(this.state, this.linearAcceleration, 0);
+        this.controller.setAltitudeLock(sensorDataForTakeoff.baroAltitude);
+        
         const store = useDroneStore.getState() as any;
         if (store.addNotification) {
           store.addNotification('TAKEOFF DETECTED', 'info');
@@ -412,8 +493,19 @@ export class SimulatorOrchestrator {
           sensorData,
           estAttitude,
           this.state.velocity,
-          dt
+          dt,
+          true
         );
+      } else if (this.isFlipping) {
+        // Direct control override during flip
+        const p = this.flipTimer / this.flipDuration;
+        if (p < 0.3) {
+          this.motorCommands = [0.95, 0.95, 0.95, 0.95]; // Thrust Punch
+        } else if (p < 0.85) {
+          this.motorCommands = [0.15, 0.15, 0.15, 0.15]; // Float and rotate
+        } else {
+          this.motorCommands = [0.70, 0.70, 0.70, 0.70]; // Catch
+        }
       } else {
         // Standard Pilot Flight Mode
         const estAttitude = new THREE.Euler().setFromQuaternion(this.state.quaternion, 'YXZ');
@@ -423,7 +515,8 @@ export class SimulatorOrchestrator {
           sensorData,
           estAttitude,
           this.state.velocity,
-          dt
+          dt,
+          this.hasTakenOff
         );
       }
     } else {
@@ -448,8 +541,48 @@ export class SimulatorOrchestrator {
 
     this.state = this.physics.step(this.state, this.motorCommands, dt);
 
+    if (this.isFlipping) {
+      this.flipTimer += dt;
+      const p = Math.min(1.0, this.flipTimer / this.flipDuration);
+      
+      const axis = new THREE.Vector3();
+      if (this.flipType === 'front') axis.set(1, 0, 0);
+      else if (this.flipType === 'back') axis.set(-1, 0, 0);
+      else if (this.flipType === 'left') axis.set(0, 0, -1);
+      else if (this.flipType === 'right') axis.set(0, 0, 1);
+      
+      const angle = p * Math.PI * 2;
+      const rotationQuat = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+      
+      this.state.quaternion.copy(this.flipStartQuaternion).multiply(rotationQuat);
+      this.state.angularVelocity.set(0, 0, 0);
+      
+      if (p >= 1.0) {
+        this.isFlipping = false;
+        this.flipType = null;
+        this.flipTimer = 0.0;
+        
+        const sensorDataForAlt = this.sensors.update(this.state, this.linearAcceleration, 0);
+        this.controller.setAltitudeLock(sensorDataForAlt.baroAltitude);
+      }
+    }
+
+    // Takeoff pad constraints
+    if (this.isArmed && !this.hasTakenOff) {
+      this.state.position.x = this.armPosition.x;
+      this.state.position.z = this.armPosition.z;
+      this.state.velocity.x = 0;
+      this.state.velocity.z = 0;
+      this.state.quaternion.set(0, 0, 0, 1);
+      this.state.angularVelocity.set(0, 0, 0);
+    }
+
     // Calculate acceleration vector for sensors: dv/dt
-    this.linearAcceleration.subVectors(this.state.velocity, oldVelocity).multiplyScalar(1.0 / dt);
+    if (dt > 0.0001) {
+      this.linearAcceleration.subVectors(this.state.velocity, oldVelocity).multiplyScalar(1.0 / dt);
+    } else {
+      this.linearAcceleration.set(0, 0, 0);
+    }
 
     // 7. Safety Audits (Crashes and landing collisions)
     this.auditSafety(oldVelocity, dt);
@@ -643,12 +776,12 @@ export class SimulatorOrchestrator {
         this.disarm();
       } else if (oldVelocity.y < -0.1) {
         // Soft landing: disarm naturally if pilot keeps pulling throttle down on floor
-        if (stick.throttle < 0.05 && this.hasTakenOff) {
+        if (stick.throttle < 0.20 && this.hasTakenOff) {
           this.disarm();
         }
       } else {
         // Auto-disarm if resting on the pad and throttle is held at zero
-        if (stick.throttle < 0.05 && this.hasTakenOff) {
+        if (stick.throttle < 0.20 && this.hasTakenOff) {
           this.disarm();
         }
       }
@@ -656,6 +789,10 @@ export class SimulatorOrchestrator {
   }
   
   // Public Accessors
+  public getIsArmed(): boolean {
+    return this.isArmed;
+  }
+
   public getPhysicsState(): RigidBodyState {
     return this.state;
   }

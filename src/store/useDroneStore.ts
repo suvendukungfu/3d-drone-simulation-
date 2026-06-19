@@ -34,6 +34,22 @@ const setSafeTheme = (theme: 'light' | 'dark') => {
   }
 };
 
+const getLocalStorageBool = (key: string, defaultVal: boolean): boolean => {
+  if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
+    const val = window.localStorage.getItem(key);
+    if (val !== null) return val === 'true';
+  }
+  return defaultVal;
+};
+
+const getLocalStorageEnv = (key: string, defaultVal: FlightEnvironment): FlightEnvironment => {
+  if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
+    const val = window.localStorage.getItem(key);
+    if (val === 'room' || val === 'lab' || val === 'classroom' || val === 'warehouse' || val === 'field' || val === 'course') return val;
+  }
+  return defaultVal;
+};
+
 export type AppMode = 'home' | 'explore' | 'inspect' | 'learning' | 'flight';
 export type CameraView = 'orbit' | 'inspect' | 'top' | 'bottom' | 'left' | 'right' | 'front' | 'back';
 export type FlightCameraView = 'chase' | 'fpv' | 'orbit';
@@ -98,6 +114,7 @@ interface DroneState {
   selectedComponent: string | null;
   isExploded: boolean;
   isolationMode: boolean;
+  showAnatomyExploded: boolean;
   
   // Camera & Scene Settings (Avionics Lab)
   cameraView: CameraView;
@@ -190,6 +207,7 @@ interface DroneState {
   selectComponent: (id: string | null) => void;
   toggleExploded: () => void;
   toggleIsolation: () => void;
+  toggleAnatomyExploded: () => void;
   
   // Camera Actions (Avionics Lab)
   setCameraView: (view: CameraView) => void;
@@ -238,6 +256,10 @@ interface DroneState {
   setFlightSimModalOpen: (open: boolean) => void;
   isARActive: boolean;
   setARActive: (active: boolean) => void;
+  gyroPilot: boolean;
+  setGyroPilot: (val: boolean) => void;
+  gyroSensitivity: number;
+  setGyroSensitivity: (val: number) => void;
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
@@ -250,6 +272,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   selectedComponent: null,
   isExploded: false,
   isolationMode: false,
+  showAnatomyExploded: false,
 
   unlockedLevels: [true, false, false, false, false],
   isFlightSimModalOpen: false,
@@ -284,9 +307,9 @@ export const useDroneStore = create<DroneState>((set, get) => ({
 
   // --- FLIGHT SIMULATOR INITIAL STATE ---
   flightCameraView: 'chase',
-  showTelemetryDashboard: true,
-  showControlsOverlay: true,
-  flightEnvironment: 'room',
+  showTelemetryDashboard: getLocalStorageBool('showTelemetryDashboard', true),
+  showControlsOverlay: getLocalStorageBool('showControlsOverlay', true),
+  flightEnvironment: getLocalStorageEnv('flightEnvironment', 'room'),
   activeMissionIndex: -1, // start at menu
   missionStatus: 'idle',
   missionObjectivesCompleted: [],
@@ -294,8 +317,10 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   telemetry: DEFAULT_TELEMETRY,
   warnings: [],
   isAcademyOpen: true,
-  showChecklist: true,
+  showChecklist: getLocalStorageBool('showChecklist', true),
   notifications: [],
+  gyroPilot: false,
+  gyroSensitivity: 1.2,
 
   // --- SPAWN & DIAGNOSTIC INITIAL STATE ---
   modelLoadStatus: 'loading',
@@ -337,6 +362,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       isolationMode: false,
       hoveredComponent: null,
       isExploded: false,
+      showAnatomyExploded: false,
       cameraView: 'orbit',
       autoRotate: mode === 'home',
       learningStatus: mode === 'learning' ? 'identifying' : 'idle'
@@ -375,7 +401,22 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       isExploded: nextExploded,
       isolationMode: nextExploded ? false : state.isolationMode,
       autoRotate: nextExploded ? false : state.autoRotate,
-      cameraView: nextExploded ? 'orbit' : state.cameraView
+      cameraView: nextExploded ? 'orbit' : state.cameraView,
+      // Close anatomy exploded when regular explode is toggled
+      showAnatomyExploded: nextExploded ? false : state.showAnatomyExploded
+    };
+  }),
+
+  toggleAnatomyExploded: () => set((state) => {
+    sound.playClick();
+    const next = !state.showAnatomyExploded;
+    return {
+      showAnatomyExploded: next,
+      // Disable conflicting views
+      isExploded: next ? false : state.isExploded,
+      isolationMode: next ? false : state.isolationMode,
+      autoRotate: next ? false : state.autoRotate,
+      cameraView: next ? 'orbit' : state.cameraView
     };
   }),
 
@@ -563,12 +604,20 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   
   toggleTelemetryDashboard: () => {
     sound.playClick();
-    set((state) => ({ showTelemetryDashboard: !state.showTelemetryDashboard }));
+    const nextVal = !get().showTelemetryDashboard;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('showTelemetryDashboard', String(nextVal));
+    }
+    set({ showTelemetryDashboard: nextVal });
   },
 
   toggleControlsOverlay: () => {
     sound.playClick();
-    set((state) => ({ showControlsOverlay: !state.showControlsOverlay }));
+    const nextVal = !get().showControlsOverlay;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('showControlsOverlay', String(nextVal));
+    }
+    set({ showControlsOverlay: nextVal });
   },
   
   toggleAcademy: () => {
@@ -578,7 +627,11 @@ export const useDroneStore = create<DroneState>((set, get) => ({
 
   toggleChecklist: () => {
     sound.playClick();
-    set((state) => ({ showChecklist: !state.showChecklist }));
+    const nextVal = !get().showChecklist;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('showChecklist', String(nextVal));
+    }
+    set({ showChecklist: nextVal });
   },
 
   addNotification: (text, type = 'info') => {
@@ -599,6 +652,9 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   
   setFlightEnvironment: (env) => {
     sound.playClick();
+    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
+      window.localStorage.setItem('flightEnvironment', env);
+    }
     set({ flightEnvironment: env });
   },
   
@@ -636,7 +692,9 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   
   updateFlightTelemetry: (telemetry, warnings) => {
     // Generate digital twin serial telemetry UDP strings on the fly with XOR checksum!
-    if (get().appLinkStatus === 'connected') {
+    const closedEnvs = ['room', 'lab', 'classroom', 'warehouse'];
+    const isClosed = closedEnvs.includes(get().flightEnvironment);
+    if (get().appLinkStatus === 'connected' && !isClosed) {
       const timeStr = telemetry.flightTime.toFixed(2);
       const rollStr = telemetry.roll.toFixed(1);
       const pitchStr = telemetry.pitch.toFixed(1);
@@ -729,6 +787,13 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   setARActive: (active) => {
     sound.playClick();
     set({ isARActive: active });
+  },
+  setGyroPilot: (val) => {
+    sound.playClick();
+    set({ gyroPilot: val });
+  },
+  setGyroSensitivity: (val) => {
+    set({ gyroSensitivity: val });
   },
   setTheme: (theme) => {
     setSafeTheme(theme);
