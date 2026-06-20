@@ -28,3 +28,6 @@ export default defineConfig({
 
 // Senior Perf: Add manual chunking rules for Three.js vendor dependencies
  // Commit Entry #1084
+
+// Senior Perf: Add manual chunking rules for Three.js vendor dependencies
+ // Commit Entry #1115
