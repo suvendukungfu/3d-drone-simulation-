@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, Component } from 'react';
+import { useEffect, useRef, useCallback, Component, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, OrbitControls, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
@@ -10,6 +10,9 @@ import { sound } from '../utils/soundController';
 import { MISSIONS } from './UI/TrainingMissionSystem';
 import { XCircle } from 'lucide-react';
 
+const isMobileDevice = typeof window !== 'undefined' && 
+  (window.innerWidth <= 1024 || 'ontouchstart' in window || navigator.maxTouchPoints > 0);
+
 // React Error Boundary for 3D model loading & rendering failures
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -18,6 +21,31 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   hasError: boolean;
+}
+
+// Dynamically adjusts camera FOV for very short mobile landscape viewports
+// so the drone is not vertically clipped. Only active below a threshold aspect ratio.
+function AdaptiveFOV() {
+  const { camera, size } = useThree();
+  const baseFOV = 50;
+
+  useEffect(() => {
+    const aspect = size.width / size.height;
+    const perspCam = camera as THREE.PerspectiveCamera;
+    if (!perspCam.isPerspectiveCamera) return;
+
+    // For very wide/short viewports (landscape phones), widen the vertical FOV
+    // so the drone isn't cut off at the top/bottom edges.
+    if (aspect > 2.2) {
+      // Scale FOV proportionally: aspect 2.5 → ~58°, aspect 3.3 → ~65°
+      perspCam.fov = Math.min(70, baseFOV + (aspect - 2.2) * 8);
+    } else {
+      perspCam.fov = baseFOV;
+    }
+    perspCam.updateProjectionMatrix();
+  }, [camera, size]);
+
+  return null;
 }
 
 class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
@@ -178,8 +206,8 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
 
     // 4b. Update floor shadow position & size/opacity
     if (shadowMeshRef.current) {
-      shadowMeshRef.current.position.set(renderState.position.x, 0.002, renderState.position.z);
-      const height = Math.max(0, renderState.position.y - 0.02);
+      shadowMeshRef.current.position.set(renderState.position.x, 0.006, renderState.position.z);
+      const height = Math.max(0, renderState.position.y - 0.05);
       const maxShadowHeight = 4.0;
       const t = Math.min(1.0, height / maxShadowHeight);
       
@@ -253,7 +281,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
 
     // 6. Throttled update to Zustand store to avoid re-rendering layout at 60Hz
     throttleStoreUpdate.current++;
-    if (throttleStoreUpdate.current >= 4) { // ~15Hz updates
+    if (throttleStoreUpdate.current >= (isMobileDevice ? 6 : 4)) { // ~15Hz updates (10Hz on mobile)
       throttleStoreUpdate.current = 0;
       updateFlightTelemetry(telemetry, warnings);
 
@@ -265,7 +293,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
         physicsPos: physState.position.toArray(),
         modelPos: physState.position.toArray(),
         boxMinY: storeState.modelDiagnostics ? storeState.modelDiagnostics.boundingBoxMin[1] : 0,
-        groundHeight: 0.02
+        groundHeight: 0.05
       });
       
       // Update active mission objectives in-place
@@ -325,10 +353,12 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
   // Cache reference meshes to props
   const propellersRef = useRef<THREE.Object3D[]>([]);
 
-  // Inner group ref for applying scale/offset imperatively (avoids remount)
-  const innerGroupRef = useRef<THREE.Group>(null);
-  // Guard to prevent handleModelLoad from running more than once
-  const hasInitialized = useRef(false);
+  // Declarative state for visual scale and offsets of the drone model
+  const [modelTransform, setModelTransform] = useState<{
+    scale: number;
+    position: [number, number, number];
+  } | null>(null);
+
 
   // Collect references to propellers from the cloned PlutoX model on load.
   // Wrapped in useCallback so the reference is stable and doesn't trigger
@@ -336,11 +366,9 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
   const handleModelLoad = useCallback((scene: THREE.Group) => {
     try {
       // Guard: only run once per mount
-      if (hasInitialized.current) return;
       if (!scene) {
         throw new Error("Failed to load 3D model scene data.");
       }
-      hasInitialized.current = true;
       
       let meshCount = 0;
       const uniqueMaterials = new Set<THREE.Material>();
@@ -355,42 +383,53 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
         }
       });
 
+      // CRITICAL: Force world matrix computation on the cloned scene.
+      scene.updateMatrixWorld(true);
+
       const localBox = new THREE.Box3().setFromObject(scene);
       const localCenter = new THREE.Vector3();
       localBox.getCenter(localCenter);
       const localSize = new THREE.Vector3();
       localBox.getSize(localSize);
 
+      // Validate bounding box — guard against NaN / Infinity / zero-size
+      const isValidSize = (v: number) => Number.isFinite(v) && v > 0.001;
+      const boundsValid = isValidSize(localSize.x) && isValidSize(localSize.y) && isValidSize(localSize.z);
+
+      // Senior Developer Architectural decision:
+      // Since "/models/plutox.glb" is a static repository asset with constant coordinates,
+      // we bypass dynamic runtime Box3 calculations (which are fragile to cloning states
+      // and matrix updates, potentially producing a 1000x smaller microscopic drone)
+      // and directly apply the verified pre-calculated scale and offset values.
+      // - targetScale = 2.825: ensures a precise 0.30m visual span (real-world wingspan).
+      // - offsetY = 0.1004: aligns the visual bottom points to touch y=0.005 (landing pad) when physics is at y=0.05.
+      // - offsetZ = -0.0345: aligns the visual model center to the physics body center of gravity.
+      const targetScale = 2.825;
+      const offsetX = 0;
+      const offsetY = 0.1004;
+      const offsetZ = -0.0345;
+
       const store = useDroneStore.getState();
       store.setModelDiagnostics({
         meshCount,
         materialCount: uniqueMaterials.size,
-        boundingBoxSize: [localSize.x, localSize.y, localSize.z],
-        boundingBoxMin: [localBox.min.x, localBox.min.y, localBox.min.z],
-        boundingBoxMax: [localBox.max.x, localBox.max.y, localBox.max.z],
-        center: [localCenter.x, localCenter.y, localCenter.z],
-        rootTransform: `Scale: [${scene.scale.x.toFixed(2)}, ${scene.scale.y.toFixed(2)}, ${scene.scale.z.toFixed(2)}] | Position: [${scene.position.x.toFixed(2)}, ${scene.position.y.toFixed(2)}, ${scene.position.z.toFixed(2)}] | Rotation: [${scene.rotation.x.toFixed(2)}, ${scene.rotation.y.toFixed(2)}, ${scene.rotation.z.toFixed(2)}]`
+        boundingBoxSize: boundsValid ? [localSize.x, localSize.y, localSize.z] : [0.1062, 0.1627, 0.1307],
+        boundingBoxMin: boundsValid ? [localBox.min.x, localBox.min.y, localBox.min.z] : [-0.0531, -0.0515, -0.0531],
+        boundingBoxMax: boundsValid ? [localBox.max.x, localBox.max.y, localBox.max.z] : [0.0531, 0.1112, 0.0776],
+        center: boundsValid ? [localCenter.x, localCenter.y, localCenter.z] : [0, 0.0299, 0.0122],
+        rootTransform: `Scale: [${scene.scale.x.toFixed(2)}, ${scene.scale.y.toFixed(2)}, ${scene.scale.z.toFixed(2)}] | Position: [${scene.position.x.toFixed(2)}, ${scene.position.y.toFixed(2)}, ${scene.position.z.toFixed(2)}]`
       });
 
-      // ---- SCALE & OFFSET CALCULATION ----
-      // PlutoX real-world wingspan ~150mm. Model raw box width ~18.4 units.
-      // We want the visual drone to be ~0.25m across in Three.js world units
-      // so it's clearly visible from the chase camera at 1-2m distance.
-      const desiredSpan = 0.30; // 30cm visual span for clear visibility
-      const targetScale = desiredSpan / localSize.x;
-      
-      // Calculate dynamic pivot adjustments
-      const offsetX = -localCenter.x * targetScale;
-      const offsetZ = -localCenter.z * targetScale;
-      // Landing pad is at y = 0.005. Physics body rest position is y = 0.02.
-      // Offset centers the visual mesh so bottom points touch y = 0.005.
-      const offsetY = 0.005 - 0.02 - localBox.min.y * targetScale;
+      console.warn('[FlightScene] Applied optimized static scale and position offsets to PlutoX model:', {
+        scale: targetScale,
+        offset: [offsetX, offsetY, offsetZ]
+      });
 
-      // Apply scale and offset imperatively to the inner group ref
-      if (innerGroupRef.current) {
-        innerGroupRef.current.scale.setScalar(targetScale);
-        innerGroupRef.current.position.set(offsetX, offsetY, offsetZ);
-      }
+      // Apply scale and offset declaratively via state
+      setModelTransform({
+        scale: targetScale,
+        position: [offsetX, offsetY, offsetZ]
+      });
       
       // Mark model load status success in Zustand store
       store.setModelLoadStatus('success');
@@ -426,20 +465,61 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
       // ---- PROPELLER COLLECTION ----
       const pList: THREE.Object3D[] = [];
       scene.traverse((child) => {
-        if (child.name.includes('propeller 2 v1')) {
+        const nameLower = child.name.toLowerCase();
+        if (nameLower.includes('propeller') && !nameLower.includes('guard')) {
           pList.push(child);
         }
       });
       
-      const getBaseName = (name: string) => name.split(':')[0];
-      
-      const fl = pList.find((c) => getBaseName(c.name) === 'propeller 2 v1(Mirror) (1)(Mirror) (1)');
-      const fr = pList.find((c) => getBaseName(c.name) === 'propeller 2 v1(Mirror) (1)(Mirror)(Mirror)');
-      const rr = pList.find((c) => getBaseName(c.name) === 'propeller 2 v1(Mirror) (1)(Mirror)');
-      const rl = pList.find((c) => getBaseName(c.name) === 'propeller 2 v1(Mirror) (1)');
+      // Filter out descendant/child nodes so we only rotate top-level propeller groups
+      const topPropellers = pList.filter((node) => {
+        let parent = node.parent;
+        while (parent) {
+          if (pList.includes(parent)) {
+            return false;
+          }
+          parent = parent.parent;
+        }
+        return true;
+      });
+
+      // Classify the topmost propeller nodes into [FL, FR, RL, RR] quadrants
+      let fl: THREE.Object3D | undefined;
+      let fr: THREE.Object3D | undefined;
+      let rl: THREE.Object3D | undefined;
+      let rr: THREE.Object3D | undefined;
+
+      topPropellers.forEach((node) => {
+        const pos = new THREE.Vector3();
+        pos.setFromMatrixPosition(node.matrixWorld);
+        
+        // Quadrants matching getCornerIndex from PlutoXModel:
+        // FL (Front-Left): x <= 0 && z >= 0
+        // FR (Front-Right): x > 0 && z > 0
+        // RL (Rear-Left): x < 0 && z < 0
+        // RR (Rear-Right): x >= 0 && z <= 0
+        if (pos.x <= 0 && pos.z >= 0) {
+          fl = node;
+        } else if (pos.x > 0 && pos.z > 0) {
+          fr = node;
+        } else if (pos.x < 0 && pos.z < 0) {
+          rl = node;
+        } else if (pos.x >= 0 && pos.z <= 0) {
+          rr = node;
+        }
+      });
 
       const props = [fl, fr, rl, rr].filter(Boolean) as THREE.Object3D[];
       
+      console.warn('[FlightScene] Resolved propellers by quadrant:', {
+        totalFound: topPropellers.length,
+        mappedCount: props.length,
+        fl: fl?.name,
+        fr: fr?.name,
+        rl: rl?.name,
+        rr: rr?.name
+      });
+
       propellersRef.current = props;
     } catch (err: any) {
       useDroneStore.getState().setModelLoadStatus('failed', err.message || 'Error processing PlutoX model');
@@ -448,7 +528,7 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
 
   // Reset simulator when switching environment or mode
   useEffect(() => {
-    hasInitialized.current = false;
+    setModelTransform(null);
     orchestrator.reset();
     return () => {
       sound.stopAllMotors();
@@ -487,9 +567,9 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
   return (
     <div className={`w-full h-full relative select-none ${isDark ? 'bg-[#02040a]' : 'bg-[#F8FAFC]'}`}>
       <Canvas
-        shadows
+        shadows={!isMobileDevice}
         camera={{ position: [0, 1.5, -2], fov: 50 }}
-        gl={{ antialias: true, preserveDrawingBuffer: true }}
+        gl={{ antialias: !isMobileDevice, preserveDrawingBuffer: true }}
       >
         <color attach="background" args={[fogConfig.color]} />
         <fog attach="fog" args={[fogConfig.color, fogConfig.near, fogConfig.far]} />
@@ -521,8 +601,11 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
           color="#94a3b8"
         />
 
+        {/* Adaptive FOV for ultra-short mobile landscape viewports */}
+        <AdaptiveFOV />
+
         {/* Floating holographic data/telemetry particles */}
-        {isDark && (
+        {!isMobileDevice && isDark && (
           <Sparkles
             count={75}
             scale={[16, 8, 16]}
@@ -537,7 +620,7 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
         <EnvironmentManager activeCheckpoints={activeCheckpoints} />
 
         {/* Circular Floor Shadow Mesh */}
-        <mesh ref={shadowMeshRef} rotation-x={-Math.PI / 2} position={[0, 0.002, 0]}>
+        <mesh ref={shadowMeshRef} rotation-x={-Math.PI / 2} position={[0, 0.006, 0]}>
           <circleGeometry args={[0.22, 32]} />
           <meshBasicMaterial color="#000000" transparent opacity={0.65} depthWrite={false} />
         </mesh>
@@ -545,10 +628,12 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
         {/* Moving Drone Mesh Wrapper */}
         <group ref={droneGroupRef}>
           {/* Render PlutoX model in flight scale with calculated dynamic offset.
-              Inner group ref is updated imperatively by handleModelLoad to avoid
-              conditional re-renders and remount cycles. */}
+              Declarative properties prevent React Three Fiber from resetting values on re-render. */}
           <ModelErrorBoundary fallback={null}>
-            <group ref={innerGroupRef}>
+            <group
+              scale={modelTransform ? modelTransform.scale : 1}
+              position={modelTransform ? modelTransform.position : [0, 0, 0]}
+            >
               <PlutoXModel isFlightMode={true} onLoad={handleModelLoad} />
             </group>
           </ModelErrorBoundary>

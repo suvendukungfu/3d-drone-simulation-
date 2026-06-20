@@ -1,7 +1,8 @@
-import { useRef } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { Grid, Billboard, Text } from '@react-three/drei';
 import { useDroneStore } from '../store/useDroneStore';
+
 
 interface ObstacleProps {
   position: [number, number, number];
@@ -175,44 +176,220 @@ export function EnvironmentManager({ activeCheckpoints }: { activeCheckpoints?: 
   const theme = useDroneStore((state) => state.theme);
   const isDark = theme === 'dark';
   
+  const closedEnvs = ['room', 'lab', 'classroom', 'warehouse'];
+  const isClosedSimulation = closedEnvs.includes(envType);
+
+  // Generate crisp 1024x1024 high-tech square launch pad texture
+  const homePadTexture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, 1024, 1024);
+      
+      // Draw background rounded square
+      ctx.fillStyle = '#1e293b';
+      const radius = 80;
+      const x = 32, y = 32, w = 960, h = 960;
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + w - radius, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+      ctx.lineTo(x + w, y + h - radius);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      ctx.lineTo(x + radius, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+      ctx.fill();
+
+      // Outer tech ring (concentric circles inside the square)
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 24;
+      ctx.beginPath();
+      ctx.arc(512, 512, 360, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(512, 512, 280, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Corner tech bracket markings
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 16;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // Top-Left Bracket
+      ctx.beginPath();
+      ctx.moveTo(160, 280);
+      ctx.lineTo(160, 160);
+      ctx.lineTo(280, 160);
+      ctx.stroke();
+
+      // Top-Right Bracket
+      ctx.beginPath();
+      ctx.moveTo(864, 280);
+      ctx.lineTo(864, 160);
+      ctx.lineTo(744, 160);
+      ctx.stroke();
+
+      // Bottom-Left Bracket
+      ctx.beginPath();
+      ctx.moveTo(160, 744);
+      ctx.lineTo(160, 864);
+      ctx.lineTo(280, 864);
+      ctx.stroke();
+
+      // Bottom-Right Bracket
+      ctx.beginPath();
+      ctx.moveTo(864, 744);
+      ctx.lineTo(864, 864);
+      ctx.lineTo(744, 864);
+      ctx.stroke();
+
+      // Bold central 'H'
+      ctx.fillStyle = '#3b82f6';
+      ctx.font = 'bold 340px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('H', 512, 512);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }, []);
+
+  // Generate crisp 1024x1024 target landing pad texture
+  const targetPadTexture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, 1024, 1024);
+
+      // Dark indigo circular background
+      ctx.fillStyle = '#1e1b4b';
+      ctx.beginPath();
+      ctx.arc(512, 512, 480, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Yellow outer border ring
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 24;
+      ctx.beginPath();
+      ctx.arc(512, 512, 440, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Yellow concentric rings
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      ctx.arc(512, 512, 300, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(512, 512, 160, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Central solid dot
+      ctx.fillStyle = '#eab308';
+      ctx.beginPath();
+      ctx.arc(512, 512, 48, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Precision crosshairs lines
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(512, 60); ctx.lineTo(512, 964);
+      ctx.moveTo(60, 512); ctx.lineTo(964, 512);
+      ctx.stroke();
+
+      // Clear TARGET text overlay label block
+      ctx.fillStyle = '#1e1b4b';
+      ctx.fillRect(260, 700, 504, 120);
+
+      ctx.fillStyle = '#eab308';
+      ctx.font = 'bold 88px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('TARGET', 512, 760);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }, []);
+
+  // Dispose of custom textures on unmount to prevent GPU memory leaks
+  useEffect(() => {
+    return () => {
+      homePadTexture.dispose();
+      targetPadTexture.dispose();
+    };
+  }, [homePadTexture, targetPadTexture]);
+
   return (
     <group>
       {/* 1. GENERAL LANDING PADS */}
-      {/* Home Base Launch Mat */}
-      <group position={[0, 0.005, 0]}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[1.5, 1.5]} />
-          <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.7} />
-        </mesh>
-        {/* Border Ring */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
-          <ringGeometry args={[0.65, 0.7, 32]} />
-          <meshBasicMaterial color="#3b82f6" toneMapped={false} />
-        </mesh>
-        {/* H Logo */}
-        <Billboard position={[0, 0.01, 0]} follow={true}>
-          <Text fontSize={0.35} color="#3b82f6" anchorX="center" anchorY="middle">
-            H
-          </Text>
-        </Billboard>
-      </group>
-      
-      {/* Target Landing Pad (for precision landing missions) */}
-      <group position={[3.0, 0.005, 3.5]}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <circleGeometry args={[0.65, 32]} />
-          <meshStandardMaterial color="#1e1b4b" roughness={0.4} metalness={0.8} />
-        </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
-          <ringGeometry args={[0.6, 0.65, 32]} />
-          <meshBasicMaterial color="#eab308" toneMapped={false} />
-        </mesh>
-        <Billboard position={[0, 0.01, 0]} follow={true}>
-          <Text fontSize={0.25} color="#eab308" anchorX="center" anchorY="middle">
-            TARGET
-          </Text>
-        </Billboard>
-      </group>
+      {isClosedSimulation ? (
+        <>
+          {/* Home Base Launch Mat (Textured) */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} receiveShadow>
+            <planeGeometry args={[1.5, 1.5]} />
+            <meshStandardMaterial map={homePadTexture} transparent roughness={0.4} metalness={0.7} />
+          </mesh>
+          
+          {/* Target Landing Pad (Textured) */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[3.0, 0.005, 3.5]} receiveShadow>
+            <planeGeometry args={[1.3, 1.3]} />
+            <meshStandardMaterial map={targetPadTexture} transparent roughness={0.4} metalness={0.7} />
+          </mesh>
+        </>
+      ) : (
+        <>
+          {/* Home Base Launch Mat (Original 3D Model / Geometries) */}
+          <group position={[0, 0.005, 0]}>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+              <planeGeometry args={[1.5, 1.5]} />
+              <meshStandardMaterial color="#1e293b" roughness={0.4} metalness={0.7} />
+            </mesh>
+            {/* Border Ring */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
+              <ringGeometry args={[0.65, 0.7, 32]} />
+              <meshBasicMaterial color="#3b82f6" toneMapped={false} />
+            </mesh>
+            {/* H Logo */}
+            <Billboard position={[0, 0.01, 0]} follow={true}>
+              <Text fontSize={0.35} color="#3b82f6" anchorX="center" anchorY="middle">
+                H
+              </Text>
+            </Billboard>
+          </group>
+          
+          {/* Target Landing Pad (Original 3D Model / Geometries) */}
+          <group position={[3.0, 0.005, 3.5]}>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+              <circleGeometry args={[0.65, 32]} />
+              <meshStandardMaterial color="#1e1b4b" roughness={0.4} metalness={0.8} />
+            </mesh>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
+              <ringGeometry args={[0.6, 0.65, 32]} />
+              <meshBasicMaterial color="#eab308" toneMapped={false} />
+            </mesh>
+            <Billboard position={[0, 0.01, 0]} follow={true}>
+              <Text fontSize={0.25} color="#eab308" anchorX="center" anchorY="middle">
+                TARGET
+              </Text>
+            </Billboard>
+          </group>
+        </>
+      )}
       
       {/* 2. SPECIFIC 3D ENVIRONMENTS */}
       

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { useDroneStore } from '../store/useDroneStore';
 import { droneComponents } from '../data/droneComponents';
 import { PlutoXModel, getComponentIdByMeshName, getCornerIndex } from './PlutoXModel';
+import { PlutoAnatomyExploded } from './PlutoAnatomyExploded';
 import { FloatingHotspots } from './FloatingHotspots';
 
 const SEARCH_ID_MAP: Record<string, string> = {
@@ -252,6 +253,7 @@ export function Scene({ controlsRef, vrEye }: SceneProps) {
   const cameraView = useDroneStore((state) => state.cameraView);
   const theme = useDroneStore((state) => state.theme);
   const isDark = theme === 'dark';
+  const showAnatomyExploded = useDroneStore((state) => state.showAnatomyExploded);
   const floorGroupRef = useRef<THREE.Group>(null);
 
   return (
@@ -368,8 +370,15 @@ export function Scene({ controlsRef, vrEye }: SceneProps) {
 
         {/* Center the group & render model */}
         <Center>
-          <PlutoXModel />
-          <FloatingHotspots />
+          {showAnatomyExploded
+            ? <PlutoAnatomyExploded />
+            : (
+              <>
+                <PlutoXModel />
+                <FloatingHotspots />
+              </>
+            )
+          }
         </Center>
 
         {/* Smooth dynamic camera controllers */}
