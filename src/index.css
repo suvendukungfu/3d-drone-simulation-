@@ -161,3 +161,225 @@ html.dark, html.dark body, html.dark #root {
   animation: dot-pulse 1.2s ease-in-out infinite 0.4s;
 }
 
+/* =============================================================
+   Anatomy Lab — Base classes (all viewports)
+   ============================================================= */
+
+/* Camera grid: 2-col on all viewports */
+.anatomy-camera-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.anatomy-camera-orbit {
+  grid-column: 1 / -1;
+}
+
+/* Motor row: flex row by default */
+.anatomy-motor-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Motor button: px/py for desktop */
+.anatomy-motor-btn {
+  padding: 10px 14px;
+}
+
+/* RPM badge: desktop */
+.anatomy-motor-rpm {
+  width: 64px;
+  text-align: center;
+  font-family: monospace;
+  font-size: 10px;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  padding: 6px 0;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.dark .anatomy-motor-rpm {
+  color: #fb923c;
+  border-color: rgba(154,52,18,0.4);
+  background: rgba(124,45,18,0.35);
+}
+
+/* =============================================================
+   Anatomy Lab — Mobile Bottom-Sheet (<1024px)
+   ============================================================= */
+
+@media (max-width: 1023px) {
+  /* ─── Floating Action Button ────────────────────────────────── */
+  .anatomy-fab {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: rgba(59, 130, 246, 0.95);
+    color: white;
+    border: 2px solid rgba(59, 130, 246, 0.6);
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.35),
+                0 2px 8px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    cursor: pointer;
+    pointer-events: auto;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .anatomy-fab:active {
+    transform: scale(0.93);
+  }
+
+  /* ─── Backdrop Overlay ─────────────────────────────────────── */
+  .anatomy-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    pointer-events: auto;
+  }
+
+  /* ─── Mobile Bottom-Sheet Container ────────────────────────── */
+  .anatomy-mobile-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    max-height: 65vh;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.97);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.12),
+                0 -2px 12px rgba(0, 0, 0, 0.06);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    will-change: transform;
+    pointer-events: auto;
+  }
+  .dark .anatomy-mobile-sheet {
+    background: rgba(10, 15, 30, 0.97);
+    border-top-color: rgba(51, 65, 85, 0.3);
+  }
+
+  /* ─── Sheet Drag Handle & Header ───────────────────────────── */
+  .anatomy-sheet-header {
+    padding-top: 10px;
+    flex-shrink: 0;
+  }
+  .anatomy-sheet-handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(148, 163, 184, 0.35);
+    margin: 0 auto 10px;
+  }
+  .dark .anatomy-sheet-handle {
+    background: rgba(100, 116, 139, 0.4);
+  }
+
+  /* ─── Scrollable Sheet Body ────────────────────────────────── */
+  .anatomy-sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 16px 16px;
+    overscroll-behavior: contain;
+  }
+
+  /* ─── Compact Motor Cards on Mobile ────────────────────────── */
+  .anatomy-motor-btn {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  .anatomy-motor-rpm {
+    width: 54px;
+    font-size: 9px;
+    padding: 4px 0;
+  }
+
+  /* ─── Sticky Action Buttons at Bottom ──────────────────────── */
+  .anatomy-sticky-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px 0 4px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-top: 1px solid rgba(148, 163, 184, 0.15);
+    margin-top: 8px;
+  }
+  .dark .anatomy-sticky-actions {
+    background: rgba(10, 15, 30, 0.95);
+    border-top-color: rgba(51, 65, 85, 0.2);
+  }
+
+  /* ─── Touch-Friendly Minimum Button Sizes ──────────────────── */
+  .anatomy-camera-grid button,
+  .anatomy-motor-btn {
+    min-height: 44px;
+  }
+
+  /* ─── Bottom controls (Anatomy Exploded / Isolate) compact ── */
+  .absolute.bottom-6.left-6 {
+    left: 12px;
+    bottom: 12px;
+    gap: 8px;
+  }
+  .absolute.bottom-6.left-6 button {
+    padding: 8px 12px;
+    font-size: 10px;
+  }
+  .absolute.bottom-6.left-6 button span:not(.absolute) {
+    display: none;
+  }
+}
+
+/* =============================================================
+   Anatomy Lab — Tablet tweaks (768px – 1023px)
+   ============================================================= */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .anatomy-mobile-sheet {
+    max-height: 55vh;
+    max-width: 480px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 20px 20px 0 0;
+  }
+}
+
+/* =============================================================
+   Landscape Orientation Overlay & Animation
+   ============================================================= */
+@keyframes device-rotate {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-90deg);
+  }
+}
+
+.animate-device-rotate {
+  animation: device-rotate 2.5s ease-in-out infinite;
+}
+

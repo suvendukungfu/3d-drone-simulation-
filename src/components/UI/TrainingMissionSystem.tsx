@@ -554,25 +554,25 @@ export function TrainingMissionSystem({
   const firstUncompletedIdx = objectives.findIndex(completed => !completed);
 
   return (
-    <div className={`absolute md:top-0 md:bottom-0 left-0 top-auto bottom-0 w-full md:w-[320px] h-[40vh] md:h-full border-t md:border-t-0 md:border-r border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md flex flex-col justify-between p-4 md:p-5 z-20 transition-transform duration-300 ease-in-out pointer-events-auto shadow-[0_-10px_30px_rgba(0,0,0,0.03)] md:shadow-[10px_0_30px_rgba(0,0,0,0.03)] ${
+    <div className={`absolute md:top-0 md:bottom-0 left-0 top-auto bottom-0 w-full md:w-[320px] landscape:w-[280px] h-[40vh] md:h-full landscape:h-full border-t md:border-t-0 landscape:border-t-0 md:border-r landscape:border-r border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md flex flex-col justify-between p-4 md:p-5 z-20 transition-transform duration-300 ease-in-out pointer-events-auto shadow-[0_-10px_30px_rgba(0,0,0,0.03)] md:shadow-[10px_0_30px_rgba(0,0,0,0.03)] ${
       isAcademyOpen 
         ? 'translate-x-0 translate-y-0' 
-        : 'translate-x-0 md:-translate-x-full max-md:translate-y-full md:translate-y-0'
+        : 'translate-x-0 md:-translate-x-full landscape:-translate-x-full portrait:max-md:translate-y-full md:translate-y-0'
     }`}>
       
       {/* Toggle Tab sticking out: horizontal at top on mobile, vertical at right on desktop */}
       <button
         onClick={toggleAcademy}
-        className="absolute -top-8 left-1/2 -translate-x-1/2 w-24 h-8 md:top-1/2 md:left-auto md:-right-8 md:-translate-y-1/2 md:translate-x-0 md:w-8 md:h-24 bg-white/95 dark:bg-slate-950/95 hover:bg-slate-50 dark:hover:bg-slate-900 backdrop-blur-md border-t border-x border-b-0 md:border-y md:border-r md:border-l-0 rounded-t-xl md:rounded-t-none md:rounded-r-xl flex flex-row md:flex-col items-center justify-center gap-1.5 group transition-all duration-300 cursor-pointer shadow-[0_-4px_10px_rgba(0,0,0,0.03)] md:shadow-[6px_0_15px_rgba(0,0,0,0.03)] z-30"
+        className="absolute -top-8 left-1/2 -translate-x-1/2 w-24 h-8 md:top-1/2 md:left-auto md:-right-8 md:-translate-y-1/2 md:translate-x-0 md:w-8 md:h-24 landscape:top-1/2 landscape:left-auto landscape:-right-8 landscape:-translate-y-1/2 landscape:translate-x-0 landscape:w-8 landscape:h-24 bg-white/95 dark:bg-slate-950/95 hover:bg-slate-50 dark:hover:bg-slate-900 backdrop-blur-md border-t border-x border-b-0 md:border-y md:border-r md:border-l-0 landscape:border-y landscape:border-r landscape:border-l-0 rounded-t-xl md:rounded-t-none md:rounded-r-xl landscape:rounded-t-none landscape:rounded-r-xl flex flex-row md:flex-col landscape:flex-col items-center justify-center gap-1.5 group transition-all duration-300 cursor-pointer shadow-[0_-4px_10px_rgba(0,0,0,0.03)] md:shadow-[6px_0_15px_rgba(0,0,0,0.03)] z-30"
         title={isAcademyOpen ? "Collapse Academy Panel (TAB)" : "Expand Academy Panel (TAB)"}
       >
         <Award className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-blue-500 transition-colors animate-pulse" />
         {isAcademyOpen ? (
-          <ChevronLeft className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-500 max-md:rotate-90" />
+          <ChevronLeft className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-500 portrait:max-md:rotate-90" />
         ) : (
-          <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-500 max-md:-rotate-90 animate-bounce md:animate-none" />
+          <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-blue-500 portrait:max-md:-rotate-90 animate-bounce md:animate-none landscape:animate-none" />
         )}
-        <span className="text-[7px] font-mono font-bold tracking-widest text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 md:[writing-mode:vertical-lr] md:rotate-180 uppercase select-none">
+        <span className="text-[7px] font-mono font-bold tracking-widest text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 md:[writing-mode:vertical-lr] md:rotate-180 landscape:[writing-mode:vertical-lr] landscape:rotate-180 uppercase select-none">
           {isAcademyOpen ? "HIDE" : "SHOW"}
         </span>
       </button>

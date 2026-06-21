@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDroneStore } from '../../store/useDroneStore';
 import { 
-  ShieldAlert, Cpu, RotateCcw, Battery, Activity, Info, AlertTriangle, CheckCircle, Circle, XCircle, Award
+  ShieldAlert, Cpu, RotateCcw, Battery, Activity, Info, AlertTriangle, CheckCircle, Circle, XCircle, Award, Gamepad2, LogOut, Camera, Maximize, Minimize, Smartphone
 } from 'lucide-react';
 import { MISSIONS } from './TrainingMissionSystem';
 
@@ -17,7 +17,11 @@ interface TelemetryDashboardProps {
 export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stickState, onArm, onDisarm }: TelemetryDashboardProps) {
   const telemetry = useDroneStore((state) => state.telemetry);
   const warnings = useDroneStore((state) => state.warnings);
+  const flightEnvironment = useDroneStore((state) => state.flightEnvironment);
   const showTelemetryDashboard = useDroneStore((state) => state.showTelemetryDashboard);
+  const closedEnvs = ['room', 'lab', 'classroom', 'warehouse'];
+  const isClosedSimulation = closedEnvs.includes(flightEnvironment);
+  const showTelemetry = isClosedSimulation ? false : showTelemetryDashboard;
   const toggleTelemetryDashboard = useDroneStore((state) => state.toggleTelemetryDashboard);
   const showControlsOverlay = useDroneStore((state) => state.showControlsOverlay);
   const toggleControlsOverlay = useDroneStore((state) => state.toggleControlsOverlay);
@@ -29,8 +33,9 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
   const missionObjectivesCompleted = useDroneStore((state) => state.missionObjectivesCompleted);
   const flightCameraView = useDroneStore((state) => state.flightCameraView);
   const setFlightCameraView = useDroneStore((state) => state.setFlightCameraView);
-  const flightEnvironment = useDroneStore((state) => state.flightEnvironment);
   const setFlightEnvironment = useDroneStore((state) => state.setFlightEnvironment);
+  const gyroPilot = useDroneStore((state) => state.gyroPilot);
+  const setGyroPilot = useDroneStore((state) => state.setGyroPilot);
 
   const appLinkStatus = useDroneStore((state) => state.appLinkStatus);
   const setAppLinkStatus = useDroneStore((state) => state.setAppLinkStatus);
@@ -48,6 +53,97 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
   const isDroneSpawned = isModelLoaded && droneSpawnDiagnostics !== null;
   const [isCameraLocked, setIsCameraLocked] = useState(false);
   const isTelemetryReady = isPhysicsInitialized && telemetry.battery > 0;
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
+  // Buzzer Alert for Critical Battery (play 1Hz electronic warning beep)
+  useEffect(() => {
+    if (isClosedSimulation) return;
+    if (!telemetry || !telemetry.isArmed || telemetry.battery >= 20) return;
+
+    let audioCtx: AudioContext | null = null;
+    const playBuzzer = () => {
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (!audioCtx) {
+          audioCtx = new AudioContextClass();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(2000, audioCtx.currentTime); // 2kHz
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime); // low volume
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+      } catch (e) {
+        console.error('AudioContext error:', e);
+      }
+    };
+
+    playBuzzer();
+    const interval = setInterval(playBuzzer, 1000);
+
+    return () => {
+      clearInterval(interval);
+      if (audioCtx) {
+        audioCtx.close();
+      }
+    };
+  }, [telemetry?.isArmed, telemetry?.battery, isClosedSimulation]);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        const docEl = document.documentElement as any;
+        if (docEl.requestFullscreen) {
+          await docEl.requestFullscreen();
+        } else if (docEl.webkitRequestFullscreen) {
+          await docEl.webkitRequestFullscreen();
+        } else if (docEl.mozRequestFullScreen) {
+          await docEl.mozRequestFullScreen();
+        } else if (docEl.msRequestFullscreen) {
+          await docEl.msRequestFullscreen();
+        }
+      } else {
+        const doc = document as any;
+        if (doc.exitFullscreen) {
+          await doc.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          await doc.webkitExitFullscreen();
+        } else if (doc.mozCancelFullScreen) {
+          await doc.mozCancelFullScreen();
+        } else if (doc.msExitFullscreen) {
+          await doc.msExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.error('Fullscreen toggle error:', err);
+    }
+  };
 
   useEffect(() => {
     if (isDroneSpawned) {
@@ -160,22 +256,22 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
 
       {/* Floating Quest Checklist Overlay (visible when sidebar is closed) */}
       {activeMissionIndex >= 0 && !isAcademyOpen && showChecklist && (
-        <div className="hidden md:flex absolute top-20 left-4 bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-4 rounded-xl w-64 shadow-[0_8px_25px_rgba(0,0,0,0.03)] pointer-events-auto z-20 flex-col gap-2.5">
+        <div className="flex absolute top-4 md:top-16 left-4 bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-3 rounded-xl w-52 sm:w-60 shadow-[0_8px_25px_rgba(0,0,0,0.03)] pointer-events-auto z-20 flex-col gap-2">
           <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800/80 pb-1.5">
             <Award className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider truncate">
               {MISSIONS[activeMissionIndex].title}
             </span>
           </div>
-          <div className="space-y-1.5 max-h-40 overflow-y-auto scrollbar-thin">
+          <div className="space-y-1.5 max-h-32 overflow-y-auto scrollbar-thin">
             {MISSIONS[activeMissionIndex].objectives.map((obj, idx) => {
               const completed = missionObjectivesCompleted[idx];
               return (
-                <div key={idx} className="flex gap-2 items-start text-[10px] leading-relaxed">
+                <div key={idx} className="flex gap-2 items-start text-[9px] leading-relaxed">
                   {completed ? (
-                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                    <CheckCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                   ) : (
-                    <Circle className="w-3.5 h-3.5 text-slate-300 dark:text-slate-700 shrink-0 mt-0.5" />
+                    <Circle className="w-3 h-3 text-slate-300 dark:text-slate-700 shrink-0 mt-0.5" />
                   )}
                   <span className={completed ? "text-emerald-700 dark:text-emerald-400 font-semibold" : "text-slate-500 dark:text-slate-400"}>{obj}</span>
                 </div>
@@ -184,12 +280,164 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
           </div>
         </div>
       )}
+
+      {/* Mobile Compact Telemetry Strip */}
+      {showTelemetry && (
+        <div className="md:hidden absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 dark:bg-slate-950/90 backdrop-blur-md border border-slate-800/80 px-4 py-2 rounded-full shadow-lg flex items-center gap-4 text-[10px] font-mono tracking-wider text-slate-300 pointer-events-auto z-20">
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+            <span>ALT: <strong className="text-white">{telemetry.altitude.toFixed(2)}m</strong></span>
+          </div>
+          <span className="text-slate-850 font-light">|</span>
+          <div>
+            <span>SPD: <strong className="text-white">{telemetry.speed.toFixed(1)}m/s</strong></span>
+          </div>
+          <span className="text-slate-850 font-light">|</span>
+          <div className="flex items-center gap-1">
+            <Battery className="w-3.5 h-3.5 text-orange-500" />
+            <span>{getVoltage(telemetry.battery)}V</span>
+          </div>
+          <span className="text-slate-850 font-light">|</span>
+          <div>
+            <span className={telemetry.isArmed ? 'text-red-500 font-bold' : 'text-slate-500'}>
+              {telemetry.isArmed ? 'ARMED' : 'DISARMED'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Floating HUD Control Panel (Vertical dock on the right side) */}
+      <div className="md:hidden flex flex-col gap-1 absolute right-2 top-2 bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-1 rounded-xl shadow-lg pointer-events-auto z-20">
+        <button
+          onClick={() => {
+            const activeMissionIndex = useDroneStore.getState().activeMissionIndex;
+            const missionStatus = useDroneStore.getState().missionStatus as any;
+            if (activeMissionIndex >= 0 && missionStatus !== 'passed') {
+              const store = useDroneStore.getState() as any;
+              if (store.addNotification) {
+                store.addNotification('Please complete or abort the current lesson first.', 'warning');
+              }
+              return;
+            }
+            useDroneStore.getState().setMode('home');
+          }}
+          className="w-8 h-8 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 text-red-655 dark:text-red-400 flex items-center justify-center transition-all hover:bg-red-100 dark:hover:bg-red-900/60 shadow-sm"
+          title="Exit Simulator"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={toggleTelemetryDashboard}
+          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
+            showTelemetryDashboard
+              ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/25'
+              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+          }`}
+          title="Toggle Telemetry HUD"
+        >
+          <Activity className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={toggleControlsOverlay}
+          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
+            showControlsOverlay
+              ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/25'
+              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+          }`}
+          title="Toggle Controls Overlay"
+        >
+          <Gamepad2 className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={toggleChecklist}
+          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
+            showChecklist
+              ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/25'
+              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+          }`}
+          title="Toggle Objective Checklist"
+        >
+          <Award className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={onCalibrate}
+          disabled={telemetry.isArmed}
+          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
+            telemetry.isArmed
+              ? 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
+              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+          title="Calibrate Autopilot Sensors"
+        >
+          <Cpu className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={() => {
+            const views: ('chase' | 'fpv' | 'orbit')[] = ['chase', 'fpv', 'orbit'];
+            const nextIdx = (views.indexOf(flightCameraView) + 1) % views.length;
+            setFlightCameraView(views[nextIdx]);
+          }}
+          className="w-8 h-8 rounded-lg border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-all shadow-sm"
+          title={`Camera View: ${flightCameraView}`}
+        >
+          <Camera className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={toggleFullscreen}
+          className="w-8 h-8 rounded-lg border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-655 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-all shadow-sm"
+          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+        >
+          {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+        </button>
+
+        <button
+          onClick={() => {
+            if (gyroPilot) {
+              setGyroPilot(false);
+            } else {
+              // Request device orientation permission if required (e.g. iOS standard browsers)
+              if (typeof DeviceOrientationEvent !== 'undefined' && (DeviceOrientationEvent as any).requestPermission) {
+                (DeviceOrientationEvent as any).requestPermission()
+                  .then((response: string) => {
+                    if (response === 'granted') {
+                      setGyroPilot(true);
+                    } else {
+                      const store = useDroneStore.getState() as any;
+                      if (store.addNotification) {
+                        store.addNotification('Gyroscope permission denied.', 'error');
+                      }
+                    }
+                  })
+                  .catch((err: any) => {
+                    console.error('Permission request failed:', err);
+                  });
+              } else {
+                setGyroPilot(true);
+              }
+            }
+          }}
+          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
+            gyroPilot
+              ? 'bg-cyan-600 border-cyan-500 text-white shadow-md shadow-cyan-500/25'
+              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+          }`}
+          title="Toggle Gyro Tilt Pilot"
+        >
+          <Smartphone className="w-4 h-4" />
+        </button>
+      </div>
       
       {/* 1. TOP TELEMETRY RIBBON & SYSTEM STATE */}
       <div className="w-full flex justify-between items-start pointer-events-auto gap-4">
         
         {/* Left Side: Diagnostics and Calibration Status */}
-        {showTelemetryDashboard ? (
+        {showTelemetry ? (
           <div className="hidden md:flex flex-col gap-2">
             <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl flex items-center gap-4 shadow-[0_8px_25px_rgba(0,0,0,0.02)]">
               <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400">
@@ -218,13 +466,13 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
               </div>
             </div>
 
-            {/* Environmental Selection Quick-Mat (6 environments) */}
-            <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-2 rounded-xl flex gap-1 shadow-[0_8px_25px_rgba(0,0,0,0.02)] text-[9px] font-bold uppercase tracking-wider flex-wrap max-w-[320px]">
-              {(['room', 'lab', 'classroom', 'warehouse', 'field', 'course'] as const).map((env) => (
+            {/* Environmental Selection (Room and Lab Segmented Control) */}
+            <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-1.5 rounded-xl flex gap-1 shadow-[0_8px_25px_rgba(0,0,0,0.02)] text-[9px] font-bold uppercase tracking-wider w-full">
+              {(['room', 'lab'] as const).map((env) => (
                 <button
                   key={env}
                   onClick={() => setFlightEnvironment(env)}
-                  className={`px-2.5 py-1.5 rounded-lg transition-all ${
+                  className={`flex-1 py-1.5 rounded-lg text-center transition-all ${
                     flightEnvironment === env
                       ? 'bg-blue-600 border border-blue-500 text-white font-bold shadow-md shadow-blue-500/10'
                       : 'text-slate-500 dark:text-slate-400 border border-transparent hover:text-slate-800 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800'
@@ -235,10 +483,10 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
               ))}
             </div>
           </div>
-        ) : <div className="w-64" />}
+        ) : <div className="hidden md:block w-64" />}
 
         {/* Center: Heading Tape & Artificial Horizon Pitch indicators */}
-        {showTelemetryDashboard ? (
+        {showTelemetry ? (
           <div className="hidden md:flex flex-col items-center flex-1 max-w-[400px]">
             {/* Compass Ribbon */}
             <div className="w-full bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 h-12 rounded-xl relative overflow-hidden flex flex-col justify-between items-center shadow-[0_8px_25px_rgba(0,0,0,0.02)] pt-1">
@@ -285,12 +533,12 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
               SPEED: {telemetry.speed.toFixed(1)} m/s | V.RATE: {telemetry.verticalSpeed.toFixed(1)} m/s
             </div>
           </div>
-        ) : <div className="flex-1" />}
+        ) : <div className="hidden md:block flex-1" />}
 
         {/* Right Side: Battery, Arm State, Camera presets */}
-        <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-start w-full md:w-auto gap-2">
+        <div className="hidden md:flex flex-col items-end justify-start gap-2">
           {/* Battery Status Panel */}
-          {showTelemetryDashboard && (
+          {showTelemetry && (
             <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 rounded-xl flex items-center gap-3.5 shadow-[0_8px_25px_rgba(0,0,0,0.02)]">
               <div className="text-right">
                 <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono tracking-widest uppercase block leading-none mb-1">
@@ -337,10 +585,10 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
             {warnings.map((warn) => (
               <div 
                 key={warn} 
-                className="bg-red-50 dark:bg-red-950/40 border-2 border-red-300 dark:border-red-900 px-6 py-3 rounded-2xl flex items-center gap-3 shadow-[0_10px_30px_rgba(239,68,68,0.1)] animate-pulse"
+                className="bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-900 px-4 py-2 md:px-6 md:py-3 rounded-xl md:rounded-2xl flex items-center gap-2 md:gap-3 shadow-[0_10px_30px_rgba(239,68,68,0.1)] animate-pulse"
               >
-                <ShieldAlert className="w-6 h-6 text-red-655 dark:text-red-400" />
-                <span className="text-sm font-bold text-red-800 dark:text-red-300 font-mono tracking-widest uppercase">
+                <ShieldAlert className="w-4 h-4 md:w-6 md:h-6 text-red-655 dark:text-red-400" />
+                <span className="text-xs md:text-sm font-bold text-red-800 dark:text-red-300 font-mono tracking-widest uppercase">
                   ALERT: {warn}
                 </span>
               </div>
@@ -348,280 +596,285 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
           </div>
         )}
       </div>
-
       {/* Collapsible Digital Twin AppLink Panel */}
-      <div 
-        className={`hidden md:flex absolute right-4 top-24 bottom-36 w-[280px] pointer-events-auto flex-col z-20 transition-all duration-350`}
-        style={{
-          transform: linkOpen ? 'translateX(0)' : 'translateX(242px)'
-        }}
-      >
-        <div className="flex items-stretch h-full">
-          {/* Collapse toggle tab */}
-          <button 
-            onClick={() => setLinkOpen(!linkOpen)}
-            className="w-8 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-l border-t border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-l-xl flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-805 dark:hover:text-slate-200 transition-all shadow-md"
-          >
-            <span 
-              className="text-[8px] font-mono font-bold uppercase tracking-widest mb-4 mt-2"
-              style={{ writingMode: 'vertical-lr' as any, transform: 'rotate(180deg)' }}
+      {!isClosedSimulation && (
+        <div 
+          className={`hidden md:flex absolute right-4 top-24 bottom-36 w-[280px] pointer-events-auto flex-col z-20 transition-all duration-350`}
+          style={{
+            transform: linkOpen ? 'translateX(0)' : 'translateX(242px)'
+          }}
+        >
+          <div className="flex items-stretch h-full">
+            {/* Collapse toggle tab */}
+            <button 
+              onClick={() => setLinkOpen(!linkOpen)}
+              className="w-8 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-l border-t border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-l-xl flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 hover:text-slate-805 dark:hover:text-slate-200 transition-all shadow-md"
             >
-              DIGITAL TWIN
-            </span>
-            {linkOpen ? (
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-              </svg>
-            ) : (
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-              </svg>
-            )}
-          </button>
+              <span 
+                className="text-[8px] font-mono font-bold uppercase tracking-widest mb-4 mt-2"
+                style={{ writingMode: 'vertical-lr' as any, transform: 'rotate(180deg)' }}
+              >
+                DIGITAL TWIN
+              </span>
+              {linkOpen ? (
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                </svg>
+              )}
+            </button>
 
-          {/* Main Panel Content */}
-          <div className="flex-1 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-r-xl flex flex-col justify-between shadow-md overflow-hidden">
-            <div className="space-y-4 flex flex-col h-full overflow-hidden">
-              {/* Header */}
-              <div className="border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-blue-500" />
-                  Twin AppLink
-                </span>
-                <span className={`text-[8px] font-mono font-bold px-1.5 py-0.5 rounded ${
-                  appLinkStatus === 'connected' 
-                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900' 
-                    : appLinkStatus === 'connecting'
-                      ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-900 animate-pulse'
-                      : 'bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
-                }`}>
-                  {appLinkStatus.toUpperCase()}
-                </span>
-              </div>
-
-              {/* Connection Toggle Button */}
-              <div>
-                <button
-                  onClick={handleToggleLink}
-                  disabled={appLinkStatus === 'connecting'}
-                  className={`w-full py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 border ${
-                    appLinkStatus === 'connected'
-                      ? 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900 text-red-655 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60'
+            {/* Main Panel Content */}
+            <div className="flex-1 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-r-xl flex flex-col justify-between shadow-md overflow-hidden">
+              <div className="space-y-4 flex flex-col h-full overflow-hidden">
+                {/* Header */}
+                <div className="border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-blue-500" />
+                    Twin AppLink
+                  </span>
+                  <span className={`text-[8px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                    appLinkStatus === 'connected' 
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900' 
                       : appLinkStatus === 'connecting'
-                        ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60 text-amber-606 dark:text-amber-400 cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                  }`}
-                >
-                  {appLinkStatus === 'connecting' ? (
-                    <>
-                      <div className="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-                      <span>Connecting...</span>
-                    </>
-                  ) : appLinkStatus === 'connected' ? (
-                    <>
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                      <span>Disconnect Twin</span>
-                    </>
-                  ) : (
-                    <span>Establish Twin Link</span>
-                  )}
-                </button>
-              </div>
-
-              {/* NMEA Scrolling Console */}
-              <div className="flex-1 flex flex-col min-h-0">
-                <span className="text-[8px] text-slate-400 dark:text-slate-500 font-mono tracking-wider uppercase mb-1 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
-                  $PXTWIN Serial Stream (10Hz)
-                </span>
-                <div 
-                  ref={terminalRef}
-                  className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2.5 rounded-lg font-mono text-[9px] text-slate-700 dark:text-slate-300 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 leading-normal"
-                >
-                  {appLinkStatus === 'connected' ? (
-                    appTelemetryPackets.length > 0 ? (
-                      [...appTelemetryPackets].reverse().map((pkt, idx) => (
-                        <div key={idx} className="hover:bg-slate-100 dark:hover:bg-slate-800/80 truncate select-text py-0.5 border-b border-slate-100 dark:border-slate-800">
-                          {pkt}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-slate-400 dark:text-slate-550 animate-pulse italic">Waiting for telemetry frames...</div>
-                    )
-                  ) : appLinkStatus === 'connecting' ? (
-                    <div className="text-amber-600 dark:text-amber-400 animate-pulse">Negotiating link layer handshake...</div>
-                  ) : (
-                    <div className="text-slate-400 dark:text-slate-500 italic font-light leading-relaxed">
-                      Applink disconnected. Press "Establish Twin Link" to sync hardware telemetry packets.
-                    </div>
-                  )}
+                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-900 animate-pulse'
+                        : 'bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800'
+                  }`}>
+                    {appLinkStatus.toUpperCase()}
+                  </span>
                 </div>
-              </div>
 
-              {/* Sensor Health Status Indicator list */}
-              <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <span className="text-[8px] text-slate-400 dark:text-slate-500 font-mono tracking-wider uppercase block">
-                  Sensor Health Monitor
-                </span>
-                <div className="space-y-1.5">
-                  {[
-                    { name: 'IMU (Acc/Gyro)', key: 'imu' },
-                    { name: 'Barometer (Altitude)', key: 'baro' },
-                    { name: 'Magnetometer (Compass)', key: 'compass' }
-                  ].map((sensor) => {
-                    const status = telemetry.calibrationActive 
-                      ? 'calibrating' 
-                      : telemetry.sensorError 
-                        ? 'error' 
-                        : 'ok';
-                    return (
-                      <div key={sensor.key} className="flex justify-between items-center text-[10px] font-mono">
-                        <span className="text-slate-500 dark:text-slate-400">{sensor.name}</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full ${
-                            status === 'ok' 
-                              ? 'bg-emerald-500 shadow-sm' 
-                              : status === 'calibrating' 
-                                ? 'bg-amber-500 animate-pulse' 
-                                : 'bg-red-500 animate-ping'
-                          }`} />
-                          <span className={
-                            status === 'ok' 
-                              ? 'text-emerald-700 dark:text-emerald-400 font-semibold' 
-                              : status === 'calibrating' 
-                                ? 'text-amber-600 dark:text-amber-450 font-semibold' 
-                                : 'text-red-655 dark:text-red-400 font-bold'
-                          }>
-                            {status === 'ok' ? 'HEALTHY' : status === 'calibrating' ? 'CALIBRATING' : 'ERROR'}
-                          </span>
-                        </div>
+                {/* Connection Toggle Button */}
+                <div>
+                  <button
+                    onClick={handleToggleLink}
+                    disabled={appLinkStatus === 'connecting'}
+                    className={`w-full py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-2 border ${
+                      appLinkStatus === 'connected'
+                        ? 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900 text-red-655 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60'
+                        : appLinkStatus === 'connecting'
+                          ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60 text-amber-606 dark:text-amber-400 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                    }`}
+                  >
+                    {appLinkStatus === 'connecting' ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span>Connecting...</span>
+                      </>
+                    ) : appLinkStatus === 'connected' ? (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                        <span>Disconnect Twin</span>
+                      </>
+                    ) : (
+                      <span>Establish Twin Link</span>
+                    )}
+                  </button>
+                </div>
+
+                {/* NMEA Scrolling Console */}
+                <div className="flex-1 flex flex-col min-h-0">
+                  <span className="text-[8px] text-slate-400 dark:text-slate-500 font-mono tracking-wider uppercase mb-1 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+                    $PXTWIN Serial Stream (10Hz)
+                  </span>
+                  <div 
+                    ref={terminalRef}
+                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2.5 rounded-lg font-mono text-[9px] text-slate-700 dark:text-slate-300 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 leading-normal"
+                  >
+                    {appLinkStatus === 'connected' ? (
+                      appTelemetryPackets.length > 0 ? (
+                        [...appTelemetryPackets].reverse().map((pkt, idx) => (
+                          <div key={idx} className="hover:bg-slate-100 dark:hover:bg-slate-800/80 truncate select-text py-0.5 border-b border-slate-100 dark:border-slate-800">
+                            {pkt}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-slate-400 dark:text-slate-550 animate-pulse italic">Waiting for telemetry frames...</div>
+                      )
+                    ) : appLinkStatus === 'connecting' ? (
+                      <div className="text-amber-600 dark:text-amber-400 animate-pulse">Negotiating link layer handshake...</div>
+                    ) : (
+                      <div className="text-slate-400 dark:text-slate-500 italic font-light leading-relaxed">
+                        Applink disconnected. Press "Establish Twin Link" to sync hardware telemetry packets.
                       </div>
-                    );
-                  })}
+                    )}
+                  </div>
+                </div>
+
+                {/* Sensor Health Status Indicator list */}
+                <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-[8px] text-slate-400 dark:text-slate-500 font-mono tracking-wider uppercase block">
+                    Sensor Health Monitor
+                  </span>
+                  <div className="space-y-1.5">
+                    {[
+                      { name: 'IMU (Acc/Gyro)', key: 'imu' },
+                      { name: 'Barometer (Altitude)', key: 'baro' },
+                      { name: 'Magnetometer (Compass)', key: 'compass' }
+                    ].map((sensor) => {
+                      const status = telemetry.calibrationActive 
+                        ? 'calibrating' 
+                        : telemetry.sensorError 
+                          ? 'error' 
+                          : 'ok';
+                      return (
+                        <div key={sensor.key} className="flex justify-between items-center text-[10px] font-mono">
+                          <span className="text-slate-500 dark:text-slate-400">{sensor.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              status === 'ok' 
+                                ? 'bg-emerald-500 shadow-sm' 
+                                : status === 'calibrating' 
+                                  ? 'bg-amber-500 animate-pulse' 
+                                  : 'bg-red-500 animate-ping'
+                            }`} />
+                            <span className={
+                              status === 'ok' 
+                                ? 'text-emerald-700 dark:text-emerald-400 font-semibold' 
+                                : status === 'calibrating' 
+                                  ? 'text-amber-600 dark:text-amber-450 font-semibold' 
+                                  : 'text-red-655 dark:text-red-400 font-bold'
+                            }>
+                              {status === 'ok' ? 'HEALTHY' : status === 'calibrating' ? 'CALIBRATING' : 'ERROR'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 3. BOTTOM PILOT CONTROLS HUD */}
       <div className="hidden md:flex w-full justify-between items-end pointer-events-auto gap-4">
         
         {/* Left Side: Flight Mode Controller panel & HUD Toggles */}
-        <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-2xl w-[280px] shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex flex-col gap-3">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-widest uppercase">Flight Settings</span>
-            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-              telemetry.isArmed ? 'bg-red-50 dark:bg-red-950/40 text-red-606 dark:text-red-400 border border-red-200 dark:border-red-900/60' : 'bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-500 border border-slate-202 dark:border-slate-800'
-            }`}>
-              {telemetry.isArmed ? 'ARMED' : 'DISARMED'}
-            </span>
-          </div>
+        {!isClosedSimulation ? (
+          <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-2xl w-[280px] shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex flex-col gap-3">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-widest uppercase">Flight Settings</span>
+              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                telemetry.isArmed ? 'bg-red-50 dark:bg-red-950/40 text-red-606 dark:text-red-400 border border-red-200 dark:border-red-900/60' : 'bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-500 border border-slate-202 dark:border-slate-800'
+              }`}>
+                {telemetry.isArmed ? 'ARMED' : 'DISARMED'}
+              </span>
+            </div>
 
-          {/* Mode selections */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-655 dark:text-slate-300 font-medium">Altitude Hold (Auto-Level)</span>
-              <button 
-                onClick={() => onToggleAltHold(!telemetry.flightMode.includes('stabilize'))}
-                disabled={telemetry.flightMode === 'failsafe'}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  telemetry.flightMode === 'althold' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'
+            {/* Mode selections */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-655 dark:text-slate-300 font-medium">Altitude Hold (Auto-Level)</span>
+                <button 
+                  onClick={() => onToggleAltHold(telemetry.flightMode !== 'althold')}
+                  disabled={telemetry.flightMode === 'failsafe'}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    telemetry.flightMode === 'althold' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'
+                  }`}
+                >
+                  <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    telemetry.flightMode === 'althold' ? 'translate-x-4' : 'translate-x-0'
+                  }`} />
+                </button>
+              </div>
+              
+              <div className="flex justify-between text-[11px] font-mono pt-1 text-slate-500 dark:text-slate-400">
+                <span>ACTIVE MODE:</span>
+                <span className="text-blue-600 dark:text-blue-400 font-bold">{getFlightModeLabel(telemetry.flightMode)}</span>
+              </div>
+            </div>
+
+            {/* HUD settings toggle buttons */}
+            <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-2 text-[11px] text-slate-500 dark:text-slate-450 font-mono font-bold">
+              <div className="flex justify-between items-center">
+                <span>TELEMETRY HUD (T)</span>
+                <button 
+                  onClick={toggleTelemetryDashboard}
+                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${showTelemetryDashboard ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${showTelemetryDashboard ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <span>CONTROLS HUD (H)</span>
+                <button 
+                  onClick={toggleControlsOverlay}
+                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${showControlsOverlay ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${showControlsOverlay ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span>CHECKLIST HUD (C)</span>
+                <button 
+                  onClick={toggleChecklist}
+                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${showChecklist ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${showChecklist ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span>SPAWN DEBUG (G)</span>
+                <button 
+                  onClick={useDroneStore.getState().toggleSpawnDebugMode}
+                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${isSpawnDebugMode ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${isSpawnDebugMode ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 mt-1 border-t border-slate-100 dark:border-slate-800 pt-2.5">
+              <button
+                onClick={() => {
+                  if (telemetry.isArmed) {
+                    onDisarm?.();
+                  } else {
+                    onArm?.();
+                  }
+                }}
+                disabled={isInitChecking || droneInitFailed}
+                className={`py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border w-full ${
+                  telemetry.isArmed
+                    ? 'bg-red-50 dark:bg-red-950/40 border-red-400 dark:border-red-800 text-red-600 dark:text-red-450 hover:bg-red-600 hover:text-white shadow-sm'
+                    : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 dark:border-emerald-800 text-emerald-700 dark:text-emerald-450 hover:bg-emerald-600 dark:hover:bg-emerald-850 hover:text-white shadow-sm disabled:opacity-40 disabled:hover:bg-slate-50 dark:disabled:hover:bg-slate-950 disabled:hover:text-slate-400 dark:disabled:hover:text-slate-600 disabled:border-slate-200 dark:disabled:border-slate-800 disabled:shadow-none'
                 }`}
               >
-                <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  telemetry.flightMode === 'althold' ? 'translate-x-4' : 'translate-x-0'
-                }`} />
+                {telemetry.isArmed ? 'Disarm Drone (Space)' : 'Arm Drone (Space)'}
               </button>
-            </div>
-            
-            <div className="flex justify-between text-[11px] font-mono pt-1 text-slate-500 dark:text-slate-400">
-              <span>ACTIVE MODE:</span>
-              <span className="text-blue-600 dark:text-blue-400 font-bold">{getFlightModeLabel(telemetry.flightMode)}</span>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={onCalibrate}
+                  disabled={telemetry.isArmed || isInitChecking}
+                  className="py-1.5 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-50 border border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider rounded-lg text-slate-700 dark:text-slate-300 transition shadow-sm"
+                >
+                  Calibrate
+                </button>
+                <button
+                  onClick={onReset}
+                  className="py-1.5 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 border border-red-200 dark:border-red-900/60 text-[10px] font-bold uppercase tracking-wider rounded-lg text-red-655 dark:text-red-450 transition flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Reset Sim
+                </button>
+              </div>
             </div>
           </div>
-
-          {/* HUD settings toggle buttons */}
-          <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-2 text-[11px] text-slate-500 dark:text-slate-450 font-mono font-bold">
-            <div className="flex justify-between items-center">
-              <span>TELEMETRY HUD (T)</span>
-              <button 
-                onClick={toggleTelemetryDashboard}
-                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${showTelemetryDashboard ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
-              >
-                <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${showTelemetryDashboard ? 'translate-x-4' : 'translate-x-0'}`} />
-              </button>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span>CONTROLS HUD (H)</span>
-              <button 
-                onClick={toggleControlsOverlay}
-                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${showControlsOverlay ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
-              >
-                <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${showControlsOverlay ? 'translate-x-4' : 'translate-x-0'}`} />
-              </button>
-            </div>
-
-            <div className="flex justify-between items-center">
-              <span>CHECKLIST HUD (C)</span>
-              <button 
-                onClick={toggleChecklist}
-                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${showChecklist ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
-              >
-                <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${showChecklist ? 'translate-x-4' : 'translate-x-0'}`} />
-              </button>
-            </div>
-
-            <div className="flex justify-between items-center">
-              <span>SPAWN DEBUG (G)</span>
-              <button 
-                onClick={useDroneStore.getState().toggleSpawnDebugMode}
-                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${isSpawnDebugMode ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
-              >
-                <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${isSpawnDebugMode ? 'translate-x-4' : 'translate-x-0'}`} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2 mt-1 border-t border-slate-100 dark:border-slate-800 pt-2.5">
-            <button
-              onClick={() => {
-                if (telemetry.isArmed) {
-                  onDisarm?.();
-                } else {
-                  onArm?.();
-                }
-              }}
-              disabled={isInitChecking || droneInitFailed}
-              className={`py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border w-full ${
-                telemetry.isArmed
-                  ? 'bg-red-50 dark:bg-red-950/40 border-red-400 dark:border-red-800 text-red-600 dark:text-red-450 hover:bg-red-600 hover:text-white shadow-sm'
-                  : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 dark:border-emerald-800 text-emerald-700 dark:text-emerald-450 hover:bg-emerald-600 dark:hover:bg-emerald-850 hover:text-white shadow-sm disabled:opacity-40 disabled:hover:bg-slate-50 dark:disabled:hover:bg-slate-950 disabled:hover:text-slate-400 dark:disabled:hover:text-slate-600 disabled:border-slate-200 dark:disabled:border-slate-800 disabled:shadow-none'
-              }`}
-            >
-              {telemetry.isArmed ? 'Disarm Drone (Space)' : 'Arm Drone (Space)'}
-            </button>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={onCalibrate}
-                disabled={telemetry.isArmed || isInitChecking}
-                className="py-1.5 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-50 border border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider rounded-lg text-slate-700 dark:text-slate-300 transition shadow-sm"
-              >
-                Calibrate
-              </button>
-              <button
-                onClick={onReset}
-                className="py-1.5 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 border border-red-200 dark:border-red-900/60 text-[10px] font-bold uppercase tracking-wider rounded-lg text-red-655 dark:text-red-450 transition flex items-center justify-center gap-1.5 shadow-sm"
-              >
-                <RotateCcw className="w-3 h-3" />
-                Reset Sim
-              </button>
-            </div>
-          </div>
-        </div>
+        ) : (
+          <div className="w-[280px]" />
+        )}
 
         {/* Center: Live Transmitter Virtual Stick Visualizer */}
         {showControlsOverlay ? (
@@ -678,7 +931,7 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
         ) : <div className="flex-1" />}
 
         {/* Right Side: Drone Motor Status Visualizer */}
-        {showTelemetryDashboard ? (
+        {showTelemetry ? (
           <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-2xl w-[280px] shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex flex-col gap-3">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
               <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-widest uppercase">Motor Diagnostics</span>

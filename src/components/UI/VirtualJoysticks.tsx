@@ -1,17 +1,20 @@
 import React, { useRef, useEffect } from 'react';
 import { useDroneStore } from '../../store/useDroneStore';
+import { SimulatorOrchestrator } from '../../utils/drone/SimulatorOrchestrator';
 
 interface JoystickProps {
   side: 'left' | 'right';
   onChange: (x: number, y: number) => void;
   label: string;
+  disabled?: boolean;
 }
 
-const Joystick = ({ side, onChange, label }: JoystickProps) => {
+const Joystick = ({ side, onChange, label, disabled }: JoystickProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef<HTMLDivElement>(null);
 
   const handleMove = (e: React.TouchEvent | TouchEvent | React.MouseEvent | MouseEvent) => {
+    if (disabled) return;
     e.preventDefault();
     if (!containerRef.current || !stickRef.current) return;
 
@@ -22,9 +25,9 @@ const Joystick = ({ side, onChange, label }: JoystickProps) => {
 
     let clientX, clientY;
 
-    if ('touches' in e) {
-      // Find the touch associated with this joystick
-      const touch = e.touches[0];
+    if ('touches' in e || 'targetTouches' in e) {
+      // Use targetTouches to isolate touch points per joystick, fallback to touches
+      const touch = (e as TouchEvent).targetTouches[0] || (e as TouchEvent).touches[0];
       if (!touch) return;
       clientX = touch.clientX;
       clientY = touch.clientY;
@@ -79,12 +82,12 @@ const Joystick = ({ side, onChange, label }: JoystickProps) => {
 
   return (
     <div className={`flex flex-col items-center pointer-events-auto joystick-${side}`}>
-      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono font-bold mb-2 uppercase tracking-widest bg-slate-900/50 dark:bg-slate-950/60 px-2 py-0.5 rounded border border-slate-800">
+      <span className="text-[9px] text-slate-400 dark:text-slate-550 font-mono font-bold mb-2 uppercase tracking-widest bg-slate-900/50 dark:bg-slate-950/60 px-2 py-0.5 rounded border border-slate-800">
         {label}
       </span>
       <div
         ref={containerRef}
-        className="w-28 h-28 bg-slate-900/70 dark:bg-slate-950/80 border-2 border-slate-700/60 rounded-full relative flex items-center justify-center backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.5)] touch-none"
+        className={`w-28 h-28 bg-slate-900/70 dark:bg-slate-950/80 border-2 border-slate-700/60 rounded-full relative flex items-center justify-center backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.5)] touch-none transition-opacity ${disabled ? 'opacity-40 select-none' : ''}`}
         onMouseDown={handleMove}
         onMouseMove={(e) => e.buttons === 1 && handleMove(e)}
         onMouseUp={handleEnd}
@@ -105,91 +108,121 @@ const Joystick = ({ side, onChange, label }: JoystickProps) => {
   );
 };
 
-export default function VirtualJoysticks() {
+export default function VirtualJoysticks({ orchestrator }: { orchestrator?: SimulatorOrchestrator }) {
   const currentMode = useDroneStore((state) => state.currentMode);
+  const showControlsOverlay = useDroneStore((state) => state.showControlsOverlay);
   const updateStickInputTested = useDroneStore((state) => state.updateStickInputTested);
+  const gyroPilot = useDroneStore((state) => state.gyroPilot);
 
-  if (currentMode !== 'flight') return null;
+  const leftStick = useRef({ x: 0, y: 0 });
+  const rightStick = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    return () => {
+      orchestrator?.input.clearAnalogInput();
+    };
+  }, [orchestrator]);
+
+  if (currentMode !== 'flight' || !showControlsOverlay) return null;
 
   const handleLeftStick = (nx: number, ny: number) => {
-    // Left stick: Yaw (nx) and Throttle (ny)
+    leftStick.current = { x: nx, y: ny };
     
+    // Pass analog values directly to the input system
+    orchestrator?.input.setAnalogStickValues(
+      leftStick.current.x,
+      leftStick.current.y,
+      rightStick.current.x,
+      rightStick.current.y
+    );
+
     // Y-axis: Throttle Up (w) / Down (s)
     if (ny > 0.25) {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
       updateStickInputTested('throttleUp');
     } else if (ny < -0.25) {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 's' }));
       updateStickInputTested('throttleDown');
-    } else {
-      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'w' }));
-      window.dispatchEvent(new KeyboardEvent('keyup', { key: 's' }));
     }
 
     // X-axis: Yaw Left (a) / Right (d)
     if (nx > 0.25) {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
       updateStickInputTested('yawRight');
     } else if (nx < -0.25) {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
       updateStickInputTested('yawLeft');
-    } else {
-      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'd' }));
-      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'a' }));
     }
   };
 
   const handleRightStick = (nx: number, ny: number) => {
-    // Right stick: Roll (nx) and Pitch (ny)
+    rightStick.current = { x: nx, y: ny };
+    
+    // Pass analog values directly to the input system
+    orchestrator?.input.setAnalogStickValues(
+      leftStick.current.x,
+      leftStick.current.y,
+      rightStick.current.x,
+      rightStick.current.y
+    );
 
     // Y-axis: Pitch Forward (ArrowUp) / Back (ArrowDown)
     if (ny > 0.25) {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
       updateStickInputTested('pitchForward');
     } else if (ny < -0.25) {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
       updateStickInputTested('pitchBack');
-    } else {
-      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowUp' }));
-      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown' }));
     }
 
     // X-axis: Roll Left (ArrowLeft) / Right (ArrowRight)
     if (nx > 0.25) {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
       updateStickInputTested('rollRight');
     } else if (nx < -0.25) {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
       updateStickInputTested('rollLeft');
-    } else {
-      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
-      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
     }
   };
 
   return (
-    <div className="virtual-joysticks select-none">
-      <Joystick side="left" onChange={handleLeftStick} label="YAW / THROTTLE" />
-      
-      {/* Center Arm & Reset controls */}
-      <div className="flex flex-col justify-end gap-3 pb-1 pointer-events-auto">
+    <div className="virtual-joysticks select-none flex justify-between items-end">
+      {/* Left Group: Joystick + ARM Button */}
+      <div className="flex items-end gap-3 pointer-events-auto">
+        <Joystick side="left" onChange={handleLeftStick} label="YAW / THROTTLE" />
         <button 
-          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))}
-          className="w-12 h-12 rounded-full bg-red-600/85 hover:bg-red-500 border border-red-400/50 shadow-[0_0_12px_rgba(220,38,38,0.5)] flex flex-col items-center justify-center font-bold text-[8px] text-white active:scale-95 transition-transform uppercase tracking-wider leading-none"
+          onClick={() => {
+            if (orchestrator) {
+              if (orchestrator.getIsArmed()) {
+                orchestrator.disarm();
+              } else {
+                orchestrator.arm();
+              }
+            } else {
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+            }
+          }}
+          className="w-12 h-12 rounded-full bg-red-600/85 hover:bg-red-500 border border-red-400/50 shadow-[0_0_12px_rgba(220,38,38,0.5)] flex flex-col items-center justify-center font-bold text-[8px] text-white active:scale-95 transition-transform uppercase tracking-wider leading-none mb-1"
         >
           <span>ARM</span>
           <span className="text-[6px] opacity-70 mt-0.5">SPACE</span>
         </button>
+      </div>
+      
+      {/* Right Group: RESET Button + Joystick */}
+      <div className="flex items-end gap-3 pointer-events-auto">
         <button 
-          onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }))}
-          className="w-10 h-10 mx-auto rounded-full bg-slate-800/85 hover:bg-slate-700 border border-slate-700/50 shadow-[0_0_8px_rgba(0,0,0,0.4)] flex flex-col items-center justify-center font-bold text-[8px] text-slate-300 active:scale-95 transition-transform uppercase tracking-wider leading-none"
+          onClick={() => {
+            if (orchestrator) {
+              orchestrator.reset();
+            } else {
+              window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
+            }
+          }}
+          className="w-12 h-12 rounded-full bg-slate-800/85 hover:bg-slate-700 border border-slate-700/50 shadow-[0_0_8px_rgba(0,0,0,0.4)] flex flex-col items-center justify-center font-bold text-[8px] text-slate-300 active:scale-95 transition-transform uppercase tracking-wider leading-none mb-1"
         >
           <span>RESET</span>
           <span className="text-[5px] opacity-70 mt-0.5">R KEY</span>
         </button>
+        <Joystick 
+          side="right" 
+          onChange={handleRightStick} 
+          label={gyroPilot ? "ROLL / PITCH (GYRO)" : "ROLL / PITCH"} 
+          disabled={gyroPilot}
+        />
       </div>
-
-      <Joystick side="right" onChange={handleRightStick} label="ROLL / PITCH" />
     </div>
   );
 }

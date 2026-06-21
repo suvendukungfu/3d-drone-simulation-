@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 
 export function IntroOverlay() {
-  const currentMode = useDroneStore((state) => state.currentMode);
   const isFlightSimModalOpen = useDroneStore((state) => state.isFlightSimModalOpen);
   const setFlightSimModalOpen = useDroneStore((state) => state.setFlightSimModalOpen);
   const setARActive = useDroneStore((state) => state.setARActive);
@@ -16,22 +15,19 @@ export function IntroOverlay() {
   const theme = useDroneStore((state) => state.theme);
   const toggleTheme = useDroneStore((state) => state.toggleTheme);
 
-  const heroImages = [
-    '/plutox_hero_1.png',
-    '/plutox_hero_2.png',
-    '/plutox_hero_3.png',
-    '/plutox_hero_4.png',
-    '/plutox_hero_5.png'
-  ];
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
+  // Mobile / Tablet touch detection
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
   useEffect(() => {
-    if (currentMode !== 'home') return;
-    const slideshowTimer = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % heroImages.length);
-    }, 4500);
-    return () => clearInterval(slideshowTimer);
-  }, [currentMode, heroImages.length]);
+    const checkMobile = () => {
+      const isTouchOrMobile = (window.innerWidth <= 1024 || 'ontouchstart' in window || navigator.maxTouchPoints > 0);
+      setIsMobileDevice(isTouchOrMobile);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+
 
   const handleEnterFlightSim = () => {
     setFlightSimModalOpen(true);
@@ -490,37 +486,16 @@ export function IntroOverlay() {
               <div className="w-full h-full bg-slate-950/10 dark:bg-black/35 rounded-full blur-md animate-shadow-pulse" />
             </div>
 
-            {/* Static Centered Drone Hero Image SlideShow */}
+            {/* Static Centered Drone Hero Image */}
             <div className="absolute z-10 w-[85%] max-w-[380px] lg:max-w-[430px] aspect-square flex items-center justify-center pointer-events-none animate-float-drone">
-              <AnimatePresence mode="wait">
-                <motion.img
-                  key={currentImageIndex}
-                  src={heroImages[currentImageIndex]}
-                  alt={`PlutoX Nano Drone View ${currentImageIndex + 1}`}
-                  initial={{ opacity: 0, scale: 0.97, x: 12 }}
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 1.03, x: -12 }}
-                  transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-full h-auto object-contain select-none"
-                  loading="lazy"
-                />
-              </AnimatePresence>
-            </div>
-            
-            {/* Slide Presentation Controls / Indicators */}
-            <div className="absolute bottom-[8%] flex gap-2 z-20 pointer-events-auto">
-              {heroImages.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentImageIndex(idx)}
-                  className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                    idx === currentImageIndex 
-                      ? 'bg-blue-600 dark:bg-cyan-400 w-4 shadow-[0_0_8px_rgba(6,182,212,0.3)]' 
-                      : 'bg-slate-300 dark:bg-slate-700 hover:bg-slate-450 dark:hover:bg-slate-550'
-                  }`}
-                  aria-label={`Go to slide ${idx + 1}`}
-                />
-              ))}
+              <motion.img
+                src="/plutox_new_home.png"
+                alt="PlutoX Nano Drone"
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+                className="w-full h-auto object-contain select-none"
+              />
             </div>
           </div>
         </div>
@@ -529,13 +504,13 @@ export function IntroOverlay() {
 
       <AnimatePresence>
         {isFlightSimModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-[3px] pointer-events-auto">
+          <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-12 md:pt-4 bg-slate-900/30 backdrop-blur-[3px] pointer-events-auto overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               transition={{ type: 'spring', damping: 25, stiffness: 150 }}
-              className="relative max-w-2xl w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-[0_20px_50px_rgba(0,0,0,0.08)] overflow-hidden flex flex-col space-y-6"
+              className="relative max-w-2xl w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-[0_20px_50px_rgba(0,0,0,0.08)] overflow-hidden flex flex-col space-y-6 shrink-0 mb-8 md:mb-0"
             >
               <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.001)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.001)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.001)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.001)_1px,transparent_1px)] bg-[size:20px_20px] opacity-20 pointer-events-none" />
               
@@ -596,7 +571,7 @@ export function IntroOverlay() {
                       <div className="flex justify-between items-center text-[10px]">
                         <span>
                           <span className="text-slate-400 dark:text-slate-500 font-sans font-medium text-[9px] uppercase tracking-normal">Hardware: </span>
-                          <strong className="text-slate-700 dark:text-slate-350 font-mono font-semibold">Webcam</strong>
+                          <strong className="text-slate-700 dark:text-slate-350 font-mono font-semibold">{isMobileDevice ? 'Device Camera' : 'Webcam'}</strong>
                         </span>
                         <span>
                           <span className="text-slate-400 dark:text-slate-500 font-sans font-medium text-[9px] uppercase tracking-normal">Diff: </span>
@@ -633,18 +608,18 @@ export function IntroOverlay() {
                     </h4>
                     
                     <p className="text-[11px] text-slate-550 dark:text-slate-400 font-normal leading-relaxed mt-2 font-sans">
-                      Load detailed virtual environments (Warehouse, Lab, Hoop Arena) with full 6-DOF physics and keyboard flight loops.
+                      Load detailed virtual environments (Warehouse, Lab, Hoop Arena) with full 6-DOF physics and {isMobileDevice ? 'virtual joystick flight loops.' : 'keyboard flight loops.'}
                     </p>
 
                     <div className="space-y-2.5 mt-4 pt-4 border-t border-slate-100 dark:border-slate-900">
                       <div>
-                        <span className="text-slate-400 dark:text-slate-550 font-sans font-medium text-[9px] uppercase tracking-normal">Use Case</span>
+                        <span className="text-slate-400 dark:text-slate-555 font-sans font-medium text-[9px] uppercase tracking-normal">Use Case</span>
                         <p className="text-[11px] text-slate-650 dark:text-slate-350 mt-0.5 font-sans font-normal leading-relaxed">Professional pilot training using virtual environments.</p>
                       </div>
                       <div className="flex justify-between items-center text-[10px]">
                         <span>
                           <span className="text-slate-400 dark:text-slate-555 font-sans font-medium text-[9px] uppercase tracking-normal">Hardware: </span>
-                          <strong className="text-slate-700 dark:text-slate-350 font-mono font-semibold">Keyboard</strong>
+                          <strong className="text-slate-700 dark:text-slate-350 font-mono font-semibold">{isMobileDevice ? 'Virtual Joysticks' : 'Keyboard'}</strong>
                         </span>
                         <span>
                           <span className="text-slate-400 dark:text-slate-555 font-sans font-medium text-[9px] uppercase tracking-normal">Diff: </span>
