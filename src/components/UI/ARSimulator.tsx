@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useDroneStore } from '../../store/useDroneStore';
 import { PlutoXModel } from '../PlutoXModel';
 import { 
-  X, CameraOff, Activity, Battery, Radio
+  X, CameraOff, Activity, Battery, Radio, Sliders, Compass, RotateCcw, RotateCw, RefreshCw
 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 
@@ -207,6 +207,128 @@ function VirtualJoystick({ label, value, subLabels, onChange }: JoystickProps) {
   );
 }
 
+// Helper to compute device orientation quaternion
+const computeDeviceQuaternion = (alpha: number, beta: number, gamma: number, screenOrientationAngle: number, headingOffset: number = 0) => {
+  const alphaRad = THREE.MathUtils.degToRad(alpha + headingOffset);
+  const betaRad = THREE.MathUtils.degToRad(beta);
+  const gammaRad = THREE.MathUtils.degToRad(gamma);
+  const screenAngleRad = THREE.MathUtils.degToRad(screenOrientationAngle);
+
+  // Euler angles in YXZ order for device orientation mapping
+  const euler = new THREE.Euler(betaRad, alphaRad, -gammaRad, 'YXZ');
+  const qDevice = new THREE.Quaternion().setFromEuler(euler);
+
+  // Screen orientation rotation (Z-axis)
+  const screenQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -screenAngleRad);
+  
+  // Camera looks down -Z but device flat on table faces screen +Z (up)
+  const adjustQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+
+  // Combine orientations: qDevice * adjustQuat * screenQuat
+  const q = new THREE.Quaternion()
+    .copy(qDevice)
+    .multiply(adjustQuat)
+    .multiply(screenQuat);
+
+  return q;
+};
+
+// Component to handle camera rotation via gyro state
+function ARCameraController({
+  deviceOrientation,
+  screenOrientation,
+  headingOffset,
+  cameraMode,
+  threeCameraRef
+}: {
+  deviceOrientation: { alpha: number; beta: number; gamma: number } | null;
+  screenOrientation: number;
+  headingOffset: number;
+  cameraMode: 'orbit' | 'gyro';
+  threeCameraRef: React.MutableRefObject<THREE.Camera | null>;
+}) {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    threeCameraRef.current = camera;
+    return () => {
+      threeCameraRef.current = null;
+    };
+  }, [camera, threeCameraRef]);
+
+  useFrame(() => {
+    if (cameraMode === 'gyro' && deviceOrientation) {
+      const targetQuat = computeDeviceQuaternion(
+        deviceOrientation.alpha,
+        deviceOrientation.beta,
+        deviceOrientation.gamma,
+        screenOrientation,
+        headingOffset
+      );
+      // Smooth interpolation to prevent jitter
+      camera.quaternion.slerp(targetQuat, 0.15);
+      // Position camera at center origin for fixed-coordinate background passthrough
+      camera.position.set(0, 0, 0);
+    }
+  });
+
+  return null;
+}
+
+// Component to track drone coordinates and provide NDC projection
+function DroneTracker({
+  dronePosRef,
+  onUpdate
+}: {
+  dronePosRef: React.MutableRefObject<THREE.Vector3>;
+  onUpdate: (state: { visible: boolean; distance: number; angle: number } | null) => void;
+}) {
+  const { camera } = useThree();
+  const frustum = useRef(new THREE.Frustum());
+  const cameraViewProjectionMatrix = useRef(new THREE.Matrix4());
+
+  useFrame(() => {
+    if (!camera) return;
+
+    camera.updateMatrixWorld();
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    cameraViewProjectionMatrix.current.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    frustum.current.setFromProjectionMatrix(cameraViewProjectionMatrix.current);
+
+    const pos = dronePosRef.current;
+    const distance = camera.position.distanceTo(pos);
+
+    const screenPos = pos.clone().project(camera);
+    const isOut = Math.abs(screenPos.x) > 0.95 || Math.abs(screenPos.y) > 0.95 || screenPos.z > 1;
+
+    if (isOut) {
+      let x = screenPos.x;
+      let y = screenPos.y;
+      if (screenPos.z > 1) {
+        x = -x;
+        y = -y;
+      }
+      
+      const angleRad = Math.atan2(y, x);
+      const angleDeg = angleRad * (180 / Math.PI);
+      
+      onUpdate({
+        visible: true,
+        distance,
+        angle: angleDeg
+      });
+    } else {
+      onUpdate({
+        visible: false,
+        distance,
+        angle: 0
+      });
+    }
+  });
+
+  return null;
+}
+
 export function ARSimulator() {
   const isARActive = useDroneStore((state) => state.isARActive);
   const setARActive = useDroneStore((state) => state.setARActive);
@@ -216,15 +338,199 @@ export function ARSimulator() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
 
+  // Camera state variables
+  const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState<boolean>(false);
+
+  // Gyroscope tracking state
+  const [deviceOrientation, setDeviceOrientation] = useState<{ alpha: number; beta: number; gamma: number } | null>(null);
+  const [screenOrientation, setScreenOrientation] = useState<number>(0);
+  const [headingOffset, setHeadingOffset] = useState<number>(0);
+  const [gyroPermissionGranted, setGyroPermissionGranted] = useState<boolean>(false);
+  const [gyroError, setGyroError] = useState<string | null>(null);
+  const [cameraMode, setCameraMode] = useState<'orbit' | 'gyro'>('orbit');
+
+  // R3F Camera reference
+  const threeCamera = useRef<THREE.Camera | null>(null);
+
+  // Out of view drone indicator
+  const [droneIndicator, setDroneIndicator] = useState<{ visible: boolean; distance: number; angle: number } | null>(null);
+
   // Interactive inputs from joysticks / keyboard
   const [joystickLeft, setJoystickLeft] = useState({ x: 0, y: 0 });
   const [joystickRight, setJoystickRight] = useState({ x: 0, y: 0 });
 
-  // 3D coordinate tracker references
-  const dronePos = useRef(new THREE.Vector3(0, 0, 0));
+  // 3D coordinate tracker references (start drone 2m in front of camera)
+  const dronePos = useRef(new THREE.Vector3(0, -0.5, -2));
   const droneRot = useRef(new THREE.Euler(0, 0, 0));
 
   const [telemetry, setTelemetry] = useState({ alt: 1.0, pitch: 0, roll: 0, yaw: 0 });
+
+  // Request Camera Stream with fallback
+  const initCamera = async (deviceId?: string) => {
+    setCameraError(null);
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError("Camera access is not supported on this browser (requires HTTPS).");
+      return;
+    }
+
+    // Stop existing stream first
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+
+    const constraints: MediaStreamConstraints = {
+      video: deviceId 
+        ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    };
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setCameraStream(stream);
+      setPermissionDenied(false);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          const playPromise = videoRef.current?.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(e => console.error("Video play error on metadata load:", e));
+          }
+        };
+        const playPromise = videoRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(e => console.error("Initial video play error:", e));
+        }
+      }
+
+      // Enumerate available video inputs
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === 'videoinput');
+      setAvailableDevices(videoDevices);
+      
+      const activeVideoTrack = stream.getVideoTracks()[0];
+      if (activeVideoTrack) {
+        const settings = activeVideoTrack.getSettings();
+        if (settings.deviceId) {
+          setSelectedDeviceId(settings.deviceId);
+        }
+      }
+    } catch (err: any) {
+      console.warn("Primary camera acquisition failed, trying fallback:", err);
+      
+      // Determine error messaging
+      let errMsg = "Unable to access camera.";
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setPermissionDenied(true);
+        errMsg = "Camera permission denied. Please enable camera access in browser/system settings and try again.";
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        errMsg = "No camera was found on this device.";
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        errMsg = "Camera is already in use by another tab or application.";
+      } else {
+        errMsg = `Camera Error: ${err.message || err.name}`;
+      }
+      setCameraError(errMsg);
+
+      // If permission wasn't denied, try a generic video constraint as fallback
+      if (err.name !== 'NotAllowedError' && err.name !== 'PermissionDeniedError') {
+        try {
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          setCameraStream(fallbackStream);
+          setPermissionDenied(false);
+          setCameraError(null);
+          
+          if (videoRef.current) {
+            videoRef.current.srcObject = fallbackStream;
+            videoRef.current.onloadedmetadata = () => {
+              const playPromise = videoRef.current?.play();
+              if (playPromise !== undefined) {
+                playPromise.catch(e => console.error("Fallback video play error on metadata:", e));
+              }
+            };
+            const playPromise = videoRef.current.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(e => console.error("Fallback video play error:", e));
+            }
+          }
+
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          setAvailableDevices(devices.filter(d => d.kind === 'videoinput'));
+          
+          const activeVideoTrack = fallbackStream.getVideoTracks()[0];
+          if (activeVideoTrack) {
+            const settings = activeVideoTrack.getSettings();
+            if (settings.deviceId) {
+              setSelectedDeviceId(settings.deviceId);
+            }
+          }
+        } catch (fallbackErr) {
+          console.warn("Fallback camera failed:", fallbackErr);
+        }
+      }
+    }
+  };
+
+  const handleCameraChange = (deviceId: string) => {
+    setSelectedDeviceId(deviceId);
+    initCamera(deviceId);
+  };
+
+  const handleFindDrone = () => {
+    if (!deviceOrientation || !dronePos.current) return;
+    const pos = dronePos.current.clone();
+    
+    // Target yaw heading from camera to drone in horizontal plane
+    // atan2(-x, -z) gives rotation around Y axis in Three.js coordinates
+    const targetYaw = Math.atan2(-pos.x, -pos.z) * (180 / Math.PI);
+    
+    // We want the final camera alpha (corrected for headingOffset) to match targetYaw:
+    // deviceOrientation.alpha + headingOffset = targetYaw
+    // So headingOffset = targetYaw - deviceOrientation.alpha
+    const newOffset = targetYaw - deviceOrientation.alpha;
+    setHeadingOffset(newOffset);
+  };
+
+  const handleRecenterDrone = () => {
+    // Project new position 2m in front of the current camera vector
+    const dir = new THREE.Vector3(0, 0, -1);
+    if (threeCamera.current) {
+      dir.applyQuaternion(threeCamera.current.quaternion);
+    }
+    const newPos = dir.normalize().multiplyScalar(2);
+    
+    // Clamp height to physical bounds
+    newPos.y = THREE.MathUtils.clamp(newPos.y, -1.5, 3.0);
+    
+    // Place drone relative to camera height (0) and preserve ground limits
+    dronePos.current.copy(newPos);
+    droneRot.current.set(0, 0, 0);
+  };
+
+  const handleRestartARSession = () => {
+    dronePos.current.set(0, -0.5, -2);
+    droneRot.current.set(0, 0, 0);
+    if (deviceOrientation) {
+      setHeadingOffset(-deviceOrientation.alpha);
+    } else {
+      setHeadingOffset(0);
+    }
+    initCamera();
+  };
+
+  const handleRefreshTracking = async () => {
+    const success = await requestGyroPermission();
+    if (success && deviceOrientation) {
+      setHeadingOffset(-deviceOrientation.alpha);
+    } else {
+      setHeadingOffset(0);
+    }
+  };
 
   // CV Hand Gesture Controls
   const [cvEnabled, setCvEnabled] = useState(false);
@@ -396,33 +702,111 @@ export function ARSimulator() {
     };
   }, [isARActive, cameraStream, cvEnabled]);
 
-  // Request Camera Stream on activation
+  // Request Gyroscope permissions (iOS 13+)
+  const requestGyroPermission = async () => {
+    if (
+      typeof DeviceOrientationEvent !== 'undefined' &&
+      // @ts-ignore
+      typeof DeviceOrientationEvent.requestPermission === 'function'
+    ) {
+      try {
+        // @ts-ignore
+        const permission = await DeviceOrientationEvent.requestPermission();
+        if (permission === 'granted') {
+          setGyroPermissionGranted(true);
+          setGyroError(null);
+          return true;
+        } else {
+          setGyroPermissionGranted(false);
+          setGyroError("Gyroscope permission denied.");
+          return false;
+        }
+      } catch (err: any) {
+        console.error("Error requesting gyro permission:", err);
+        setGyroError("Failed to request gyroscope permission.");
+        return false;
+      }
+    } else {
+      // Android / Desktop
+      if (typeof window.DeviceOrientationEvent !== 'undefined') {
+        setGyroPermissionGranted(true);
+        setGyroError(null);
+        return true;
+      } else {
+        setGyroError("DeviceOrientation is not supported on this device.");
+        return false;
+      }
+    }
+  };
+
+  // 1. Manage camera lifecycle based on active state
+  useEffect(() => {
+    if (isARActive) {
+      initCamera();
+    }
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [isARActive]);
+
+  // 2. Auto-detect mobile and request sensor tracking
   useEffect(() => {
     if (!isARActive) return;
 
-    let activeStream: MediaStream | null = null;
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobile) {
+      setCameraMode('gyro');
+      requestGyroPermission();
+    } else {
+      setCameraMode('orbit');
+    }
+  }, [isARActive]);
 
-    navigator.mediaDevices.getUserMedia({ 
-      video: { facingMode: 'environment', width: 1280, height: 720 } 
-    })
-      .then((stream) => {
-        activeStream = stream;
-        setCameraStream(stream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      })
-      .catch((err) => {
-        console.warn("Camera access denied or unavailable: ", err);
-      });
+  // 3. Listen to device orientation changes
+  useEffect(() => {
+    if (!isARActive || !gyroPermissionGranted) return;
+
+    const handleOrientation = (e: DeviceOrientationEvent) => {
+      // For iOS, webkitCompassHeading provides absolute magnetic compass heading.
+      // For Android absolute event, e.alpha is already absolute magnetic heading.
+      const anyEvent = e as any;
+      const alpha = anyEvent.webkitCompassHeading !== undefined 
+        ? 360 - anyEvent.webkitCompassHeading 
+        : (anyEvent.absolute ? anyEvent.alpha : anyEvent.alpha);
+      
+      if (alpha !== null && e.beta !== null && e.gamma !== null) {
+        setDeviceOrientation({ alpha, beta: e.beta, gamma: e.gamma });
+      }
+    };
+
+    const handleScreenOrientation = () => {
+      const angle = window.screen?.orientation?.angle ?? (window.orientation as number) ?? 0;
+      setScreenOrientation(angle);
+    };
+
+    // Prefer deviceorientationabsolute on Android Chrome/Samsung Internet for correct north alignment
+    const hasAbsoluteEvent = 'ondeviceorientationabsolute' in window;
+    
+    if (hasAbsoluteEvent) {
+      window.addEventListener('deviceorientationabsolute', handleOrientation);
+    } else {
+      window.addEventListener('deviceorientation', handleOrientation);
+    }
+    window.addEventListener('orientationchange', handleScreenOrientation);
+    
+    handleScreenOrientation();
 
     return () => {
-      if (activeStream) {
-        activeStream.getTracks().forEach((track) => track.stop());
+      if (hasAbsoluteEvent) {
+        window.removeEventListener('deviceorientationabsolute', handleOrientation);
+      } else {
+        window.removeEventListener('deviceorientation', handleOrientation);
       }
-      setCameraStream(null);
+      window.removeEventListener('orientationchange', handleScreenOrientation);
     };
-  }, [isARActive]);
+  }, [isARActive, gyroPermissionGranted]);
 
   // Hook keyboard inputs as fallback controls
   useEffect(() => {
@@ -503,6 +887,32 @@ export function ARSimulator() {
   return (
     <div className="fixed inset-0 z-40 bg-black overflow-hidden flex flex-col justify-between">
       
+      {/* Motion Sensor User Gesture Grant Banner for Mobile iOS/Android */}
+      {cameraMode === 'gyro' && !gyroPermissionGranted && (
+        <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center space-y-4 pointer-events-auto">
+          <div className="p-4 rounded-full bg-cyan-950/30 border border-cyan-500/30 text-cyan-400">
+            <Compass className="w-8 h-8 animate-pulse" />
+          </div>
+          <div className="space-y-2 max-w-xs">
+            <h3 className="text-sm font-mono font-bold tracking-widest text-white uppercase">Sensor Access Required</h3>
+            <p className="text-[10px] font-mono text-slate-400 leading-relaxed uppercase">
+              This simulator requires gyroscope and compass access to track the drone in real space.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              const success = await requestGyroPermission();
+              if (success) {
+                initCamera();
+              }
+            }}
+            className="px-6 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-[10px] font-bold rounded-xl shadow-lg shadow-cyan-500/25 transition active:scale-95 uppercase tracking-wider"
+          >
+            Enable Motion Sensors
+          </button>
+        </div>
+      )}
+
       {/* 1. BACKGROUND LAYER: Webcam Stream or Cyber Grid Mockup */}
       <div className="absolute inset-0 z-0">
         <video
@@ -510,6 +920,13 @@ export function ARSimulator() {
           autoPlay
           playsInline
           muted
+          onLoadedMetadata={(e) => {
+            const video = e.currentTarget;
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(err => console.warn("Video autoplay failed, retrying on interaction:", err));
+            }
+          }}
           className={`w-full h-full object-cover ${cameraStream ? 'block' : 'hidden'}`}
         />
         {!cameraStream && (
@@ -616,6 +1033,117 @@ export function ARSimulator() {
         )}
       </div>
 
+      {/* AR Session Toolbox (Left Panel) */}
+      {isARActive && (
+        <div className="absolute left-4 top-24 z-20 pointer-events-auto flex flex-col gap-3 w-52 bg-white/85 dark:bg-slate-950/75 border border-slate-200 dark:border-slate-800/80 backdrop-blur-md rounded-2xl p-4 shadow-2xl font-mono text-[9px] text-slate-700 dark:text-slate-300 uppercase">
+          <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-1.5">
+            <span className={`font-bold tracking-widest flex items-center gap-1.5 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
+              <Sliders className="w-3.5 h-3.5" /> AR Toolbox
+            </span>
+            <span className={`text-[7px] px-1 rounded ${cameraMode === 'gyro' ? 'bg-cyan-950 text-cyan-400' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+              {cameraMode === 'gyro' ? 'Gyro active' : 'Orbit mode'}
+            </span>
+          </div>
+
+          {/* Camera Selection Dropdown */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[7.5px] text-slate-500 dark:text-slate-400">Select Video Input</label>
+            <select
+              value={selectedDeviceId}
+              onChange={(e) => handleCameraChange(e.target.value)}
+              className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-slate-800 dark:text-white"
+            >
+              {availableDevices.length > 0 ? (
+                availableDevices.map((d, i) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || `Camera ${i + 1}`}
+                  </option>
+                ))
+              ) : (
+                <option value="">Default Camera</option>
+              )}
+            </select>
+          </div>
+
+          {/* Camera Error / Permission retry if applicable */}
+          {cameraError && (
+            <div className="text-[7.5px] text-red-500 bg-red-500/10 p-1.5 rounded border border-red-500/20 lowercase">
+              {cameraError}
+            </div>
+          )}
+
+          {gyroError && (
+            <div className="text-[7.5px] text-amber-500 bg-amber-500/10 p-1.5 rounded border border-amber-500/20 lowercase">
+              {gyroError}
+            </div>
+          )}
+
+          {permissionDenied && (
+            <button
+              onClick={() => initCamera()}
+              className="w-full py-1 bg-red-650/20 border border-red-500/30 hover:bg-red-600/30 text-red-400 font-bold rounded"
+            >
+              Retry Camera Permission
+            </button>
+          )}
+
+          {/* AR Recovery Tools Section */}
+          <div className="flex flex-col gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/60">
+            <span className="text-[7.5px] text-slate-500 dark:text-slate-400">Recovery Tools</span>
+            
+            <button
+              onClick={handleFindDrone}
+              className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
+            >
+              <Compass className="w-3.5 h-3.5" /> Find Drone
+            </button>
+
+            <button
+              onClick={handleRecenterDrone}
+              className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Recenter Drone
+            </button>
+
+            <button
+              onClick={handleRestartARSession}
+              className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
+            >
+              <RotateCw className="w-3.5 h-3.5" /> Restart Session
+            </button>
+
+            <button
+              onClick={handleRefreshTracking}
+              className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh Tracking
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Out of view drone indicator */}
+      {droneIndicator && droneIndicator.visible && (
+        <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+          <div 
+            className="absolute bg-slate-950/85 border border-cyan-500/40 text-cyan-400 font-mono text-[9px] px-3 py-1.5 rounded-full flex items-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.3)] animate-pulse pointer-events-auto"
+            style={{
+              transform: `translate(${Math.cos(droneIndicator.angle * Math.PI / 180) * 110}px, ${-Math.sin(droneIndicator.angle * Math.PI / 180) * 110}px)`
+            }}
+          >
+            <span 
+              style={{ 
+                display: 'inline-block',
+                transform: `rotate(${-droneIndicator.angle}deg)`
+              }}
+            >
+              ➔
+            </span>
+            <span>Drone {droneIndicator.distance.toFixed(1)}m</span>
+          </div>
+        </div>
+      )}
+
       {/* 2. MIDDLE LAYER: Transparent Three.js WebGL Canvas */}
       <div className="absolute inset-0 z-10">
         <Canvas
@@ -629,7 +1157,22 @@ export function ARSimulator() {
           
           <Environment preset="city" />
 
-          <OrbitControls makeDefault enableDamping minDistance={1} maxDistance={8} />
+          {cameraMode === 'orbit' && (
+            <OrbitControls makeDefault enableDamping minDistance={1} maxDistance={8} />
+          )}
+
+          <ARCameraController
+            deviceOrientation={deviceOrientation}
+            screenOrientation={screenOrientation}
+            headingOffset={headingOffset}
+            cameraMode={cameraMode}
+            threeCameraRef={threeCamera}
+          />
+
+          <DroneTracker
+            dronePosRef={dronePos}
+            onUpdate={setDroneIndicator}
+          />
 
           {!cameraStream && (
             <>

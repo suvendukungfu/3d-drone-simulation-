@@ -12,11 +12,24 @@ import { droneComponents } from './data/droneComponents';
 import { SimulatorOrchestrator } from './utils/drone/SimulatorOrchestrator';
 import { Checkpoint } from './utils/drone/types';
 import { 
-  Layers, Info, ShieldAlert, Wrench, Activity, ChevronRight, 
-  Eye, Cpu, Power, CheckCircle, RefreshCcw, Gamepad2, Sun, Moon
+  Layers, Info, ShieldAlert, Wrench, Activity, ChevronRight, ChevronDown, ChevronUp,
+  Eye, Cpu, Power, CheckCircle, RefreshCcw, Gamepad2, Sun, Moon, ScanLine, Menu, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProgress } from '@react-three/drei';
+
+/** Returns true when viewport width is below the given breakpoint */
+function useIsMobile(breakpoint = 1024) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setIsMobile(e.matches);
+    handler(mql);
+    mql.addEventListener('change', handler as any);
+    return () => mql.removeEventListener('change', handler as any);
+  }, [breakpoint]);
+  return isMobile;
+}
 
 function App() {
   const controlsRef = useRef<any>(null);
@@ -48,6 +61,7 @@ function App() {
   const selectedComponent = useDroneStore((state) => state.selectedComponent);
   const isExploded = useDroneStore((state) => state.isExploded);
   const isolationMode = useDroneStore((state) => state.isolationMode);
+  const showAnatomyExploded = useDroneStore((state) => state.showAnatomyExploded);
   const activeMissionIndex = useDroneStore((state) => state.activeMissionIndex);
   const missionStatus = useDroneStore((state) => state.missionStatus);
   const addNotification = useDroneStore((state) => state.addNotification);
@@ -63,6 +77,7 @@ function App() {
   const selectComponent = useDroneStore((state) => state.selectComponent);
   const toggleExploded = useDroneStore((state) => state.toggleExploded);
   const toggleIsolation = useDroneStore((state) => state.toggleIsolation);
+  const toggleAnatomyExploded = useDroneStore((state) => state.toggleAnatomyExploded);
   const setCameraView = useDroneStore((state) => state.setCameraView);
   const toggleAutoRotate = useDroneStore((state) => state.toggleAutoRotate);
   const toggleImmersiveMode = useDroneStore((state) => state.toggleImmersiveMode);
@@ -78,6 +93,48 @@ function App() {
   const theme = useDroneStore((state) => state.theme);
   const toggleTheme = useDroneStore((state) => state.toggleTheme);
   const isDark = theme === 'dark';
+
+  // ── Mobile Anatomy Lab Panel State ─────────────────────────────────────────
+  const isMobile = useIsMobile();
+  const [mobileAnatomyOpen, setMobileAnatomyOpen] = useState(false);
+  const [openAccordion, setOpenAccordion] = useState<'camera' | 'immersive' | 'motor' | null>('camera');
+
+  // ── Portrait Mode check for Mobile/Tablet Flight Simulator ─────────────
+  const [isPortraitMobile, setIsPortraitMobile] = useState(false);
+  useEffect(() => {
+    const checkOrientation = () => {
+      const isTouchOrMobile = (window.innerWidth <= 1024 || 'ontouchstart' in window || navigator.maxTouchPoints > 0);
+      const isPortrait = window.innerHeight > window.innerWidth;
+      setIsPortraitMobile(isTouchOrMobile && isPortrait);
+    };
+
+    checkOrientation();
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+    return () => {
+      window.removeEventListener('resize', checkOrientation);
+      window.removeEventListener('orientationchange', checkOrientation);
+    };
+  }, []);
+
+  // Safe auto-disarm when pilot rotates device to portrait mid-flight
+  useEffect(() => {
+    if (isPortraitMobile && currentMode === 'flight' && orchestratorRef.current) {
+      if (orchestratorRef.current.getIsArmed()) {
+        orchestratorRef.current.disarm();
+        addNotification('Flight suspended: rotated to portrait.', 'warning');
+      }
+    }
+  }, [isPortraitMobile, currentMode, addNotification]);
+
+  // Close mobile panel when switching away from explore mode
+  useEffect(() => {
+    if (currentMode !== 'explore' || immersiveMode) setMobileAnatomyOpen(false);
+  }, [currentMode, immersiveMode]);
+
+  const toggleAccordion = useCallback((key: 'camera' | 'immersive' | 'motor') => {
+    setOpenAccordion((prev) => (prev === key ? null : key));
+  }, []);
 
   const selectedData = selectedComponent ? droneComponents[selectedComponent] : null;
 
@@ -169,10 +226,10 @@ function App() {
           4: 'room',        // Module 5
           5: 'lab',         // Module 6
           6: 'lab',         // Module 7
-          7: 'classroom',   // Module 8
-          8: 'field',       // Module 9
-          9: 'warehouse',   // Module 10
-          10: 'course'      // Module 11
+          7: 'room',        // Module 8
+          8: 'lab',         // Module 9
+          9: 'lab',         // Module 10
+          10: 'lab'         // Module 11
         };
         const targetEnv = envs[activeMissionIndex];
         if (targetEnv) {
@@ -189,6 +246,7 @@ function App() {
     stopAllMotors();
     if (isExploded) toggleExploded();
     if (isolationMode) toggleIsolation();
+    if (showAnatomyExploded) toggleAnatomyExploded();
     setShowRotationDirections(false);
     if (immersiveMode) toggleImmersiveMode();
     if (vrMode) toggleVrMode();
@@ -339,16 +397,69 @@ function App() {
         ) : (
           // B. PRE-FLIGHT AVIONICS DIAGNOSTICS PANELS (INSPECTION MODE)
           currentMode !== 'home' && !immersiveMode && (
+            <>
+            {/* ── Mobile Floating Anatomy Menu FAB ───────────────────── */}
+            {isMobile && !mobileAnatomyOpen && (
+              <motion.button
+                key="anatomy-fab"
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                onClick={() => setMobileAnatomyOpen(true)}
+                className="anatomy-fab"
+                title="Open Anatomy Controls"
+              >
+                <Menu className="w-5 h-5" />
+                <span className="text-[9px] font-bold uppercase tracking-wider leading-none">Controls</span>
+              </motion.button>
+            )}
+
+            {/* ── Mobile Backdrop Overlay ─────────────────────────────── */}
+            {isMobile && mobileAnatomyOpen && (
+              <motion.div
+                key="anatomy-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setMobileAnatomyOpen(false)}
+                className="anatomy-backdrop"
+              />
+            )}
+
             <motion.div
               key="explore-sidebar"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 320, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 120 }}
-              style={{ overflow: 'hidden' }}
-              className="h-full pt-16 bg-white/95 dark:bg-slate-950/80 backdrop-blur-md border-r border-slate-200 dark:border-slate-800/80 z-10 flex flex-col justify-between shrink-0"
+              initial={isMobile ? { y: '100%', opacity: 1 } : { width: 0, opacity: 0 }}
+              animate={isMobile
+                ? { y: mobileAnatomyOpen ? '0%' : '100%', opacity: 1 }
+                : { width: 320, opacity: 1 }
+              }
+              exit={isMobile ? { y: '100%', opacity: 1 } : { width: 0, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 200 }}
+              style={isMobile ? undefined : { overflow: 'hidden' }}
+              className={isMobile
+                ? 'anatomy-mobile-sheet'
+                : 'h-full pt-16 bg-white/95 dark:bg-slate-950/80 backdrop-blur-md border-r border-slate-200 dark:border-slate-800/80 z-10 flex flex-col justify-between shrink-0'
+              }
             >
-              <div className="w-[320px] p-5 h-full flex flex-col justify-between overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+              {/* Mobile sheet drag handle + close */}
+              {isMobile && (
+                <div className="anatomy-sheet-header">
+                  <div className="anatomy-sheet-handle" />
+                  <div className="flex items-center justify-between px-4 pb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Anatomy Controls</span>
+                    <button
+                      onClick={() => setMobileAnatomyOpen(false)}
+                      className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className={isMobile
+                ? 'anatomy-sheet-body'
+                : 'w-[320px] p-5 h-full flex flex-col justify-between overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800'
+              }>
                 <div className="space-y-4">
                   {/* Mode Switcher Tabs */}
                   <div className="flex items-center gap-2">
@@ -385,21 +496,30 @@ function App() {
 
                   {/* SECTION A: Camera Presets */}
                   <div className="space-y-2.5">
-                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                    <button
+                      onClick={() => isMobile && toggleAccordion('camera')}
+                      className="w-full text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5"
+                    >
                       <Eye className="w-3.5 h-3.5 text-blue-500" />
                       Camera Angles
-                    </h3>
-                    <div className="grid grid-cols-2 gap-1.5 text-[11px] font-bold uppercase tracking-wider">
+                      {isMobile && (
+                        <span className="ml-auto">
+                          {openAccordion === 'camera' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </span>
+                      )}
+                    </button>
+                    {(!isMobile || openAccordion === 'camera') && (
+                    <div className="anatomy-camera-grid text-[11px] font-bold uppercase tracking-wider">
                       <button
-                        onClick={() => setCameraView('orbit')}
-                        className={`col-span-2 py-2 rounded-lg border transition ${
+                        onClick={() => { setCameraView('orbit'); if (isMobile) setMobileAnatomyOpen(false); }}
+                        className={`anatomy-camera-orbit py-2 rounded-lg border transition ${
                           cameraView === 'orbit' ? btnActiveStyle : btnInactiveStyle
                         }`}
                       >
                         Free Orbit Look
                       </button>
                       <button
-                        onClick={() => setCameraView('top')}
+                        onClick={() => { setCameraView('top'); if (isMobile) setMobileAnatomyOpen(false); }}
                         className={`py-2 rounded-lg border transition ${
                           cameraView === 'top' ? btnActiveStyle : btnInactiveStyle
                         }`}
@@ -407,7 +527,7 @@ function App() {
                         Top View
                       </button>
                       <button
-                        onClick={() => setCameraView('bottom')}
+                        onClick={() => { setCameraView('bottom'); if (isMobile) setMobileAnatomyOpen(false); }}
                         className={`py-2 rounded-lg border transition ${
                           cameraView === 'bottom' ? btnActiveStyle : btnInactiveStyle
                         }`}
@@ -415,7 +535,7 @@ function App() {
                         Bottom View
                       </button>
                       <button
-                        onClick={() => setCameraView('left')}
+                        onClick={() => { setCameraView('left'); if (isMobile) setMobileAnatomyOpen(false); }}
                         className={`py-2 rounded-lg border transition ${
                           cameraView === 'left' ? btnActiveStyle : btnInactiveStyle
                         }`}
@@ -423,7 +543,7 @@ function App() {
                         Left Side
                       </button>
                       <button
-                        onClick={() => setCameraView('right')}
+                        onClick={() => { setCameraView('right'); if (isMobile) setMobileAnatomyOpen(false); }}
                         className={`py-2 rounded-lg border transition ${
                           cameraView === 'right' ? btnActiveStyle : btnInactiveStyle
                         }`}
@@ -431,7 +551,7 @@ function App() {
                         Right Side
                       </button>
                       <button
-                        onClick={() => setCameraView('front')}
+                        onClick={() => { setCameraView('front'); if (isMobile) setMobileAnatomyOpen(false); }}
                         className={`py-2 rounded-lg border transition ${
                           cameraView === 'front' ? btnActiveStyle : btnInactiveStyle
                         }`}
@@ -439,7 +559,7 @@ function App() {
                         Front Nose
                       </button>
                       <button
-                        onClick={() => setCameraView('back')}
+                        onClick={() => { setCameraView('back'); if (isMobile) setMobileAnatomyOpen(false); }}
                         className={`py-2 rounded-lg border transition ${
                           cameraView === 'back' ? btnActiveStyle : btnInactiveStyle
                         }`}
@@ -447,6 +567,7 @@ function App() {
                         Back Tail
                       </button>
                     </div>
+                    )}
                     {/* Auto Rotate Toggle */}
                     <button
                       onClick={toggleAutoRotate}
@@ -461,10 +582,19 @@ function App() {
  
                     {/* Environment & VR Views */}
                     <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
-                      <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                      <button
+                        onClick={() => isMobile && toggleAccordion('immersive')}
+                        className="w-full text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5"
+                      >
                         <Layers className="w-3.5 h-3.5 text-blue-500" />
                         Immersive Modes
-                      </h3>
+                        {isMobile && (
+                          <span className="ml-auto">
+                            {openAccordion === 'immersive' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          </span>
+                        )}
+                      </button>
+                      {(!isMobile || openAccordion === 'immersive') && (
                       <div className="grid grid-cols-2 gap-1.5 text-[11px] font-bold uppercase tracking-wider">
                         <button
                           onClick={toggleImmersiveMode}
@@ -491,16 +621,25 @@ function App() {
                           <span className="text-[8px] opacity-60 font-medium">SBS Split</span>
                         </button>
                       </div>
+                      )}
                     </div>
                   </div>
 
                   {/* SECTION B: Motor Demonstrator Systems */}
                   <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
                     <div className="flex justify-between items-center">
-                      <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                      <button
+                        onClick={() => isMobile && toggleAccordion('motor')}
+                        className="flex-1 text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5"
+                      >
                         <Power className="w-3.5 h-3.5 text-blue-500" />
                         Motor Diagnostic Test
-                      </h3>
+                        {isMobile && (
+                          <span className="ml-auto mr-2">
+                            {openAccordion === 'motor' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          </span>
+                        )}
+                      </button>
                       <button
                         onClick={() => setShowRotationDirections(!showRotationDirections)}
                         className={`px-2 py-0.5 rounded border text-[9px] font-bold transition ${
@@ -513,6 +652,7 @@ function App() {
                       </button>
                     </div>
                     
+                    {(!isMobile || openAccordion === 'motor') && (
                     <div className="space-y-1.5">
                       {(['motor1', 'motor2', 'motor3', 'motor4'] as const).map((id, index) => {
                         const active = activeMotors[id];
@@ -520,10 +660,10 @@ function App() {
                         const cornerNames = ['FL (CW)', 'FR (CCW)', 'RL (CCW)', 'RR (CW)'];
                         
                         return (
-                           <div key={id} className="flex gap-2 items-center">
+                           <div key={id} className="anatomy-motor-row">
                             <button
                               onClick={() => toggleMotor(id)}
-                              className={`flex-1 flex justify-between items-center px-3.5 py-2.5 rounded-lg border text-xs font-bold uppercase tracking-wider transition ${
+                              className={`flex-1 flex justify-between items-center anatomy-motor-btn rounded-lg border text-xs font-bold uppercase tracking-wider transition ${
                                 active 
                                   ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-[0_4px_12px_rgba(249,115,22,0.08)] dark:bg-orange-950/30 dark:border-orange-500 dark:text-orange-400' 
                                   : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
@@ -533,7 +673,7 @@ function App() {
                               <span className="text-[9px] font-mono opacity-80">{active ? 'RUNNING' : 'STOPPED'}</span>
                             </button>
                             {active && (
-                              <div className="w-16 text-center font-mono text-[10px] text-orange-600 border border-orange-200 bg-orange-50 dark:text-orange-400 dark:border-orange-900/40 dark:bg-orange-950/35 py-1.5 rounded">
+                              <div className="anatomy-motor-rpm">
                                 {rpm} RPM
                               </div>
                             )}
@@ -541,8 +681,10 @@ function App() {
                         );
                       })}
                     </div>
+                    )}
 
-                    <div className="grid grid-cols-2 gap-2 pt-1.5">
+                    {/* Sticky bottom action buttons on mobile */}
+                    <div className={isMobile ? 'anatomy-sticky-actions' : 'grid grid-cols-2 gap-2 pt-1.5'}>
                       <button
                         onClick={testAllMotors}
                         className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase rounded-lg transition"
@@ -598,6 +740,7 @@ function App() {
                 </div>
               </div>
             </motion.div>
+            </>
           )
         )}
       </AnimatePresence>
@@ -628,7 +771,7 @@ function App() {
           )
         )}
 
-        {/* BOTTOM CONTROLS: Simple exploded and isolate view controls (Only visible in explorer mode) */}
+        {/* BOTTOM CONTROLS: Anatomy Exploded and isolate view controls (Only visible in explorer mode) */}
         <AnimatePresence>
           {currentMode !== 'home' && currentMode !== 'flight' && !immersiveMode && (
             <motion.div
@@ -638,16 +781,24 @@ function App() {
               transition={{ type: 'spring', damping: 25, stiffness: 120 }}
               className="absolute bottom-6 left-6 pointer-events-auto z-10 flex gap-3"
             >
+              {/* ── ANATOMY EXPLODED button ─────────────────────────── */}
               <button
-                onClick={toggleExploded}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border shadow-sm ${
-                  isExploded
-                    ? 'bg-blue-50 border-blue-400 text-blue-600'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                onClick={toggleAnatomyExploded}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border shadow-sm relative overflow-hidden ${
+                  showAnatomyExploded
+                    ? 'bg-violet-50 border-violet-500 text-violet-700 shadow-[0_0_18px_rgba(139,92,246,0.25)] dark:bg-violet-950/40 dark:border-violet-500 dark:text-violet-300'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-violet-700 hover:border-violet-300 dark:bg-slate-950/80 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:border-violet-700'
                 }`}
+                title="Full anatomy exploded view with detailed engineering labels (Pluto Blast View)"
               >
-                <Layers className="w-4 h-4" />
-                <span>Exploded View</span>
+                {showAnatomyExploded && (
+                  <span className="absolute inset-0 pointer-events-none">
+                    <span className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/60 to-transparent animate-pulse" />
+                    <span className="absolute left-0 right-0 bottom-0 h-px bg-gradient-to-r from-transparent via-violet-400/60 to-transparent animate-pulse" />
+                  </span>
+                )}
+                <ScanLine className="w-4 h-4" />
+                <span>Anatomy Exploded</span>
               </button>
 
               <button
@@ -655,10 +806,10 @@ function App() {
                 disabled={!selectedComponent}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border shadow-sm ${
                   !selectedComponent
-                    ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
+                    ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-600'
                     : isolationMode
-                      ? 'bg-emerald-50 border-emerald-400 text-emerald-700'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-emerald-50 border-emerald-400 text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-500 dark:text-emerald-300'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:bg-slate-950/80 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900'
                 }`}
               >
                 <ShieldAlert className="w-4 h-4" />
@@ -903,7 +1054,9 @@ function App() {
             initial={{ y: -64, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -64, opacity: 0 }}
-            className="absolute top-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between pointer-events-auto z-20 shadow-sm"
+            className={`absolute top-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between pointer-events-auto z-20 shadow-sm ${
+              currentMode === 'flight' ? 'hidden md:flex' : ''
+            }`}
           >
             {/* Left: Brand logo & Navigation Back */}
             <div className="flex items-center gap-3">
@@ -990,7 +1143,47 @@ function App() {
       </AnimatePresence>
 
       {/* 8. VIRTUAL JOYSTICKS FOR MOBILE DEVICES */}
-      <VirtualJoysticks />
+      <VirtualJoysticks orchestrator={orchestratorRef.current!} />
+
+      {/* 9. PORTRAIT ORIENTATION LOCK OVERLAY FOR MOBILE/TABLET FLIGHT SIMULATOR */}
+      <AnimatePresence>
+        {currentMode === 'flight' && isPortraitMobile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-[9999] flex flex-col items-center justify-center p-6 text-center select-none"
+          >
+            <div className="flex flex-col items-center max-w-sm space-y-6">
+              {/* Rotating Device Icon Visual */}
+              <div className="relative w-24 h-24 flex items-center justify-center bg-blue-500/10 rounded-full border border-blue-500/20 shadow-[0_0_30px_rgba(59,130,246,0.15)]">
+                <svg
+                  viewBox="0 0 100 100"
+                  className="w-16 h-16 text-blue-500 animate-device-rotate"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="30" y="10" width="40" height="80" rx="6" />
+                  <line x1="45" y1="18" x2="55" y2="18" />
+                  <circle cx="50" cy="80" r="3" />
+                </svg>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-extrabold tracking-wider uppercase text-white">
+                  Rotate Device
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  The pilot flight simulator requires landscape orientation. Please rotate your device to begin.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Decorative top-edge accent line */}
       <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-blue-500/25 to-transparent pointer-events-none z-10" />
