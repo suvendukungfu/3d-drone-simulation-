@@ -22,9 +22,6 @@ const syncHashFromState = (mode: string, missionIndex: number) => {
 };
 
 const getSafeTheme = (): 'light' | 'dark' => {
-  if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
-    return window.localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
-  }
   return 'light';
 };
 
@@ -795,21 +792,15 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   setGyroSensitivity: (val) => {
     set({ gyroSensitivity: val });
   },
-  setTheme: (theme) => {
-    setSafeTheme(theme);
+  setTheme: (_theme) => {
+    setSafeTheme('light');
     if (typeof window !== 'undefined' && document.documentElement) {
-      if (theme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+      document.documentElement.classList.remove('dark');
     }
-    set({ theme });
+    set({ theme: 'light' });
   },
   toggleTheme: () => {
-    sound.playClick();
-    const nextTheme = get().theme === 'light' ? 'dark' : 'light';
-    get().setTheme(nextTheme);
+    // No-op to disable toggling to dark mode
   }
 }));
 

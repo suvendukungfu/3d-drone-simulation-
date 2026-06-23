@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useDroneStore } from '../../store/useDroneStore';
 import { 
   Gamepad2, Cpu, GraduationCap, Camera, Box, X, 
-  Database, ClipboardList, Sun, Moon, ArrowRight
+  Database, ClipboardList, ArrowRight
 } from 'lucide-react';
 
 export function IntroOverlay() {
@@ -12,8 +12,7 @@ export function IntroOverlay() {
   const setARActive = useDroneStore((state) => state.setARActive);
   const setMode = useDroneStore((state) => state.setMode);
   const selectMission = useDroneStore((state) => state.selectMission);
-  const theme = useDroneStore((state) => state.theme);
-  const toggleTheme = useDroneStore((state) => state.toggleTheme);
+
 
   // Mobile / Tablet touch detection
   const [isMobileDevice, setIsMobileDevice] = useState(false);
@@ -368,16 +367,7 @@ export function IntroOverlay() {
             className="h-9 w-auto object-contain dark:invert select-none" 
           />
         </div>
-        {/* Theme Toggle */}
-        <div className="flex items-center">
-          <button
-            onClick={toggleTheme}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/50 dark:hover:bg-slate-900/40 transition-colors flex items-center justify-center shrink-0"
-            title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-          >
-            {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-          </button>
-        </div>
+
       </header>
 
       {/* 2. SPLIT-SCREEN LAYOUT */}

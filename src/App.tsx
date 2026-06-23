@@ -13,7 +13,7 @@ import { SimulatorOrchestrator } from './utils/drone/SimulatorOrchestrator';
 import { Checkpoint } from './utils/drone/types';
 import { 
   Layers, Info, ShieldAlert, Wrench, Activity, ChevronRight, ChevronDown, ChevronUp,
-  Eye, Cpu, Power, CheckCircle, RefreshCcw, Gamepad2, Sun, Moon, ScanLine, Menu, X
+  Eye, Cpu, Power, CheckCircle, RefreshCcw, Gamepad2, ScanLine, Menu, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useProgress } from '@react-three/drei';
@@ -91,7 +91,6 @@ function App() {
   const startLearning = useDroneStore((state) => state.startLearning);
   const selectMission = useDroneStore((state) => state.selectMission);
   const theme = useDroneStore((state) => state.theme);
-  const toggleTheme = useDroneStore((state) => state.toggleTheme);
   const isDark = theme === 'dark';
 
   // ── Mobile Anatomy Lab Panel State ─────────────────────────────────────────
@@ -1123,15 +1122,6 @@ function App() {
                 <span className="uppercase tracking-widest text-[8px] font-bold text-slate-400 dark:text-slate-500">SYS_OK</span>
               </div>
 
-              {/* Theme Toggle Button */}
-              <div className="h-5 w-px bg-slate-200 dark:bg-slate-800" />
-              <button
-                onClick={toggleTheme}
-                className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shadow-sm flex items-center justify-center shrink-0"
-                title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-              >
-                {theme === 'light' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-              </button>
             </div>
           </motion.header>
         )}
