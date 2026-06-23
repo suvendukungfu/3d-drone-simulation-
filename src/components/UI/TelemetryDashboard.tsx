@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDroneStore } from '../../store/useDroneStore';
 import { 
-  ShieldAlert, Cpu, RotateCcw, Battery, Activity, Info, AlertTriangle, CheckCircle, Circle, XCircle, Award, Gamepad2, LogOut, Camera, Maximize, Minimize, Smartphone
+  ShieldAlert, Cpu, RotateCcw, Battery, Activity, Info, AlertTriangle, CheckCircle, Circle, XCircle, Award
 } from 'lucide-react';
 import { MISSIONS } from './TrainingMissionSystem';
 
@@ -34,8 +34,6 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
   const flightCameraView = useDroneStore((state) => state.flightCameraView);
   const setFlightCameraView = useDroneStore((state) => state.setFlightCameraView);
   const setFlightEnvironment = useDroneStore((state) => state.setFlightEnvironment);
-  const gyroPilot = useDroneStore((state) => state.gyroPilot);
-  const setGyroPilot = useDroneStore((state) => state.setGyroPilot);
 
   const appLinkStatus = useDroneStore((state) => state.appLinkStatus);
   const setAppLinkStatus = useDroneStore((state) => state.setAppLinkStatus);
@@ -54,25 +52,7 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
   const [isCameraLocked, setIsCameraLocked] = useState(false);
   const isTelemetryReady = isPhysicsInitialized && telemetry.battery > 0;
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  }, []);
 
   // Buzzer Alert for Critical Battery (play 1Hz electronic warning beep)
   useEffect(() => {
@@ -115,35 +95,6 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
     };
   }, [telemetry?.isArmed, telemetry?.battery, isClosedSimulation]);
 
-  const toggleFullscreen = async () => {
-    try {
-      if (!document.fullscreenElement) {
-        const docEl = document.documentElement as any;
-        if (docEl.requestFullscreen) {
-          await docEl.requestFullscreen();
-        } else if (docEl.webkitRequestFullscreen) {
-          await docEl.webkitRequestFullscreen();
-        } else if (docEl.mozRequestFullScreen) {
-          await docEl.mozRequestFullScreen();
-        } else if (docEl.msRequestFullscreen) {
-          await docEl.msRequestFullscreen();
-        }
-      } else {
-        const doc = document as any;
-        if (doc.exitFullscreen) {
-          await doc.exitFullscreen();
-        } else if (doc.webkitExitFullscreen) {
-          await doc.webkitExitFullscreen();
-        } else if (doc.mozCancelFullScreen) {
-          await doc.mozCancelFullScreen();
-        } else if (doc.msExitFullscreen) {
-          await doc.msExitFullscreen();
-        }
-      }
-    } catch (err) {
-      console.error('Fullscreen toggle error:', err);
-    }
-  };
 
   useEffect(() => {
     if (isDroneSpawned) {
@@ -306,132 +257,7 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
         </div>
       )}
 
-      {/* Mobile Floating HUD Control Panel (Vertical dock on the right side) */}
-      <div className="md:hidden flex flex-col gap-1 absolute right-2 top-2 bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-1 rounded-xl shadow-lg pointer-events-auto z-20">
-        <button
-          onClick={() => {
-            const activeMissionIndex = useDroneStore.getState().activeMissionIndex;
-            const missionStatus = useDroneStore.getState().missionStatus as any;
-            if (activeMissionIndex >= 0 && missionStatus !== 'passed') {
-              const store = useDroneStore.getState() as any;
-              if (store.addNotification) {
-                store.addNotification('Please complete or abort the current lesson first.', 'warning');
-              }
-              return;
-            }
-            useDroneStore.getState().setMode('home');
-          }}
-          className="w-8 h-8 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 text-red-655 dark:text-red-400 flex items-center justify-center transition-all hover:bg-red-100 dark:hover:bg-red-900/60 shadow-sm"
-          title="Exit Simulator"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
 
-        <button
-          onClick={toggleTelemetryDashboard}
-          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
-            showTelemetryDashboard
-              ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/25'
-              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
-          }`}
-          title="Toggle Telemetry HUD"
-        >
-          <Activity className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={toggleControlsOverlay}
-          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
-            showControlsOverlay
-              ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/25'
-              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
-          }`}
-          title="Toggle Controls Overlay"
-        >
-          <Gamepad2 className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={toggleChecklist}
-          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
-            showChecklist
-              ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/25'
-              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
-          }`}
-          title="Toggle Objective Checklist"
-        >
-          <Award className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={onCalibrate}
-          disabled={telemetry.isArmed}
-          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
-            telemetry.isArmed
-              ? 'opacity-40 cursor-not-allowed bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
-              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-          title="Calibrate Autopilot Sensors"
-        >
-          <Cpu className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={() => {
-            const views: ('chase' | 'fpv' | 'orbit')[] = ['chase', 'fpv', 'orbit'];
-            const nextIdx = (views.indexOf(flightCameraView) + 1) % views.length;
-            setFlightCameraView(views[nextIdx]);
-          }}
-          className="w-8 h-8 rounded-lg border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-all shadow-sm"
-          title={`Camera View: ${flightCameraView}`}
-        >
-          <Camera className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={toggleFullscreen}
-          className="w-8 h-8 rounded-lg border bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-655 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-all shadow-sm"
-          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-        >
-          {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-        </button>
-
-        <button
-          onClick={() => {
-            if (gyroPilot) {
-              setGyroPilot(false);
-            } else {
-              // Request device orientation permission if required (e.g. iOS standard browsers)
-              if (typeof DeviceOrientationEvent !== 'undefined' && (DeviceOrientationEvent as any).requestPermission) {
-                (DeviceOrientationEvent as any).requestPermission()
-                  .then((response: string) => {
-                    if (response === 'granted') {
-                      setGyroPilot(true);
-                    } else {
-                      const store = useDroneStore.getState() as any;
-                      if (store.addNotification) {
-                        store.addNotification('Gyroscope permission denied.', 'error');
-                      }
-                    }
-                  })
-                  .catch((err: any) => {
-                    console.error('Permission request failed:', err);
-                  });
-              } else {
-                setGyroPilot(true);
-              }
-            }
-          }}
-          className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
-            gyroPilot
-              ? 'bg-cyan-600 border-cyan-500 text-white shadow-md shadow-cyan-500/25'
-              : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
-          }`}
-          title="Toggle Gyro Tilt Pilot"
-        >
-          <Smartphone className="w-4 h-4" />
-        </button>
-      </div>
       
       {/* 1. TOP TELEMETRY RIBBON & SYSTEM STATE */}
       <div className="w-full flex justify-between items-start pointer-events-auto gap-4">
