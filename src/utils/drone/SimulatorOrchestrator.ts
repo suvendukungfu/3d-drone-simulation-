@@ -57,6 +57,11 @@ export class SimulatorOrchestrator {
   private isCalibrating = true;
   private calibrationTimer = 0.0;
   private isFailsafeActive = false;
+  public motorsStarted = false;
+  private isAutoTakeoffActive = false;
+  private isLandingActive = false;
+  private recoveryTimer = 0.0;
+  private destabilizeTimer = 0.0;
   
   // Flip Mode states
   private isFlipArmed = false;
@@ -77,7 +82,6 @@ export class SimulatorOrchestrator {
   private hasTakenOff = false;
   private hasWarnedLowBattery = false;
   private hasWarnedBoundary = false;
-  private hasWarnedWallCollision = false;
   
   // Wall collision notification tracker
   private collisionTimer = 0.0;
@@ -127,7 +131,9 @@ export class SimulatorOrchestrator {
           store.setFlightCameraView(views[camIndex - 1]);
         }
       },
-      onResetSim: () => this.reset()
+      onResetSim: () => this.reset(),
+      onAutoTakeoff: () => this.triggerAutoTakeoff(),
+      onLanding: () => this.triggerLanding()
     });
   }
   
@@ -165,6 +171,11 @@ export class SimulatorOrchestrator {
     this.isCalibrating = true;
     this.calibrationTimer = 0.0;
     this.isFailsafeActive = false;
+    this.motorsStarted = false;
+    this.isAutoTakeoffActive = false;
+    this.isLandingActive = false;
+    this.recoveryTimer = 0.0;
+    this.destabilizeTimer = 0.0;
     
     this.isFlipArmed = false;
     this.isFlipping = false;
@@ -179,7 +190,6 @@ export class SimulatorOrchestrator {
     this.hasTakenOff = false;
     this.hasWarnedLowBattery = false;
     this.hasWarnedBoundary = false;
-    this.hasWarnedWallCollision = false;
     
     this.physics.reset();
     this.controller.reset();
@@ -241,7 +251,13 @@ export class SimulatorOrchestrator {
     this.crashDetected = false;
     this.hardLanding = false;
     this.hasTakenOff = false;
+    this.motorsStarted = true;
+    this.isAutoTakeoffActive = false;
+    this.isLandingActive = false;
+    this.recoveryTimer = 0.0;
+    this.destabilizeTimer = 0.0;
     this.controller.reset();
+    this.controller.isLandingActive = false;
     this.controller.isAltHoldActive = true; // start in Alt Hold mode
     
     // Set altitude lock to current barometer altitude
@@ -250,7 +266,8 @@ export class SimulatorOrchestrator {
 
     const store = useDroneStore.getState() as any;
     if (store.addNotification) {
-      store.addNotification('ARMED', 'success');
+      store.addNotification('Motors Armed', 'success');
+      store.addNotification('Ready For Takeoff', 'info');
     }
   }
   
@@ -265,15 +282,105 @@ export class SimulatorOrchestrator {
     
     this.isArmed = false;
     this.motorCommands = [0, 0, 0, 0];
+    this.motorsStarted = false;
+    this.isAutoTakeoffActive = false;
+    this.isLandingActive = false;
+    this.controller.isLandingActive = false;
+    this.recoveryTimer = 0.0;
+    this.destabilizeTimer = 0.0;
     
     const store = useDroneStore.getState() as any;
     if (store.addNotification) {
-      store.addNotification('DISARMED', 'info');
+      store.addNotification('Drone Disarmed', 'info');
       if (isSoft && this.hasTakenOff) {
         store.addNotification('SAFE LANDING', 'success');
       }
     }
     this.hasTakenOff = false;
+  }
+
+  private checkSafetyForTakeoff(showNotification: boolean): boolean {
+    const store = useDroneStore.getState() as any;
+    
+    if (this.isCalibrating) {
+      if (showNotification && store.addNotification) {
+        const text = 'TAKEOFF DENIED: CALIBRATION IN PROGRESS';
+        if (!store.notifications.some((n: any) => n.text === text)) {
+          store.addNotification(text, 'warning');
+        }
+      }
+      return false;
+    }
+    
+    if (this.crashDetected) {
+      if (showNotification && store.addNotification) {
+        const text = 'TAKEOFF DENIED: RESET SIMULATOR';
+        if (!store.notifications.some((n: any) => n.text === text)) {
+          store.addNotification(text, 'warning');
+        }
+      }
+      return false;
+    }
+    
+    const euler = new THREE.Euler().setFromQuaternion(this.state.quaternion, 'YXZ');
+    const isUpsideDown = Math.abs(euler.x) > Math.PI / 2 || Math.abs(euler.z) > Math.PI / 2;
+    if (isUpsideDown) {
+      if (showNotification && store.addNotification) {
+        const text = 'TAKEOFF DENIED: DRONE UPSIDE DOWN';
+        if (!store.notifications.some((n: any) => n.text === text)) {
+          store.addNotification(text, 'warning');
+        }
+      }
+      return false;
+    }
+    
+    return true;
+  }
+  
+  public triggerAutoTakeoff(): void {
+    if (this.sensors.hasCalibrationFailed()) {
+      return;
+    }
+
+    if (!this.isArmed) {
+      const store = useDroneStore.getState() as any;
+      if (store.addNotification) {
+        store.addNotification('AUTO TAKEOFF DENIED: MOTORS NOT ARMED', 'warning');
+      }
+      return;
+    }
+
+    if (!this.checkSafetyForTakeoff(true)) {
+      return;
+    }
+    
+    this.isAutoTakeoffActive = true;
+    this.isLandingActive = false;
+    this.hasTakenOff = false;
+    this.controller.isLandingActive = false;
+    this.controller.isAltHoldActive = true;
+    this.controller.setAltitudeLock(0.18);
+    
+    const store = useDroneStore.getState() as any;
+    if (store.addNotification) {
+      store.addNotification('Auto Takeoff Initiated', 'info');
+    }
+  }
+
+  public triggerLanding(): void {
+    if (!this.isArmed || !this.hasTakenOff || this.isLandingActive) {
+      return;
+    }
+    
+    this.isLandingActive = true;
+    this.controller.isLandingActive = true;
+    this.isAutoTakeoffActive = false;
+    this.controller.isAltHoldActive = true;
+    
+    const store = useDroneStore.getState() as any;
+    if (store.addNotification) {
+      store.addNotification('Landing', 'info');
+    }
   }
   
   public calibrate(): void {
@@ -346,13 +453,23 @@ export class SimulatorOrchestrator {
     // Interpolate sensor readings and compile telemetry for display
     const sensorData = this.sensors.update(this.state, this.linearAcceleration, 0);
     
+    const currentFlightMode = !this.isArmed
+      ? 'disarmed'
+      : !this.hasTakenOff
+        ? 'armed_idle'
+        : this.isLandingActive || this.isFailsafeActive
+          ? 'failsafe'
+          : this.controller.isAltHoldActive
+            ? 'althold'
+            : 'stabilize';
+
     const telemetryData = this.telemetry.update(
       this.state,
       this.motorCommands,
       this.isArmed,
       sensorData.hasError,
       this.isCalibrating,
-      this.isFailsafeActive ? 'failsafe' : (this.controller.isAltHoldActive ? 'althold' : 'stabilize'),
+      currentFlightMode,
       dt
     );
     
@@ -387,7 +504,27 @@ export class SimulatorOrchestrator {
     }
     
     // 2. Poll user keyboard input
-    const stick = this.input.update(dt, this.isArmed);
+    let stick = this.input.update(dt, this.isArmed);
+    
+    if (this.isArmed) {
+      if (this.isLandingActive) {
+        // Override stick inputs to land level and descend
+        stick = {
+          throttle: 0.20,
+          pitch: 0.0,
+          roll: 0.0,
+          yaw: 0.0
+        };
+      } else if (this.isAutoTakeoffActive) {
+        // Override stick inputs for auto-takeoff climb
+        stick = {
+          throttle: 0.65,
+          pitch: 0.0,
+          roll: 0.0,
+          yaw: 0.0
+        };
+      }
+    }
     
     // Check for flip trigger
     if (this.isFlipArmed && !this.isFlipping && this.hasTakenOff) {
@@ -425,21 +562,76 @@ export class SimulatorOrchestrator {
     // 3. Process Sensor simulation
     const sensorData = this.sensors.update(this.state, this.linearAcceleration, dt);
     
-    // Check for takeoff detected
+    // Apply Stage 3 (wobble) and Stage 4 (sensor drift) perturbations to gyroscope data
+    if (this.recoveryTimer > 0) {
+      this.recoveryTimer -= dt;
+      const noise = Math.sin(this.timeAccumulator * 30.0) * (this.recoveryTimer / 1.5) * 1.5;
+      sensorData.gyro.x += noise;
+      sensorData.gyro.z += noise;
+    }
+    if (this.destabilizeTimer > 0) {
+      this.destabilizeTimer -= dt;
+      const noise = Math.sin(this.timeAccumulator * 40.0) * (this.destabilizeTimer / 1.0) * 4.0;
+      sensorData.gyro.x += noise;
+      sensorData.gyro.z += noise;
+    }
+    
+    // Check for takeoff completion or transitions
     if (this.isArmed && !this.hasTakenOff) {
       const altitude = this.state.position.y - this.physics.environmentBounds.minY;
-      if (altitude > 0.08) {
-        this.hasTakenOff = true;
+      
+      if (this.isAutoTakeoffActive) {
+        if (altitude >= 0.18) {
+          this.isAutoTakeoffActive = false;
+          this.hasTakenOff = true;
+          this.controller.reset();
+          this.controller.isAltHoldActive = true;
+          const sensorDataForTakeoff = this.sensors.update(this.state, this.linearAcceleration, 0);
+          this.controller.setAltitudeLock(sensorDataForTakeoff.baroAltitude);
+          
+          const store = useDroneStore.getState() as any;
+          if (store.addNotification) {
+            store.addNotification('Hover Stable', 'success');
+            store.addNotification('Pilot Control Active', 'info');
+          }
+        }
+      } else {
+        // Manual takeoff
+        if (stick.throttle > 0.15) {
+          if (altitude >= 0.15) {
+            this.hasTakenOff = true;
+            this.controller.reset();
+            this.controller.isAltHoldActive = true;
+            const sensorDataForTakeoff = this.sensors.update(this.state, this.linearAcceleration, 0);
+            this.controller.setAltitudeLock(sensorDataForTakeoff.baroAltitude);
+            
+            const store = useDroneStore.getState() as any;
+            if (store.addNotification) {
+              store.addNotification('Pilot Control Active', 'info');
+            }
+          }
+        }
+      }
+    }
+    
+    // Check for landing touchdown
+    if (this.isArmed && this.isLandingActive) {
+      const altitude = this.state.position.y - this.physics.environmentBounds.minY;
+      if (altitude <= 0.01 || (this.physics.lastCollision && this.physics.lastCollision.collided && this.physics.lastCollision.obstacleName === 'Ground')) {
+        this.isLandingActive = false;
+        this.hasTakenOff = false;
+        this.controller.isLandingActive = false;
         
-        // Reset flight controller PIDs to prevent transition jump/wobble
-        this.controller.reset();
-        this.controller.isAltHoldActive = true;
-        const sensorDataForTakeoff = this.sensors.update(this.state, this.linearAcceleration, 0);
-        this.controller.setAltitudeLock(sensorDataForTakeoff.baroAltitude);
+        // Return to armed - idle state
+        this.state.position.y = this.physics.environmentBounds.minY;
+        this.state.velocity.set(0, 0, 0);
+        this.state.angularVelocity.set(0, 0, 0);
+        this.state.quaternion.set(0, 0, 0, 1);
         
         const store = useDroneStore.getState() as any;
         if (store.addNotification) {
-          store.addNotification('TAKEOFF DETECTED', 'info');
+          store.addNotification('Motors Armed', 'success');
+          store.addNotification('Ready For Takeoff', 'info');
         }
       }
     }
@@ -450,7 +642,6 @@ export class SimulatorOrchestrator {
     }
     
     // 4. Run Flight Failsafe Systems
-    // Auto-engage failsafe landing if battery is empty, boundary exceeded, or sensor fails
     if (this.isArmed && !this.isFailsafeActive) {
       const distance = new THREE.Vector3(this.state.position.x, 0, this.state.position.z).length();
       const height = this.state.position.y;
@@ -479,15 +670,12 @@ export class SimulatorOrchestrator {
       } else if (this.isFailsafeActive) {
         // Failsafe auto-descent: override stick inputs, lock level, and slowly land (-0.45 m/s)
         const failsafeStick = {
-          throttle: 0.38, // descending throttle
+          throttle: 0.38,
           yaw: 0.0,
           pitch: 0.0,
           roll: 0.0
         };
-        
-        // Feed direct horizontal damping
         const estAttitude = new THREE.Euler().setFromQuaternion(this.state.quaternion, 'YXZ');
-        
         this.motorCommands = this.controller.update(
           failsafeStick,
           sensorData,
@@ -497,23 +685,26 @@ export class SimulatorOrchestrator {
           true
         );
       } else if (this.isFlipping) {
-        // Direct control override during flip
         const p = this.flipTimer / this.flipDuration;
         if (p < 0.3) {
-          this.motorCommands = [0.95, 0.95, 0.95, 0.95]; // Thrust Punch
+          this.motorCommands = [0.95, 0.95, 0.95, 0.95];
         } else if (p < 0.85) {
-          this.motorCommands = [0.15, 0.15, 0.15, 0.15]; // Float and rotate
+          this.motorCommands = [0.15, 0.15, 0.15, 0.15];
         } else {
-          this.motorCommands = [0.70, 0.70, 0.70, 0.70]; // Catch
+          this.motorCommands = [0.70, 0.70, 0.70, 0.70];
         }
       } else {
-        // Standard Pilot Flight Mode
         const estAttitude = new THREE.Euler().setFromQuaternion(this.state.quaternion, 'YXZ');
-        
+        const perturbedAttitude = estAttitude.clone();
+        if (this.destabilizeTimer > 0) {
+          const drift = (this.destabilizeTimer / 1.0) * 0.15;
+          perturbedAttitude.x += drift;
+          perturbedAttitude.z += drift;
+        }
         this.motorCommands = this.controller.update(
           stick,
           sensorData,
-          estAttitude,
+          perturbedAttitude,
           this.state.velocity,
           dt,
           this.hasTakenOff
@@ -523,28 +714,20 @@ export class SimulatorOrchestrator {
       this.motorCommands = [0, 0, 0, 0];
     }
     
-    // 6. Run Physics Integrator Step (with wind disturbance force)
+    // 6. Run Physics Integrator Step
     const oldVelocity = this.state.velocity.clone();
-
-    // Compute wind force and inject it as an external disturbance before physics step
+    
     if (this.isArmed && !this.isCalibrating) {
-      const windForce = this.wind.getForce(
-        this.state.position,
-        this.physics.mass,
-        dt
-      );
-      // Add wind acceleration directly to the pre-step velocity
-      // (lightweight external impulse, avoids modifying physics internals)
+      const windForce = this.wind.getForce(this.state.position, this.physics.mass, dt);
       const windAccel = windForce.multiplyScalar(1.0 / this.physics.mass);
       this.state.velocity.addScaledVector(windAccel, dt);
     }
-
+    
     this.state = this.physics.step(this.state, this.motorCommands, dt);
-
+    
     if (this.isFlipping) {
       this.flipTimer += dt;
       const p = Math.min(1.0, this.flipTimer / this.flipDuration);
-      
       const axis = new THREE.Vector3();
       if (this.flipType === 'front') axis.set(1, 0, 0);
       else if (this.flipType === 'back') axis.set(-1, 0, 0);
@@ -553,7 +736,6 @@ export class SimulatorOrchestrator {
       
       const angle = p * Math.PI * 2;
       const rotationQuat = new THREE.Quaternion().setFromAxisAngle(axis, angle);
-      
       this.state.quaternion.copy(this.flipStartQuaternion).multiply(rotationQuat);
       this.state.angularVelocity.set(0, 0, 0);
       
@@ -561,29 +743,51 @@ export class SimulatorOrchestrator {
         this.isFlipping = false;
         this.flipType = null;
         this.flipTimer = 0.0;
-        
         const sensorDataForAlt = this.sensors.update(this.state, this.linearAcceleration, 0);
         this.controller.setAltitudeLock(sensorDataForAlt.baroAltitude);
       }
     }
-
-    // Takeoff pad constraints
-    if (this.isArmed && !this.hasTakenOff) {
+    
+    // Position/Attitude Ground Lock when disarmed or armed and not taken off
+    if (!this.isArmed) {
+      if (this.state.position.y <= this.physics.environmentBounds.minY + 0.01) {
+        this.state.position.y = this.physics.environmentBounds.minY;
+        this.state.velocity.set(0, 0, 0);
+        this.state.angularVelocity.set(0, 0, 0);
+        const euler = new THREE.Euler().setFromQuaternion(this.state.quaternion, 'YXZ');
+        euler.x = 0;
+        euler.z = 0;
+        this.state.quaternion.setFromEuler(euler);
+      }
+    } else if (!this.hasTakenOff) {
+      // If we are in auto takeoff climb or manual takeoff climb (safety checks pass)
+      const isClimbing = this.isAutoTakeoffActive || (stick.throttle > 0.15 && this.checkSafetyForTakeoff(false));
+      
       this.state.position.x = this.armPosition.x;
       this.state.position.z = this.armPosition.z;
       this.state.velocity.x = 0;
       this.state.velocity.z = 0;
       this.state.quaternion.set(0, 0, 0, 1);
       this.state.angularVelocity.set(0, 0, 0);
+      
+      if (!isClimbing) {
+        // Enforce drone stays flat on ground pad if not in takeoff climb phase
+        this.state.position.y = this.physics.environmentBounds.minY;
+        this.state.velocity.y = 0;
+        
+        // Show warnings if they are actively trying to takeoff manually
+        if (stick.throttle > 0.15) {
+          this.checkSafetyForTakeoff(true);
+        }
+      }
     }
-
-    // Calculate acceleration vector for sensors: dv/dt
+    
     if (dt > 0.0001) {
       this.linearAcceleration.subVectors(this.state.velocity, oldVelocity).multiplyScalar(1.0 / dt);
     } else {
       this.linearAcceleration.set(0, 0, 0);
     }
-
+    
     // 7. Safety Audits (Crashes and landing collisions)
     this.auditSafety(oldVelocity, dt);
   }
@@ -591,6 +795,8 @@ export class SimulatorOrchestrator {
   // Check for crash scenarios
   private auditSafety(oldVelocity: THREE.Vector3, dt: number): void {
     if (!this.isArmed) return;
+    
+    const store = useDroneStore.getState() as any;
     
     // A. Orientation crash check: if drone tilts past 78 degrees close to boundaries or floor
     const euler = new THREE.Euler().setFromQuaternion(this.state.quaternion, 'YXZ');
@@ -601,161 +807,80 @@ export class SimulatorOrchestrator {
       // If we are inverted/tilted near the floor (altitude < 0.15m), trigger immediate crash disarm
       if (this.state.position.y < 0.15) {
         this.crashDetected = true;
-        const store = useDroneStore.getState() as any;
         if (store.addNotification) {
           store.addNotification('CRASH DETECTED', 'error');
+          store.addNotification('MOTORS DISARMED', 'info');
+          store.addNotification('RESET SIM', 'warning');
+          store.addNotification('RE-ARM DRONE', 'warning');
         }
         this.disarm();
         return;
       }
     }
 
-    // A2. Obstacle & Hoop Collision Detection (Phase 2-4 real obstacle physics)
-    const store = useDroneStore.getState() as any;
-    const envType = store.flightEnvironment;
-    const droneRadius = 0.08; // 8cm clearance radius around drone center
-
-    // Box Obstacles depending on active environment
-    let boxObstacles: { c: [number, number, number]; s: [number, number, number]; label: string }[] = [];
-    if (envType === 'room') {
-      boxObstacles = [
-        { c: [-2.5, 0.4, -2.5], s: [1.5, 0.8, 1.5], label: 'Desk Table' },
-        { c: [2.5, 0.6, -1.0], s: [0.8, 1.2, 0.8], label: 'Book Shelf' },
-        { c: [-3.0, 0.45, 2.5], s: [1.2, 0.9, 1.2], label: 'Cabinet' }
-      ];
-    } else if (envType === 'lab') {
-      boxObstacles = [
-        { c: [-3.5, 0.5, -3.5], s: [2.5, 1.0, 1.2], label: 'Bench A' },
-        { c: [3.5, 0.5, -3.5], s: [2.5, 1.0, 1.2], label: 'Bench B' },
-        { c: [-4.0, 0.6, 2.0], s: [1.5, 1.2, 1.5], label: 'Component Locker' }
-      ];
-    } else if (envType === 'classroom') {
-      boxObstacles = [
-        { c: [0, 0.45, -6.5], s: [1.6, 0.9, 0.8], label: "Teacher's Desk" },
-        { c: [-2.5, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 1' },
-        { c: [0, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 2' },
-        { c: [2.5, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 3' },
-        { c: [-2.5, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 4' },
-        { c: [0, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 5' },
-        { c: [2.5, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 6' },
-        { c: [-7.5, 1.0, 4.0], s: [1.2, 2.0, 0.8], label: 'Bookshelf' }
-      ];
-    } else if (envType === 'warehouse') {
-      boxObstacles = [
-        { c: [-5.0, 1.5, -4.0], s: [2.0, 3.0, 1.2], label: 'Storage Rack A' },
-        { c: [5.0, 1.5, -4.0], s: [2.0, 3.0, 1.2], label: 'Storage Rack B' },
-        { c: [-6.0, 0.75, 4.0], s: [1.5, 1.5, 1.5], label: 'Cargo Crate A' },
-        { c: [6.0, 0.75, 4.0], s: [1.5, 1.5, 1.5], label: 'Cargo Crate B' },
-        { c: [0.0, 1.0, -8.0], s: [4.0, 2.0, 1.0], label: 'Pallet Rack' }
-      ];
-    } else if (envType === 'field') {
-      boxObstacles = [
-        { c: [-4.5, 1.8, -4.5], s: [0.8, 3.6, 0.8], label: 'Conifer Tree' },
-        { c: [5.5, 1.2, -6.5], s: [1.0, 2.4, 1.0], label: 'Granite Boulder' },
-        { c: [-6.5, 1.5, 5.5], s: [0.6, 3.0, 0.6], label: 'Telemetry Mast' }
-      ];
-    } else if (envType === 'course') {
-      boxObstacles = [
-        { c: [-5.0, 1.8, 3.0], s: [0.8, 3.6, 0.8], label: 'Tower A' },
-        { c: [5.0, 1.8, 3.0], s: [0.8, 3.6, 0.8], label: 'Tower B' },
-        { c: [0.0, 1.8, -5.0], s: [1.2, 3.6, 1.2], label: 'Center Column' },
-        { c: [-2.5, 0.5, 6.0], s: [1.5, 1.0, 1.5], label: 'Hazard Zone 1' },
-        { c: [2.5, 0.5, 6.0], s: [1.5, 1.0, 1.5], label: 'Hazard Zone 2' },
-        { c: [-1.25, 1.1, 1.5], s: [0.2, 2.2, 0.25], label: 'Arch 1 Left Pillar' },
-        { c: [1.25, 1.1, 1.5], s: [0.2, 2.2, 0.25], label: 'Arch 1 Right Pillar' },
-        { c: [0, 2.2, 1.5], s: [2.7, 0.2, 0.25], label: 'Arch 1 Beam' }
-      ];
-    }
-
-    // Check box collisions
-    for (const box of boxObstacles) {
-      const hX = box.s[0] / 2;
-      const hY = box.s[1] / 2;
-      const hZ = box.s[2] / 2;
-      const minX = box.c[0] - hX;
-      const maxX = box.c[0] + hX;
-      const minY = box.c[1] - hY;
-      const maxY = box.c[1] + hY;
-      const minZ = box.c[2] - hZ;
-      const maxZ = box.c[2] + hZ;
-
-      const closestX = Math.max(minX, Math.min(this.state.position.x, maxX));
-      const closestY = Math.max(minY, Math.min(this.state.position.y, maxY));
-      const closestZ = Math.max(minZ, Math.min(this.state.position.z, maxZ));
-
-      const dx = this.state.position.x - closestX;
-      const dy = this.state.position.y - closestY;
-      const dz = this.state.position.z - closestZ;
-
-      const distSq = dx * dx + dy * dy + dz * dz;
-      if (distSq < droneRadius * droneRadius) {
-        this.crashDetected = true;
-        if (store.addNotification) {
-          store.addNotification(`CRASHED INTO ${box.label.toUpperCase()}`, 'error');
-        }
-        this.disarm();
-        return;
-      }
-    }
-
-    // Hoop/Ring Obstacles in Course environment
-    if (envType === 'course') {
-      const activeMissionIndex = store.activeMissionIndex;
-      if (activeMissionIndex === 9 || activeMissionIndex === 10) {
-        const hoops = [
-          { id: 'gate1_hoop', c: [-2.5, 1.2, -2.5], r: 0.65, t: 0.05 },
-          { id: 'gate2_hoop', c: [0.0, 1.8, 3.5], r: 0.65, t: 0.05 },
-          { id: 'gate3_hoop', c: [2.5, 1.2, -2.5], r: 0.65, t: 0.05 }
-        ];
-
-        for (const hoop of hoops) {
-          const distPlane = Math.abs(this.state.position.z - hoop.c[2]);
-          if (distPlane < hoop.t + droneRadius) {
-            const distRadial = Math.sqrt(
-              (this.state.position.x - hoop.c[0]) ** 2 +
-              (this.state.position.y - hoop.c[1]) ** 2
-            );
-
-            const innerLimit = hoop.r - hoop.t - droneRadius;
-            const outerLimit = hoop.r + hoop.t + droneRadius;
-
-            if (distRadial >= innerLimit && distRadial <= outerLimit) {
-              this.crashDetected = true;
-              if (store.addNotification) {
-                store.addNotification('CRASHED INTO GATE FRAME', 'error');
-              }
-              this.disarm();
-              return;
-            }
-          }
-        }
-      }
-    }
-    
-    // B. Wall collision detection: check if position snapped back from walls in PhysicsEngine
-    const b = this.physics.environmentBounds;
-    const isAtWall = 
-      this.state.position.x <= b.minX || this.state.position.x >= b.maxX ||
-      this.state.position.z <= b.minZ || this.state.position.z >= b.maxZ;
+    // Check for collisions registered in this physics step
+    const col = this.physics.lastCollision;
+    if (col && col.collided) {
+      const speed = col.speed;
       
-    if (isAtWall) {
-      // If we hit with significant velocity (horizontal speed > 0.6 m/s), trigger warning
-      const horizSpeedOld = Math.sqrt(oldVelocity.x * oldVelocity.x + oldVelocity.z * oldVelocity.z);
-      if (horizSpeedOld > 0.6) {
+      if (col.isWall) {
         this.wallCollision = true;
         this.collisionTimer = 0.8; // warning stays active for 0.8s
-        if (!this.hasWarnedWallCollision) {
-          this.hasWarnedWallCollision = true;
-          const store = useDroneStore.getState() as any;
-          if (store.addNotification) {
-            store.addNotification('WALL COLLISION', 'warning');
-          }
+      }
+
+      const impactEnergy = 0.5 * this.physics.mass * speed * speed;
+
+      if (speed > 6.0 || impactEnergy > 1.0) {
+        // Stage 5: Crash Event
+        const alertText = 'CRASH DETECTED';
+        this.crashDetected = true;
+        if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
+          store.addNotification(alertText, 'error');
+          store.addNotification('MOTORS DISARMED', 'info');
+          store.addNotification('RESET SIM', 'warning');
+          store.addNotification('RE-ARM DRONE', 'warning');
+        }
+        this.disarm();
+        return;
+      } else if (speed > 4.0) {
+        // Stage 4: Major Impact
+        const alertText = 'CRITICAL IMPACT';
+        if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
+          store.addNotification(alertText, 'error'); // Red
+        }
+        this.destabilizeTimer = 1.0;
+      } else if (speed >= 1.5) {
+        // Stage 3: Moderate Impact
+        const alertText = 'WARNING: IMPACT DETECTED';
+        if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
+          store.addNotification(alertText, 'orange'); // Orange
+        }
+        this.recoveryTimer = 1.5;
+      } else {
+        // Stage 2: Light Contact
+        const alertText = col.isWall ? 'CAUTION: WALL CONTACT' : 'CAUTION: OBSTACLE CONTACT';
+        if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
+          store.addNotification(alertText, 'warning'); // Yellow
         }
       }
-    } else {
-      this.hasWarnedWallCollision = false;
     }
-    
+
+    // Stage 1: Raycast proximity checks
+    if (this.isArmed && this.hasTakenOff && !(col && col.collided)) {
+      const rayDist = this.physics.getRaycastDistance(this.state);
+      if (rayDist < 0.20) {
+        const alertText = 'WARNING: CLOSE PROXIMITY';
+        if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
+          store.addNotification(alertText, 'orange'); // Orange
+        }
+      } else if (rayDist < 0.40) {
+        const alertText = 'CAUTION: OBSTACLE AHEAD';
+        if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
+          store.addNotification(alertText, 'warning'); // Yellow
+        }
+      }
+    }
+
     if (this.collisionTimer > 0) {
       this.collisionTimer -= dt;
       if (this.collisionTimer <= 0) {
@@ -763,26 +888,53 @@ export class SimulatorOrchestrator {
       }
     }
     
-    // C. Hard Landing Check: if we hit the floor (alt <= minY) with high descent rate
-    if (this.state.position.y <= this.physics.environmentBounds.minY + 0.005) {
-      const stick = this.input.getStickState();
+    // C. Floor check for landing/disarming (Ground Impact System)
+    const hitGround = col && col.collided && col.obstacleName === 'Ground' && oldVelocity.y < 0;
+    if (this.state.position.y <= this.physics.environmentBounds.minY + 0.005 || hitGround) {
+      const landSpeed = -oldVelocity.y; // downward landing speed
       
-      if (oldVelocity.y < -1.45) { // landing faster than 1.45m/s downward
+      if (landSpeed > 1.5) {
+        // CRASH LANDING
         this.hardLanding = true;
-        const store = useDroneStore.getState() as any;
-        if (store.addNotification) {
-          store.addNotification('CRASH DETECTED', 'error');
+        this.crashDetected = true;
+        const alertText = 'CRASH LANDING';
+        if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
+          store.addNotification(alertText, 'error');
+          store.addNotification('MOTORS DISARMED', 'info');
+          store.addNotification('RESET SIM', 'warning');
+          store.addNotification('RE-ARM DRONE', 'warning');
         }
         this.disarm();
-      } else if (oldVelocity.y < -0.1) {
-        // Soft landing: disarm naturally if pilot keeps pulling throttle down on floor
-        if (stick.throttle < 0.20 && this.hasTakenOff) {
-          this.disarm();
+      } else if (landSpeed >= 0.5) {
+        // HARD LANDING
+        this.hardLanding = true;
+        const alertText = 'HARD LANDING';
+        if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
+          store.addNotification(alertText, 'warning');
+        }
+        if (this.hasTakenOff) {
+          this.hasTakenOff = false;
+          this.isLandingActive = false;
+          this.controller.isLandingActive = false;
+          if (store.addNotification) {
+            store.addNotification('Motors Armed', 'success');
+            store.addNotification('Ready For Takeoff', 'info');
+          }
         }
       } else {
-        // Auto-disarm if resting on the pad and throttle is held at zero
-        if (stick.throttle < 0.20 && this.hasTakenOff) {
-          this.disarm();
+        // SAFE LANDING
+        if (this.hasTakenOff) {
+          const alertText = 'SAFE LANDING';
+          if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
+            store.addNotification(alertText, 'success');
+          }
+          this.hasTakenOff = false;
+          this.isLandingActive = false;
+          this.controller.isLandingActive = false;
+          if (store.addNotification) {
+            store.addNotification('Motors Armed', 'success');
+            store.addNotification('Ready For Takeoff', 'info');
+          }
         }
       }
     }
@@ -810,7 +962,11 @@ export class SimulatorOrchestrator {
     if (this.sensors.hasCalibrationFailed()) list.push('SENSOR ERROR');
     else if (this.isCalibrating) list.push('SENSOR CALIBRATING');
     
-    if (this.crashDetected) list.push('CRASH DETECTED');
+    if (this.crashDetected) {
+      list.push('CRASH DETECTED');
+      list.push('RESET SIM');
+      list.push('RE-ARM DRONE');
+    }
     if (this.hardLanding) list.push('HARD LANDING');
     if (this.wallCollision) list.push('WALL COLLISION');
     if (this.lowBattery) list.push('LOW BATTERY');

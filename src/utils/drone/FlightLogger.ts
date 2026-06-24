@@ -37,7 +37,7 @@ export interface FlightSample {
   /** Battery percentage */
   battery: number;
   /** Active flight mode */
-  mode: 'stabilize' | 'althold' | 'failsafe';
+  mode: 'stabilize' | 'althold' | 'failsafe' | 'disarmed' | 'armed_idle';
   /** Average motor RPM across all four motors */
   avgRPM: number;
 }

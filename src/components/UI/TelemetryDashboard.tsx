@@ -154,6 +154,9 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
 
   const getFlightModeLabel = (mode: string) => {
     switch (mode) {
+      case 'disarmed': return 'DISARMED';
+      case 'armed_idle': return 'ARMED - IDLE';
+      case 'armed - idle': return 'ARMED - IDLE';
       case 'althold': return 'ALTITUDE HOLD';
       case 'stabilize': return 'STABILIZE (ANGLE)';
       case 'failsafe': return 'FAILSAFE AUTO-LAND';
@@ -188,6 +191,9 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
             } else if (n.type === 'warning') {
               bg = 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-900 text-amber-805 dark:text-amber-305 shadow-[0_8px_20px_rgba(245,158,11,0.06)]';
               icon = <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />;
+            } else if (n.type === 'orange') {
+              bg = 'bg-orange-50 dark:bg-orange-950/40 border-orange-300 dark:border-orange-900 text-orange-800 dark:text-orange-300 shadow-[0_8px_20px_rgba(249,115,22,0.06)]';
+              icon = <AlertTriangle className="w-4 h-4 text-orange-600 dark:text-orange-400" />;
             } else if (n.type === 'error') {
               bg = 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-900 text-red-800 dark:text-red-300 shadow-[0_8px_20px_rgba(239,68,68,0.06)]';
               icon = <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />;

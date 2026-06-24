@@ -2,16 +2,20 @@ import { create } from 'zustand';
 import { sound } from '../utils/soundController';
 import { TelemetryData } from '../utils/drone/types';
 
-const syncHashFromState = (mode: string, missionIndex: number) => {
+const syncHashFromState = (mode: string, missionIndex: number, isAcademyMode: boolean) => {
   if (typeof window === 'undefined') return;
   let targetHash = '#/';
   if (mode === 'explore' || mode === 'learning') {
     targetHash = '#/anatomy';
   } else if (mode === 'flight') {
-    if (missionIndex >= 0) {
-      targetHash = `#/sim/mission/${missionIndex}`;
+    if (isAcademyMode) {
+      if (missionIndex >= 0) {
+        targetHash = `#/sim/mission/${missionIndex}`;
+      } else {
+        targetHash = '#/learn';
+      }
     } else {
-      targetHash = '#/learn';
+      targetHash = '#/sandbox';
     }
   } else if (mode === 'home') {
     targetHash = '#/';
@@ -145,6 +149,7 @@ interface DroneState {
   warnings: string[];
   isAcademyOpen: boolean;
   showChecklist: boolean;
+  isAcademyMode: boolean;
   notifications: { id: string; text: string; type: string }[];
 
   // --- SPAWN & DIAGNOSTIC STATES ---
@@ -232,6 +237,7 @@ interface DroneState {
   toggleTelemetryDashboard: () => void;
   toggleControlsOverlay: () => void;
   toggleAcademy: () => void;
+  setAcademyMode: (active: boolean) => void;
   toggleChecklist: () => void;
   addNotification: (text: string, type?: string) => void;
   clearNotifications: () => void;
@@ -314,6 +320,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   telemetry: DEFAULT_TELEMETRY,
   warnings: [],
   isAcademyOpen: true,
+  isAcademyMode: false,
   showChecklist: getLocalStorageBool('showChecklist', true),
   notifications: [],
   gyroPilot: false,
@@ -365,7 +372,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       learningStatus: mode === 'learning' ? 'identifying' : 'idle'
     });
     
-    syncHashFromState(mode, get().activeMissionIndex);
+    syncHashFromState(mode, get().activeMissionIndex, get().isAcademyMode);
   },
 
   hoverComponent: (id) => {
@@ -621,6 +628,10 @@ export const useDroneStore = create<DroneState>((set, get) => ({
     sound.playClick();
     set((state) => ({ isAcademyOpen: !state.isAcademyOpen }));
   },
+  setAcademyMode: (active) => {
+    set({ isAcademyMode: active });
+    syncHashFromState(get().currentMode, get().activeMissionIndex, active);
+  },
 
   toggleChecklist: () => {
     sound.playClick();
@@ -640,7 +651,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       set((state) => ({
         notifications: state.notifications.filter((n) => n.id !== id)
       }));
-    }, 4000);
+    }, 3000);
   },
 
   clearNotifications: () => {
@@ -673,7 +684,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       missionObjectivesCompleted: []
     });
     
-    syncHashFromState(get().currentMode, index);
+    syncHashFromState(get().currentMode, index, get().isAcademyMode);
   },
   
   setMissionStatus: (status) => set({ missionStatus: status }),

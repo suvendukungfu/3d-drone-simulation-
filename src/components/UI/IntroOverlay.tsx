@@ -39,6 +39,11 @@ export function IntroOverlay() {
   const handleLearnToFly = () => {
     setMode('flight');
     selectMission(-1);
+    const store = useDroneStore.getState();
+    store.setAcademyMode(true);
+    if (!store.isAcademyOpen) {
+      store.toggleAcademy();
+    }
   };
 
   const startARMode = () => {
@@ -50,7 +55,11 @@ export function IntroOverlay() {
     setFlightSimModalOpen(false);
     setMode('flight');
     selectMission(-1);
-    useDroneStore.getState().toggleAcademy();
+    const store = useDroneStore.getState();
+    store.setAcademyMode(false);
+    if (store.isAcademyOpen) {
+      store.toggleAcademy();
+    }
   };
 
   const clickedCount = useDroneStore((state) => state.clickedParts?.length || 0);
@@ -370,100 +379,99 @@ export function IntroOverlay() {
 
       </header>
 
-      {/* 2. SPLIT-SCREEN LAYOUT */}
-      <div className="flex-1 flex flex-col md:flex-row items-center justify-between gap-8 lg:gap-12 my-6 md:my-8 w-full max-w-7xl mx-auto px-4 md:px-6 relative z-10 overflow-visible pointer-events-auto">
+      {/* 2. SPLIT-SCREEN GRID LAYOUT */}
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-10 gap-y-6 md:gap-y-5 md:gap-x-8 lg:gap-x-12 items-center my-6 md:my-8 w-full max-w-7xl mx-auto px-4 md:px-6 relative z-10 overflow-visible pointer-events-auto">
         
-        {/* A. LEFT COLUMN: Content, Headline, and Minimal CTA Cards (40% width) */}
-        <div className="w-full md:w-[40%] flex flex-col justify-center space-y-6 text-left py-4 md:py-0">
-          <div className="space-y-3">
-            <div className="text-[10px] font-mono font-bold tracking-widest text-blue-600 dark:text-cyan-400 uppercase">
-              Aerospace Training Platform
-            </div>
-            
-            <h1 className="text-3xl sm:text-4xl lg:text-[2.6rem] font-bold tracking-tight leading-[1.15] text-slate-900 dark:text-white font-sans">
-              Professional Drone Pilot<br />
-              <span className="text-blue-600 dark:text-cyan-400 font-extrabold">Training Platform</span>
-            </h1>
-            
-            <p className="text-xs sm:text-[12.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-normal max-w-md">
-              Welcome to the pilot academy for Drona Aviation's flagship PlutoX nano-drone. Dissect 3D avionics systems, perform hardware-in-the-loop diagnostics, and master flight controllers inside our high-fidelity physics simulator.
-            </p>
+        {/* A1. TITLE & DESCRIPTION */}
+        <div className="w-full md:col-start-1 md:col-end-5 md:row-start-1 flex flex-col justify-center space-y-3 text-left py-2 md:py-0 order-1">
+          <div className="text-[10px] font-mono font-bold tracking-widest text-blue-600 dark:text-cyan-400 uppercase">
+            Aerospace Training Platform
           </div>
-
-          <div className="flex flex-col gap-2.5 w-full">
-            {/* Card 1: Enter Flight Sim */}
-            <button
-              onClick={handleEnterFlightSim}
-              className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
-            >
-              <div className="flex items-center gap-3 w-full">
-                <Gamepad2 className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors shrink-0" />
-                <div className="flex-1 min-w-0 pr-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-900 dark:text-white">Enter Flight Sim</span>
-                    <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/15 uppercase tracking-wider scale-90 origin-left">
-                      {appLinkStatus === 'connected' ? 'Link Active' : 'Ready'}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
-                    AR passthrough overlay or closed virtual sim
-                  </span>
-                </div>
-              </div>
-              
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
-            </button>
-
-            {/* Card 2: Explore Anatomy */}
-            <button
-              onClick={handleExploreAnatomy}
-              className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
-            >
-              <div className="flex items-center gap-3 w-full">
-                <Cpu className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-purple-650 dark:group-hover:text-purple-400 transition-colors shrink-0" />
-                <div className="flex-1 min-w-0 pr-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-900 dark:text-white">Explore Anatomy</span>
-                    <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/15 uppercase tracking-wider scale-90 origin-left">
-                      {clickedCount > 0 ? `${clickedCount}/11 Explored` : '11 Avionics Nodes'}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
-                    Dissect 3D parts & read aerospace descriptions
-                  </span>
-                </div>
-              </div>
-              
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
-            </button>
-
-            {/* Card 3: Learn to Fly Pluto */}
-            <button
-              onClick={handleLearnToFly}
-              className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
-            >
-              <div className="flex items-center gap-3 w-full">
-                <GraduationCap className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-emerald-650 dark:group-hover:text-emerald-450 transition-colors shrink-0" />
-                <div className="flex-1 min-w-0 pr-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-900 dark:text-white">Learn to Fly Pluto</span>
-                    <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/15 uppercase tracking-wider scale-90 origin-left">
-                      Level {unlockedCount}/5 Unlocked
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
-                    Clear pilot certification academy levels
-                  </span>
-                </div>
-              </div>
-              
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
-            </button>
-          </div>
+          
+          <h1 className="text-3xl sm:text-4xl lg:text-[2.6rem] font-bold tracking-tight leading-[1.15] text-slate-900 dark:text-white font-sans">
+            Professional Drone Pilot<br />
+            <span className="text-blue-600 dark:text-cyan-400 font-extrabold">Training Platform</span>
+          </h1>
+          
+          <p className="text-xs sm:text-[12.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-normal max-w-md">
+            Welcome to the pilot academy for Drona Aviation's flagship PlutoX nano-drone. Dissect 3D avionics systems, perform hardware-in-the-loop diagnostics, and master flight controllers inside our high-fidelity physics simulator.
+          </p>
         </div>
 
-        {/* B. RIGHT COLUMN: Centered static drone showcase frame (60% width) */}
-        <div className="w-full md:w-[60%] flex items-center justify-center relative py-4 md:py-0">
+        {/* A2. THREE OPTION CARDS */}
+        <div className="w-full md:col-start-1 md:col-end-5 md:row-start-2 flex flex-col gap-2.5 order-3 md:order-2 py-2 md:py-0">
+          {/* Card 1: Enter Flight Sim */}
+          <button
+            onClick={handleEnterFlightSim}
+            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
+          >
+            <div className="flex items-center gap-3 w-full">
+              <Gamepad2 className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors shrink-0" />
+              <div className="flex-1 min-w-0 pr-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-900 dark:text-white">Enter Flight Sim</span>
+                  <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/15 uppercase tracking-wider scale-90 origin-left">
+                    {appLinkStatus === 'connected' ? 'Link Active' : 'Ready'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
+                  AR passthrough overlay or closed virtual sim
+                </span>
+              </div>
+            </div>
+            
+            <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
+          </button>
+
+          {/* Card 2: Explore Anatomy */}
+          <button
+            onClick={handleExploreAnatomy}
+            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
+          >
+            <div className="flex items-center gap-3 w-full">
+              <Cpu className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-purple-650 dark:group-hover:text-purple-400 transition-colors shrink-0" />
+              <div className="flex-1 min-w-0 pr-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-900 dark:text-white">Explore Anatomy</span>
+                  <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/15 uppercase tracking-wider scale-90 origin-left">
+                    {clickedCount > 0 ? `${clickedCount}/11 Explored` : '11 Avionics Nodes'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
+                  Dissect 3D parts & read aerospace descriptions
+                </span>
+              </div>
+            </div>
+            
+            <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
+          </button>
+
+          {/* Card 3: Learn to Fly Pluto */}
+          <button
+            onClick={handleLearnToFly}
+            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
+          >
+            <div className="flex items-center gap-3 w-full">
+              <GraduationCap className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-emerald-650 dark:group-hover:text-emerald-450 transition-colors shrink-0" />
+              <div className="flex-1 min-w-0 pr-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-900 dark:text-white">Learn to Fly Pluto</span>
+                  <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/15 uppercase tracking-wider scale-90 origin-left">
+                    Level {unlockedCount}/5 Unlocked
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
+                  Clear pilot certification academy levels
+                </span>
+              </div>
+            </div>
+            
+            <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
+          </button>
+        </div>
+
+        {/* B. RIGHT COLUMN: Centered static drone showcase frame */}
+        <div className="w-full md:col-start-5 md:col-end-11 md:row-start-1 md:row-span-2 flex items-center justify-center relative py-4 md:py-0 order-2 md:order-3">
           <div className="w-full max-w-[450px] aspect-square relative flex items-center justify-center overflow-hidden rounded-3xl border border-slate-200/35 dark:border-slate-800/45 bg-slate-50/10 dark:bg-slate-950/15 backdrop-blur-[2px]">
             {/* Subtle Blueprint Grid Pattern */}
             <div className="absolute inset-0 bg-blueprint-grid opacity-60 dark:opacity-40 pointer-events-none" />

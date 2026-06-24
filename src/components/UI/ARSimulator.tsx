@@ -1,71 +1,188 @@
 import { useState, useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { sound } from '../../utils/soundController';
 import { Environment, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useDroneStore } from '../../store/useDroneStore';
 import { PlutoXModel } from '../PlutoXModel';
 import { 
-  X, CameraOff, Activity, Battery, Radio, Sliders, Compass, RotateCcw, RotateCw, RefreshCw
+  X, Activity, Battery, Radio, Sliders, Compass, RotateCcw, RotateCw, RefreshCw,
+  Shield, ShieldOff, Zap, Play, Smartphone, Video, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
+import { createXRStore, XR, XRDomOverlay, useXRHitTest, useXRInputSourceEvent } from '@react-three/xr';
 
-// Self-contained 3D Drone component inside AR canvas
-function ARDrone({ 
-  inputs, 
-  positionRef, 
-  rotationRef 
-}: { 
+// Initialize the WebXR Store
+const xrStore = createXRStore({
+  emulate: false,
+});
+
+interface ARDroneProps {
   inputs: { throttle: number; yaw: number; pitch: number; roll: number };
   positionRef: React.MutableRefObject<THREE.Vector3>;
   rotationRef: React.MutableRefObject<THREE.Euler>;
-}) {
+  placedPos: React.MutableRefObject<THREE.Vector3>;
+  isArmed: boolean;
+  flightStage: 'disarmed' | 'armed-idle' | 'flying';
+  setFlightStage: (stage: 'disarmed' | 'armed-idle' | 'flying') => void;
+  flipDirection: 'forward' | 'back' | 'left' | 'right' | null;
+  setFlipDirection: (dir: 'forward' | 'back' | 'left' | 'right' | null) => void;
+  flipProgress: number;
+  setFlipProgress: (progress: number) => void;
+}
+
+function ARDrone({ 
+  inputs, 
+  positionRef, 
+  rotationRef,
+  placedPos,
+  isArmed,
+  flightStage,
+  setFlightStage,
+  flipDirection,
+  setFlipDirection,
+  flipProgress,
+  setFlipProgress
+}: ARDroneProps) {
   const groupRef = useRef<THREE.Group>(null);
 
-  // Arm motors on mount
+  // Sync motor audio triggers to arm state
   useEffect(() => {
-    // Start motor audio/spin visual representation
-    useDroneStore.getState().testAllMotors();
+    if (isArmed) {
+      useDroneStore.getState().testAllMotors();
+    } else {
+      useDroneStore.getState().stopAllMotors();
+    }
     return () => {
       useDroneStore.getState().stopAllMotors();
     };
-  }, []);
+  }, [isArmed]);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!groupRef.current) return;
 
-    // 1. Simple physics/movement calculations for AR flight
-    const speed = 2.5; // movement speed multiplier
-    const rotSpeed = 2.0; // rotation speed multiplier
+    const floorY = placedPos.current.y;
 
-    // Yaw (Left Joystick X) -> Rotate model around Y axis
+    // 1. Stage: Disarmed -> Locked to ground surface
+    if (flightStage === 'disarmed') {
+      positionRef.current.copy(placedPos.current);
+      rotationRef.current.set(0, 0, 0);
+      groupRef.current.position.copy(placedPos.current);
+      groupRef.current.rotation.set(0, 0, 0);
+
+      // Tell store propellers are off
+      useDroneStore.setState({
+        activeMotors: { motor1: false, motor2: false, motor3: false, motor4: false },
+        motorRPMs: { motor1: 0, motor2: 0, motor3: 0, motor4: 0 }
+      });
+      return;
+    }
+
+    // 2. Stage: Armed Idle -> Run propellers at low idle RPM on the floor
+    if (flightStage === 'armed-idle') {
+      positionRef.current.copy(placedPos.current);
+      rotationRef.current.set(0, 0, 0);
+      groupRef.current.position.copy(placedPos.current);
+      groupRef.current.rotation.set(0, 0, 0);
+
+      useDroneStore.setState({
+        activeMotors: { motor1: true, motor2: true, motor3: true, motor4: true },
+        motorRPMs: { motor1: 1200, motor2: 1200, motor3: 1200, motor4: 1200 }
+      });
+
+      // Throttle stick input upwards triggers takeoff
+      if (inputs.throttle > 0.15) {
+        setFlightStage('flying');
+      }
+      return;
+    }
+
+    // 3. Stage: Flying -> 6-DOF controls
+    const speed = 2.2;
+    const rotSpeed = 1.8;
+
+    // Yaw (Left Stick X) -> Rotate model heading Y
     rotationRef.current.y -= inputs.yaw * rotSpeed * delta;
 
-    // Pitch (Right Joystick Y) -> Move along local forward/backward vector
-    // Roll (Right Joystick X) -> Move along local left/right vector
+    // Pitch (Right Y) & Roll (Right X) -> Moves drone horizontally relative to heading
     const direction = new THREE.Vector3(inputs.roll, 0, -inputs.pitch);
-    direction.applyEuler(rotationRef.current);
+    direction.applyEuler(new THREE.Euler(0, rotationRef.current.y, 0));
     positionRef.current.addScaledVector(direction, speed * delta);
 
-    // Throttle (Left Joystick Y) -> Adjust Y (altitude) between ground bounds
+    // Throttle (Left Y) -> Adjusts Y altitude
     positionRef.current.y += inputs.throttle * speed * delta;
-    if (positionRef.current.y < -1.5) positionRef.current.y = -1.5; // ground limit
-    if (positionRef.current.y > 3.0) positionRef.current.y = 3.0; // ceiling limit
 
-    // Smoothly apply position and rotation to the 3D Group
-    groupRef.current.position.lerp(positionRef.current, delta * 8);
+    // Clamp Y relative to dynamic floor
+    if (positionRef.current.y < floorY) {
+      positionRef.current.y = floorY;
+    }
+    const maxAltitude = floorY + 4.5;
+    if (positionRef.current.y > maxAltitude) {
+      positionRef.current.y = maxAltitude;
+    }
+
+    // Smooth visual positioning LERP
+    groupRef.current.position.lerp(positionRef.current, delta * 10);
+
+    // Visual rotation tilts or flip override animation
+    if (flipDirection !== null) {
+      const nextProgress = flipProgress + delta * 3.5; // full 360 flip in ~0.3s
+      if (nextProgress >= 1.0) {
+        setFlipProgress(0);
+        setFlipDirection(null);
+        groupRef.current.rotation.x = inputs.pitch * 0.25;
+        groupRef.current.rotation.z = -inputs.roll * 0.25;
+      } else {
+        setFlipProgress(nextProgress);
+        const flipAngle = nextProgress * Math.PI * 2;
+
+        if (flipDirection === 'forward') {
+          groupRef.current.rotation.x = -flipAngle;
+        } else if (flipDirection === 'back') {
+          groupRef.current.rotation.x = flipAngle;
+        } else if (flipDirection === 'left') {
+          groupRef.current.rotation.z = -flipAngle;
+        } else if (flipDirection === 'right') {
+          groupRef.current.rotation.z = flipAngle;
+        }
+
+        // sin lift curve to pop up organic looking altitude boost during flips
+        const lift = Math.sin(nextProgress * Math.PI) * 0.35;
+        groupRef.current.position.y += lift;
+      }
+    } else {
+      // Normal fly tilts: pitch / roll tilts
+      const targetRoll = -inputs.roll * 0.25;
+      const targetPitch = inputs.pitch * 0.25;
+      
+      groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetPitch, delta * 6);
+      groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, targetRoll, delta * 6);
+    }
     
-    // Add subtle hover tilt when pitching/rolling
-    const targetRoll = -inputs.roll * 0.25;
-    const targetPitch = inputs.pitch * 0.25;
-    
-    groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetPitch, delta * 6);
-    groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, targetRoll, delta * 6);
     groupRef.current.rotation.y = rotationRef.current.y;
 
-    // Add gentle random floating noise to simulate wind/air turbulence
-    const time = Date.now() * 0.003;
-    groupRef.current.position.y += Math.sin(time) * 0.0015;
-    groupRef.current.position.x += Math.cos(time * 0.8) * 0.001;
+    // Subtle random aerodynamic hover vibration
+    const time = state.clock.getElapsedTime();
+    groupRef.current.position.y += Math.sin(time * 3) * 0.0015;
+    groupRef.current.position.x += Math.cos(time * 2.5) * 0.001;
+
+    // RPM calculations based on throttle + tilt adjustments
+    const baseRPM = 3500 + inputs.throttle * 3500;
+    useDroneStore.setState({
+      activeMotors: { motor1: true, motor2: true, motor3: true, motor4: true },
+      motorRPMs: {
+        motor1: Math.max(1000, baseRPM - inputs.pitch * 600 + inputs.roll * 600 - inputs.yaw * 600),
+        motor2: Math.max(1000, baseRPM - inputs.pitch * 600 - inputs.roll * 600 + inputs.yaw * 600),
+        motor3: Math.max(1000, baseRPM + inputs.pitch * 600 + inputs.roll * 600 + inputs.yaw * 600),
+        motor4: Math.max(1000, baseRPM + inputs.pitch * 600 - inputs.roll * 600 - inputs.yaw * 600),
+      }
+    });
+
+    // Update sound frequencies
+    for (let i = 1; i <= 4; i++) {
+      const motorKey = `motor${i}` as 'motor1'|'motor2'|'motor3'|'motor4';
+      sound.updateMotorPitch(motorKey, useDroneStore.getState().motorRPMs[motorKey]);
+    }
   });
 
   return (
@@ -329,27 +446,150 @@ function DroneTracker({
   return null;
 }
 
+// Subcomponent to handle hit-test ground placement inside WebXR sessions
+function XRPlacement({ 
+  isPlaced, 
+  setIsPlaced, 
+  placedPos, 
+  dronePos 
+}: { 
+  isPlaced: boolean; 
+  setIsPlaced: (val: boolean) => void;
+  placedPos: React.MutableRefObject<THREE.Vector3>;
+  dronePos: React.MutableRefObject<THREE.Vector3>;
+}) {
+  const reticleRef = useRef<THREE.Mesh>(null);
+  const [reticleVisible, setReticleVisible] = useState(false);
+  const hitPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
+
+  // Continuous hit testing relative to viewer camera
+  useXRHitTest((results, getWorldMatrix) => {
+    if (isPlaced) {
+      setReticleVisible(false);
+      return;
+    }
+    if (results.length > 0) {
+      const matrix = new THREE.Matrix4();
+      getWorldMatrix(matrix, results[0]);
+      hitPositionRef.current.setFromMatrixPosition(matrix);
+      if (reticleRef.current) {
+        reticleRef.current.position.copy(hitPositionRef.current);
+        reticleRef.current.rotation.set(-Math.PI / 2, 0, 0);
+      }
+      setReticleVisible(true);
+    } else {
+      setReticleVisible(false);
+    }
+  }, 'viewer');
+
+  // Trigger placement on select/tap
+  useXRInputSourceEvent('all', 'select', () => {
+    if (!isPlaced && reticleVisible) {
+      dronePos.current.copy(hitPositionRef.current);
+      placedPos.current.copy(hitPositionRef.current);
+      setIsPlaced(true);
+      setReticleVisible(false);
+    }
+  }, [isPlaced, reticleVisible]);
+
+  if (isPlaced || !reticleVisible) return null;
+
+  return (
+    <mesh ref={reticleRef} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.07, 0.09, 32]} />
+      <meshBasicMaterial color="#00ffcc" transparent opacity={0.8} depthWrite={false} />
+    </mesh>
+  );
+}
+
+// Subcomponent to handle click-to-place floor grid in Desktop/Mobile WebXR fallbacks
+function FallbackPlacement({
+  isPlaced,
+  setIsPlaced,
+  placedPos,
+  dronePos,
+  isDark
+}: {
+  isPlaced: boolean;
+  setIsPlaced: (val: boolean) => void;
+  placedPos: React.MutableRefObject<THREE.Vector3>;
+  dronePos: React.MutableRefObject<THREE.Vector3>;
+  isDark: boolean;
+}) {
+  const reticleRef = useRef<THREE.Mesh>(null);
+  const [reticleVisible, setReticleVisible] = useState(true);
+
+  if (isPlaced) return null;
+
+  return (
+    <>
+      {/* Interactive invisible floor plane */}
+      <mesh 
+        rotation={[-Math.PI / 2, 0, 0]} 
+        position={[0, -0.5, 0]}
+        onClick={(e) => {
+          e.stopPropagation();
+          dronePos.current.copy(e.point);
+          placedPos.current.copy(e.point);
+          setIsPlaced(true);
+        }}
+        onPointerMove={(e) => {
+          if (reticleRef.current) {
+            reticleRef.current.position.copy(e.point);
+            setReticleVisible(true);
+          }
+        }}
+      >
+        <planeGeometry args={[100, 100]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
+      
+      {/* Ground Grid Helpers */}
+      <gridHelper args={[30, 30, isDark ? '#005555' : '#cbd5e1', isDark ? '#161d2a' : '#e2e8f0']} position={[0, -0.5, 0]} />
+      <polarGridHelper args={[15, 16, 8, 64, isDark ? '#004444' : '#94a3b8', isDark ? '#0d1522' : '#cbd5e1']} position={[0, -0.49, 0]} />
+
+      {/* Reticle guide */}
+      {reticleVisible && (
+        <mesh ref={reticleRef} position={[0, -0.48, -2]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.07, 0.09, 32]} />
+          <meshBasicMaterial color="#00a3ff" transparent opacity={0.7} depthWrite={false} />
+        </mesh>
+      )}
+    </>
+  );
+}
+
 export function ARSimulator() {
   const isARActive = useDroneStore((state) => state.isARActive);
   const setARActive = useDroneStore((state) => state.setARActive);
   const theme = useDroneStore((state) => state.theme);
-  const isDark = theme === 'dark';
+  const isDark = theme === 'light' ? false : true; // Enforced light theme support
   
   const videoRef = useRef<HTMLVideoElement>(null);
+  const uiContainerRef = useRef<HTMLDivElement>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+
+  const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+
+  // WebXR and Flight stage states
+  const [arSessionStarted, setArSessionStarted] = useState(isTestEnv);
+  const [isWebXRAvailable, setIsWebXRAvailable] = useState<boolean | null>(null);
+  const [isPlaced, setIsPlaced] = useState(isTestEnv);
+  const [isArmed, setIsArmed] = useState(false);
+  const [flightStage, setFlightStage] = useState<'disarmed' | 'armed-idle' | 'flying'>('disarmed');
+  const [flipDirection, setFlipDirection] = useState<'forward' | 'back' | 'left' | 'right' | null>(null);
+  const [flipProgress, setFlipProgress] = useState(0);
 
   // Camera state variables
   const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [permissionDenied, setPermissionDenied] = useState<boolean>(false);
 
   // Gyroscope tracking state
   const [deviceOrientation, setDeviceOrientation] = useState<{ alpha: number; beta: number; gamma: number } | null>(null);
   const [screenOrientation, setScreenOrientation] = useState<number>(0);
   const [headingOffset, setHeadingOffset] = useState<number>(0);
   const [gyroPermissionGranted, setGyroPermissionGranted] = useState<boolean>(false);
-  const [gyroError, setGyroError] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<'orbit' | 'gyro'>('orbit');
 
   // R3F Camera reference
@@ -362,11 +602,25 @@ export function ARSimulator() {
   const [joystickLeft, setJoystickLeft] = useState({ x: 0, y: 0 });
   const [joystickRight, setJoystickRight] = useState({ x: 0, y: 0 });
 
-  // 3D coordinate tracker references (start drone 2m in front of camera)
+  // 3D coordinate tracker references
   const dronePos = useRef(new THREE.Vector3(0, -0.5, -2));
   const droneRot = useRef(new THREE.Euler(0, 0, 0));
+  const placedPos = useRef(new THREE.Vector3(0, -0.5, -2));
 
   const [telemetry, setTelemetry] = useState({ alt: 1.0, pitch: 0, roll: 0, yaw: 0 });
+
+  // WebXR support check on mount
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.xr) {
+      navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+        setIsWebXRAvailable(supported);
+      }).catch(() => {
+        setIsWebXRAvailable(false);
+      });
+    } else {
+      setIsWebXRAvailable(false);
+    }
+  }, []);
 
   // Request Camera Stream with fallback
   const initCamera = async (deviceId?: string) => {
@@ -383,16 +637,18 @@ export function ARSimulator() {
       setCameraStream(null);
     }
 
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const facingModeIdeal = isMobile ? 'environment' : 'user';
+
     const constraints: MediaStreamConstraints = {
       video: deviceId 
         ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-        : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+        : { facingMode: { ideal: facingModeIdeal }, width: { ideal: 1280 }, height: { ideal: 720 } }
     };
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setCameraStream(stream);
-      setPermissionDenied(false);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -426,7 +682,6 @@ export function ARSimulator() {
       // Determine error messaging
       let errMsg = "Unable to access camera.";
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setPermissionDenied(true);
         errMsg = "Camera permission denied. Please enable camera access in browser/system settings and try again.";
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         errMsg = "No camera was found on this device.";
@@ -442,7 +697,6 @@ export function ARSimulator() {
         try {
           const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
           setCameraStream(fallbackStream);
-          setPermissionDenied(false);
           setCameraError(null);
           
           if (videoRef.current) {
@@ -509,18 +763,25 @@ export function ARSimulator() {
     
     // Place drone relative to camera height (0) and preserve ground limits
     dronePos.current.copy(newPos);
+    placedPos.current.copy(newPos);
     droneRot.current.set(0, 0, 0);
   };
 
   const handleRestartARSession = () => {
+    setIsPlaced(false);
+    setIsArmed(false);
+    setFlightStage('disarmed');
     dronePos.current.set(0, -0.5, -2);
+    placedPos.current.set(0, -0.5, -2);
     droneRot.current.set(0, 0, 0);
     if (deviceOrientation) {
       setHeadingOffset(-deviceOrientation.alpha);
     } else {
       setHeadingOffset(0);
     }
-    initCamera();
+    if (!isPresenting) {
+      initCamera();
+    }
   };
 
   const handleRefreshTracking = async () => {
@@ -714,34 +975,36 @@ export function ARSimulator() {
         const permission = await DeviceOrientationEvent.requestPermission();
         if (permission === 'granted') {
           setGyroPermissionGranted(true);
-          setGyroError(null);
           return true;
         } else {
           setGyroPermissionGranted(false);
-          setGyroError("Gyroscope permission denied.");
           return false;
         }
       } catch (err: any) {
         console.error("Error requesting gyro permission:", err);
-        setGyroError("Failed to request gyroscope permission.");
         return false;
       }
     } else {
       // Android / Desktop
       if (typeof window.DeviceOrientationEvent !== 'undefined') {
         setGyroPermissionGranted(true);
-        setGyroError(null);
         return true;
       } else {
-        setGyroError("DeviceOrientation is not supported on this device.");
         return false;
       }
     }
   };
 
+  const [isPresenting, setIsPresenting] = useState(false);
+  useEffect(() => {
+    return xrStore.subscribe((state) => {
+      setIsPresenting(!!state.session);
+    });
+  }, []);
+
   // 1. Manage camera lifecycle based on active state
   useEffect(() => {
-    if (isARActive) {
+    if (isARActive && arSessionStarted && !isPresenting) {
       initCamera();
     }
     return () => {
@@ -749,11 +1012,11 @@ export function ARSimulator() {
         cameraStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [isARActive]);
+  }, [isARActive, arSessionStarted, isPresenting]);
 
   // 2. Auto-detect mobile and request sensor tracking
   useEffect(() => {
-    if (!isARActive) return;
+    if (!isARActive || !arSessionStarted || isPresenting) return;
 
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (isMobile) {
@@ -762,11 +1025,11 @@ export function ARSimulator() {
     } else {
       setCameraMode('orbit');
     }
-  }, [isARActive]);
+  }, [isARActive, arSessionStarted, isPresenting]);
 
   // 3. Listen to device orientation changes
   useEffect(() => {
-    if (!isARActive || !gyroPermissionGranted) return;
+    if (!isARActive || !gyroPermissionGranted || isPresenting) return;
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
       // For iOS, webkitCompassHeading provides absolute magnetic compass heading.
@@ -849,14 +1112,93 @@ export function ARSimulator() {
     };
   }, [isARActive]);
 
+  // Prevent WebXR hit-test select events when clicking on HTML overlay UI elements
+  useEffect(() => {
+    const ui = uiContainerRef.current;
+    if (!ui) return;
+    const preventSelect = (e: Event) => {
+      e.stopPropagation();
+    };
+    ui.addEventListener('beforexrselect', preventSelect);
+    return () => {
+      ui.removeEventListener('beforexrselect', preventSelect);
+    };
+  }, [arSessionStarted]);
+
+  // Hook keyboard inputs as fallback controls
+  useEffect(() => {
+    if (!isARActive) return;
+
+    const keys = { w: false, s: false, a: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key in keys) {
+        // @ts-ignore
+        keys[e.key] = true;
+        updateControls();
+      }
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        setIsArmed((prev) => {
+          const next = !prev;
+          if (next) {
+            setFlightStage('armed-idle');
+          } else {
+            setFlightStage('disarmed');
+          }
+          return next;
+        });
+      }
+      if (e.key === 'Enter' || e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        if (flightStage === 'armed-idle') {
+          setFlightStage('flying');
+          dronePos.current.y = placedPos.current.y + 0.3;
+        }
+      }
+      if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        if (flightStage === 'flying' && flipDirection === null) {
+          setFlipDirection('forward');
+          setFlipProgress(0);
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key in keys) {
+        // @ts-ignore
+        keys[e.key] = false;
+        updateControls();
+      }
+    };
+
+    const updateControls = () => {
+      const throttle = keys.w ? 0.8 : keys.s ? -0.8 : 0;
+      const yaw = keys.a ? -0.8 : keys.d ? 0.8 : 0;
+      const pitch = keys.ArrowUp ? 0.8 : keys.ArrowDown ? -0.8 : 0;
+      const roll = keys.ArrowLeft ? -0.8 : keys.ArrowRight ? 0.8 : 0;
+
+      setJoystickLeft({ x: yaw, y: throttle });
+      setJoystickRight({ x: roll, y: pitch });
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isARActive, flightStage, flipDirection]);
+
   // Trigger telemetry display polling
   useEffect(() => {
     if (!isARActive) return;
 
     const interval = setInterval(() => {
-      // Convert 3D position vectors into HUD telemetry values
+      const floorY = placedPos.current.y;
       setTelemetry({
-        alt: Math.max(0, (dronePos.current.y + 1.5) * 0.8), // map -1.5..3 to 0..3.6 meters
+        alt: Math.max(0, (dronePos.current.y - floorY) * 2.0), // height relative to floor Y
         pitch: Math.round(droneRot.current.x * (180 / Math.PI)),
         roll: Math.round(droneRot.current.z * (180 / Math.PI)),
         yaw: Math.round(((droneRot.current.y * (180 / Math.PI)) % 360 + 360) % 360)
@@ -869,6 +1211,11 @@ export function ARSimulator() {
   if (!isARActive) return null;
 
   const handleExit = () => {
+    // End WebXR session if active
+    const session = xrStore.getState().session;
+    if (session) {
+      session.end().catch((err) => console.warn("Failed to end WebXR session:", err));
+    }
     if (cameraStream) {
       cameraStream.getTracks().forEach((track) => track.stop());
     }
@@ -876,7 +1223,136 @@ export function ARSimulator() {
     setARActive(false);
   };
 
-  // Map inputs combined (keyboard overrides active joystick resting state)
+  // Lobby landing page overlay when AR session hasn't started yet
+  if (!arSessionStarted) {
+    return (
+      <div className={`fixed inset-0 z-40 flex items-center justify-center p-4 overflow-y-auto uppercase ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-800'}`}>
+        <div className={`absolute inset-0 pointer-events-none bg-[size:32px_32px] ${isDark ? 'bg-[linear-gradient(rgba(0,240,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.02)_1px,transparent_1px)]' : 'bg-[linear-gradient(rgba(148,163,184,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.04)_1px,transparent_1px)]'}`} />
+        
+        <div className={`w-[440px] relative z-10 p-6 rounded-3xl border backdrop-blur-xl shadow-2xl space-y-6 font-mono text-[9px] ${
+          isDark 
+            ? 'bg-slate-900/80 border-cyan-500/20 shadow-cyan-950/20' 
+            : 'bg-white/90 border-slate-200 shadow-slate-300/30'
+        }`}>
+          {/* Header */}
+          <div className="text-center space-y-2 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <h2 className={`text-sm font-bold tracking-[0.2em] ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
+              PlutoX WebXR AR Simulator
+            </h2>
+            <p className="text-[8px] text-slate-400">Ready for spatial flight telemetry</p>
+          </div>
+
+          {/* System Check Status */}
+          <div className="space-y-3">
+            <span className="font-bold text-[8.5px] text-slate-400 block tracking-widest">Hardware / Sensor Calibration Checklist</span>
+            
+            {/* 1. WebXR Check */}
+            <div className={`flex justify-between items-center p-3 rounded-xl border ${isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-100/60 border-slate-200'}`}>
+              <div className="flex items-center gap-2">
+                <Smartphone className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                <div className="flex flex-col">
+                  <span className="font-bold">WebXR Immersive AR</span>
+                  <span className="text-[7px] text-slate-400 leading-none">Native 3D room-scale tracking</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 font-bold">
+                {isWebXRAvailable === null ? (
+                  <span className="text-slate-400 animate-pulse">Checking...</span>
+                ) : isWebXRAvailable ? (
+                  <span className="text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Supported</span>
+                ) : (
+                  <span className="text-amber-400 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Unavailable</span>
+                )}
+              </div>
+            </div>
+
+            {/* 2. Webcam Check */}
+            <div className={`flex justify-between items-center p-3 rounded-xl border ${isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-100/60 border-slate-200'}`}>
+              <div className="flex items-center gap-2">
+                <Video className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                <div className="flex flex-col">
+                  <span className="font-bold">Webcam Passthrough</span>
+                  <span className="text-[7px] text-slate-400 leading-none">Real-world visual overlay</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 font-bold">
+                {cameraStream ? (
+                  <span className="text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Approved</span>
+                ) : (
+                  <span className="text-slate-400">Needs Consent</span>
+                )}
+              </div>
+            </div>
+
+            {/* 3. Gyro Check */}
+            <div className={`flex justify-between items-center p-3 rounded-xl border ${isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-100/60 border-slate-200'}`}>
+              <div className="flex items-center gap-2">
+                <Compass className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                <div className="flex flex-col">
+                  <span className="font-bold">Motion Sensors</span>
+                  <span className="text-[7px] text-slate-400 leading-none">Gyroscope and compass alignment</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 font-bold">
+                {gyroPermissionGranted ? (
+                  <span className="text-emerald-400 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Calibrated</span>
+                ) : (
+                  <span className="text-slate-400">Needs Permission</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Guidelines info */}
+          <div className={`p-3 rounded-xl border text-[7.5px] leading-relaxed lowercase ${isDark ? 'bg-cyan-950/10 border-cyan-900/40 text-cyan-400/80' : 'bg-cyan-50 border-cyan-100 text-cyan-600'}`}>
+            <span className="font-bold block mb-0.5 uppercase">Developer Advisory:</span>
+            For a true WebXR immersive-ar experience with automatic ground plane tracking, use an Android Chrome browser. iOS Safari and Desktop environments will load in AR Preview Mode with mouse OrbitControls and webcam overlay.
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-2 pt-2">
+            <button
+              onClick={async () => {
+                // Request camera permission
+                await initCamera();
+                // Request gyroscope permission
+                await requestGyroPermission();
+                
+                if (isWebXRAvailable) {
+                  // Enter immersive-ar WebXR
+                  try {
+                    await xrStore.enterAR();
+                    setArSessionStarted(true);
+                  } catch (err) {
+                    console.error("WebXR session failed, starting preview fallback:", err);
+                    setArSessionStarted(true);
+                  }
+                } else {
+                  // Fallback to desktop/mobile preview
+                  setArSessionStarted(true);
+                }
+              }}
+              className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-2xl shadow-lg shadow-cyan-500/20 text-center tracking-widest text-[10px] animate-pulse active:scale-95 transition"
+            >
+              {isWebXRAvailable ? "START AR EXPERIENCE" : "START AR PREVIEW"}
+            </button>
+            
+            <button
+              onClick={handleExit}
+              className={`w-full py-2.5 rounded-xl border text-center transition font-bold ${
+                isDark 
+                  ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white' 
+                  : 'bg-white border-slate-200 text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              Cancel & Exit
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const activeInputs = {
     throttle: joystickLeft.y,
     yaw: joystickLeft.x,
@@ -884,157 +1360,108 @@ export function ARSimulator() {
     roll: joystickRight.x
   };
 
-  return (
-    <div className="fixed inset-0 z-40 bg-black overflow-hidden flex flex-col justify-between">
-      
-      {/* Motion Sensor User Gesture Grant Banner for Mobile iOS/Android */}
-      {cameraMode === 'gyro' && !gyroPermissionGranted && (
-        <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center space-y-4 pointer-events-auto">
-          <div className="p-4 rounded-full bg-cyan-950/30 border border-cyan-500/30 text-cyan-400">
-            <Compass className="w-8 h-8 animate-pulse" />
+  const renderHUD = () => {
+    return (
+      <div 
+        ref={uiContainerRef} 
+        className="absolute inset-0 z-20 flex flex-col justify-between pointer-events-none"
+      >
+        {/* Out of view drone indicator */}
+        {droneIndicator && droneIndicator.visible && isPlaced && (
+          <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+            <div 
+              className="absolute bg-slate-950/85 border border-cyan-500/40 text-cyan-400 font-mono text-[9px] px-3 py-1.5 rounded-full flex items-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.3)] animate-pulse pointer-events-auto"
+              style={{
+                transform: `translate(${Math.cos(droneIndicator.angle * Math.PI / 180) * 110}px, ${-Math.sin(droneIndicator.angle * Math.PI / 180) * 110}px)`
+              }}
+            >
+              <span 
+                style={{ 
+                  display: 'inline-block',
+                  transform: `rotate(${-droneIndicator.angle}deg)`
+                }}
+              >
+                ➔
+              </span>
+              <span>Drone {droneIndicator.distance.toFixed(1)}m</span>
+            </div>
           </div>
-          <div className="space-y-2 max-w-xs">
-            <h3 className="text-sm font-mono font-bold tracking-widest text-white uppercase">Sensor Access Required</h3>
-            <p className="text-[10px] font-mono text-slate-400 leading-relaxed uppercase">
-              This simulator requires gyroscope and compass access to track the drone in real space.
-            </p>
-          </div>
-          <button
-            onClick={async () => {
-              const success = await requestGyroPermission();
-              if (success) {
-                initCamera();
+        )}
+
+        {/* Prompt to place drone on floor */}
+        {!isPlaced && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs pointer-events-none text-center">
+            <div className="bg-slate-950/80 border border-cyan-500/30 rounded-2xl px-6 py-4 shadow-2xl max-w-xs animate-bounce font-mono text-[10px] text-cyan-400 uppercase tracking-widest leading-relaxed">
+              <Smartphone className="w-5 h-5 mx-auto mb-2 text-cyan-400 animate-pulse" />
+              {isPresenting 
+                ? "Scan floor, then tap the reticle to place PlutoX drone" 
+                : "Click on the grid floor to place the PlutoX drone"
               }
-            }}
-            className="px-6 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-[10px] font-bold rounded-xl shadow-lg shadow-cyan-500/25 transition active:scale-95 uppercase tracking-wider"
-          >
-            Enable Motion Sensors
-          </button>
+            </div>
+          </div>
+        )}
+
+        {/* Top HUD Status Ribbon */}
+        <div className="w-full p-4 flex justify-between items-start pointer-events-none">
+          
+          {/* Actions Button Panel */}
+          <div className="flex gap-2 pointer-events-auto">
+            <button
+              onClick={handleExit}
+              className="p-2.5 rounded-xl bg-white/85 dark:bg-slate-950/75 border border-slate-200 dark:border-slate-800 backdrop-blur-md hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition shadow-2xl flex items-center gap-2"
+            >
+              <X className="w-4.5 h-4.5" />
+              <span className="text-[10px] font-bold uppercase tracking-wider pr-1">Exit AR</span>
+            </button>
+
+            {/* Prompt/Shortcut key indicator */}
+            <div className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border backdrop-blur-md text-[8px] font-mono font-bold uppercase tracking-wider ${isDark ? 'bg-slate-950/75 border-slate-800/80 text-cyan-400' : 'bg-white/85 border-slate-200 text-cyan-605'}`}>
+              <Radio className={`w-3.5 h-3.5 animate-pulse ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+              <span>Keyboard: <kbd className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">Space</kbd> Arm // <kbd className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">Enter</kbd> Takeoff // <kbd className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">F</kbd> Flip</span>
+            </div>
+
+            {/* Mode Watermark */}
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border backdrop-blur-md text-[8px] font-mono font-bold uppercase tracking-wider ${isDark ? 'bg-slate-950/75 border-slate-800/80 text-cyan-400' : 'bg-white/85 border-slate-200 text-cyan-605'}`}>
+              {isPresenting ? (
+                <span className="text-emerald-400 font-bold animate-pulse">WebXR Immersive AR</span>
+              ) : (
+                <span className="text-amber-400 font-bold">AR Preview Mode</span>
+              )}
+            </div>
+          </div>
+
+          {/* Real-Time Telemetry HUD panel */}
+          <div className="bg-white/85 dark:bg-slate-950/75 border border-slate-200 dark:border-slate-800/80 backdrop-blur-md rounded-2xl p-4 w-60 shadow-2xl font-mono text-[9px] text-slate-700 dark:text-slate-300 uppercase space-y-2">
+            <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-1.5">
+              <span className={`font-bold tracking-widest flex items-center gap-1.5 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
+                <Activity className="w-3.5 h-3.5" /> Telemetry HUD
+              </span>
+              <span className={`text-[7px] px-1 rounded ${isArmed ? 'bg-red-950 text-red-400' : 'bg-cyan-50 text-cyan-600 border border-cyan-200/50'}`}>
+                {isArmed ? (flightStage === 'armed-idle' ? 'ARMED_IDLE' : 'FLYING') : 'DISARMED'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-y-1">
+              <span>Altitude:</span>
+              <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.alt.toFixed(2)} m</span>
+
+              <span>Pitch:</span>
+              <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.pitch}°</span>
+
+              <span>Roll:</span>
+              <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.roll}°</span>
+
+              <span>Yaw Heading:</span>
+              <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.yaw}°</span>
+            </div>
+            <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800/60 flex items-center justify-between text-[8px] text-slate-500 dark:text-slate-400">
+              <span className="flex items-center gap-1"><Battery className="w-3 h-3 text-emerald-400" /> 100%</span>
+              <span className="text-slate-500 dark:text-slate-450">Signal: 98%</span>
+            </div>
+          </div>
+
         </div>
-      )}
 
-      {/* 1. BACKGROUND LAYER: Webcam Stream or Cyber Grid Mockup */}
-      <div className="absolute inset-0 z-0">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          onLoadedMetadata={(e) => {
-            const video = e.currentTarget;
-            const playPromise = video.play();
-            if (playPromise !== undefined) {
-              playPromise.catch(err => console.warn("Video autoplay failed, retrying on interaction:", err));
-            }
-          }}
-          className={`w-full h-full object-cover ${cameraStream ? 'block' : 'hidden'}`}
-        />
-        {!cameraStream && (
-          /* Mock AR Camera Viewport */
-          <div className={`w-full h-full relative flex flex-col items-center justify-center overflow-hidden border-2 ${isDark ? 'bg-[#030712] border-cyan-500/10' : 'bg-[#F8FAFC] border-slate-200'}`}>
-            {/* Tech Grid Backdrop */}
-            <div className={`absolute inset-0 pointer-events-none bg-[size:32px_32px] ${isDark ? 'bg-[linear-gradient(rgba(0,240,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.02)_1px,transparent_1px)]' : 'bg-[linear-gradient(rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.06)_1px,transparent_1px)]'}`} />
-            
-            {/* Sci-Fi Matrix Lines & Noise Overlay */}
-            <div className={`absolute inset-0 bg-[linear-gradient(rgba(18,24,38,0.25)_50%,rgba(0,0,0,0.3)_50%)] bg-[size:100%_4px] pointer-events-none opacity-30 mix-blend-overlay ${isDark ? 'block' : 'hidden'}`} />
-            <div className={`absolute inset-0 ${isDark ? 'bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.1)_0%,transparent_80%)]' : 'bg-[radial-gradient(ellipse_at_center,rgba(148,163,184,0.15)_0%,transparent_80%)]'}`} />
-            
-            {/* Holographic Radar Ring */}
-            <div className={`w-80 h-80 rounded-full border flex items-center justify-center relative animate-spin ${isDark ? 'border-cyan-500/10' : 'border-slate-200'}`} style={{ animationDuration: '40s' }}>
-              <div className={`absolute inset-4 rounded-full border border-dashed ${isDark ? 'border-cyan-500/20' : 'border-slate-305'}`} />
-              <div className={`absolute inset-8 rounded-full border ${isDark ? 'border-cyan-500/5' : 'border-slate-100'}`} />
-              <div className={`absolute w-full h-px ${isDark ? 'bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent' : 'bg-gradient-to-r from-transparent via-slate-300/40 to-transparent'}`} />
-              <div className={`absolute h-full w-px ${isDark ? 'bg-gradient-to-b from-transparent via-cyan-500/30 to-transparent' : 'bg-gradient-to-b from-transparent via-slate-300/40 to-transparent'}`} />
-            </div>
-
-            {/* Corner Tech Brackets */}
-            <div className={`absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 ${isDark ? 'border-cyan-500/30' : 'border-slate-300'}`} />
-            <div className={`absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 ${isDark ? 'border-cyan-500/30' : 'border-slate-300'}`} />
-            <div className={`absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 ${isDark ? 'border-cyan-500/30' : 'border-slate-300'}`} />
-            <div className={`absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 ${isDark ? 'border-cyan-500/30' : 'border-slate-300'}`} />
-
-            <div className="absolute flex flex-col items-center justify-center mt-2 text-center space-y-3 z-10">
-              <div className={`p-4 rounded-full animate-pulse border ${isDark ? 'bg-cyan-950/20 border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.15)]' : 'bg-slate-100 border-slate-300'}`}>
-                <CameraOff className={`w-8 h-8 ${isDark ? 'text-cyan-400' : 'text-slate-400'}`} />
-              </div>
-              <div className="space-y-1">
-                <span className={`text-xs font-mono font-bold tracking-[0.25em] uppercase block ${isDark ? 'text-cyan-400' : 'text-slate-700'}`}>
-                  Camera Passthrough Offline
-                </span>
-                <p className={`text-[8px] font-mono tracking-widest uppercase ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Using 3D Virtual Tracking Space Grid // Ready to Arm
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Live OpenCV skin threshold hand tracking centroid feedback overlays */}
-        {cvEnabled && cameraStream && (
-          <div className="absolute inset-0 z-20 pointer-events-none font-mono text-[8px]">
-            {/* Left Hand Zone */}
-            <div className="absolute left-[10%] top-[20%] w-[30%] h-[60%] border-2 border-cyan-500/40 bg-cyan-950/5 rounded-2xl flex flex-col justify-between p-3 shadow-[0_0_15px_rgba(6,182,212,0.05)]">
-              <div className="flex justify-between items-center text-cyan-400 font-bold tracking-widest">
-                <span>CV_ZONE_L // FLIGHT CONTROL</span>
-                <span className={leftCentroid ? "text-emerald-400 animate-pulse" : "text-cyan-600"}>
-                  {leftCentroid ? "• DETECTED" : "• SEARCHING"}
-                </span>
-              </div>
-              <div className="flex-1 relative flex items-center justify-center">
-                <div className="w-full h-px bg-cyan-500/10 border-dashed" />
-                <div className="h-full w-px bg-cyan-500/10 border-dashed" />
-                
-                {leftCentroid && (
-                  <div 
-                    className="absolute w-6 h-6 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center transition-all duration-75"
-                    style={{ left: `${(leftCentroid.x - 0.1) / 0.3 * 100}%`, top: `${(leftCentroid.y - 0.2) / 0.6 * 100}%` }}
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping absolute" />
-                    <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
-                    <div className="w-8 h-8 border border-dashed border-cyan-400/60 rounded-full absolute animate-spin" style={{ animationDuration: '6s' }} />
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>THROTTLE: {(joystickLeft.y * 100).toFixed(0)}%</span>
-                <span>YAW: {(joystickLeft.x * 100).toFixed(0)}%</span>
-              </div>
-            </div>
-
-            {/* Right Hand Zone */}
-            <div className="absolute right-[10%] top-[20%] w-[30%] h-[60%] border-2 border-cyan-500/40 bg-cyan-950/5 rounded-2xl flex flex-col justify-between p-3 shadow-[0_0_15px_rgba(6,182,212,0.05)]">
-              <div className="flex justify-between items-center text-cyan-400 font-bold tracking-widest">
-                <span>CV_ZONE_R // ATTITUDE</span>
-                <span className={rightCentroid ? "text-emerald-400 animate-pulse" : "text-cyan-600"}>
-                  {rightCentroid ? "• DETECTED" : "• SEARCHING"}
-                </span>
-              </div>
-              <div className="flex-1 relative flex items-center justify-center">
-                <div className="w-full h-px bg-cyan-500/10 border-dashed" />
-                <div className="h-full w-px bg-cyan-500/10 border-dashed" />
-
-                {rightCentroid && (
-                  <div 
-                    className="absolute w-6 h-6 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center transition-all duration-75"
-                    style={{ left: `${(rightCentroid.x - 0.6) / 0.3 * 100}%`, top: `${(rightCentroid.y - 0.2) / 0.6 * 100}%` }}
-                  >
-                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping absolute" />
-                    <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
-                    <div className="w-8 h-8 border border-dashed border-cyan-400/60 rounded-full absolute animate-spin" style={{ animationDuration: '6s' }} />
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>PITCH: {(joystickRight.y * 100).toFixed(0)}%</span>
-                <span>ROLL: {(joystickRight.x * 100).toFixed(0)}%</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* AR Session Toolbox (Left Panel) */}
-      {isARActive && (
+        {/* AR Session Toolbox (Left Panel) */}
         <div className="absolute left-4 top-24 z-20 pointer-events-auto flex flex-col gap-3 w-52 bg-white/85 dark:bg-slate-950/75 border border-slate-200 dark:border-slate-800/80 backdrop-blur-md rounded-2xl p-4 shadow-2xl font-mono text-[9px] text-slate-700 dark:text-slate-300 uppercase">
           <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-1.5">
             <span className={`font-bold tracking-widest flex items-center gap-1.5 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
@@ -1045,46 +1472,102 @@ export function ARSimulator() {
             </span>
           </div>
 
-          {/* Camera Selection Dropdown */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[7.5px] text-slate-500 dark:text-slate-400">Select Video Input</label>
-            <select
-              value={selectedDeviceId}
-              onChange={(e) => handleCameraChange(e.target.value)}
-              className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-slate-800 dark:text-white"
-            >
-              {availableDevices.length > 0 ? (
-                availableDevices.map((d, i) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label || `Camera ${i + 1}`}
-                  </option>
-                ))
-              ) : (
-                <option value="">Default Camera</option>
-              )}
-            </select>
-          </div>
+          {/* Camera Selection Dropdown (Only for fallback webcam mode) */}
+          {!isPresenting && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[7.5px] text-slate-500 dark:text-slate-400">Select Video Input</label>
+              <select
+                value={selectedDeviceId}
+                onChange={(e) => handleCameraChange(e.target.value)}
+                className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 rounded px-2 py-1 text-slate-800 dark:text-white"
+              >
+                {availableDevices.length > 0 ? (
+                  availableDevices.map((d, i) => (
+                    <option key={d.deviceId} value={d.deviceId}>
+                      {d.label || `Camera ${i + 1}`}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">Default Camera</option>
+                )}
+              </select>
+            </div>
+          )}
 
           {/* Camera Error / Permission retry if applicable */}
-          {cameraError && (
+          {!isPresenting && cameraError && (
             <div className="text-[7.5px] text-red-500 bg-red-500/10 p-1.5 rounded border border-red-500/20 lowercase">
               {cameraError}
             </div>
           )}
 
-          {gyroError && (
-            <div className="text-[7.5px] text-amber-500 bg-amber-500/10 p-1.5 rounded border border-amber-500/20 lowercase">
-              {gyroError}
-            </div>
-          )}
+          {/* Flight Controls Section (Only available once drone is placed) */}
+          {isPlaced && (
+            <div className="flex flex-col gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/60">
+              <span className="text-[7.5px] text-slate-500 dark:text-slate-400">Flight Controls</span>
+              
+              <button
+                onClick={() => {
+                  setIsArmed((prev) => {
+                    const next = !prev;
+                    if (next) {
+                      setFlightStage('armed-idle');
+                    } else {
+                      setFlightStage('disarmed');
+                    }
+                    return next;
+                  });
+                }}
+                className={`w-full py-1.5 border font-bold rounded flex items-center justify-center gap-1.5 transition ${
+                  isArmed 
+                    ? 'bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30' 
+                    : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30'
+                }`}
+              >
+                {isArmed ? <ShieldOff className="w-3.5 h-3.5" /> : <Shield className="w-3.5 h-3.5" />}
+                {isArmed ? 'Disarm Drone' : 'Arm Drone'}
+              </button>
 
-          {permissionDenied && (
-            <button
-              onClick={() => initCamera()}
-              className="w-full py-1 bg-red-650/20 border border-red-500/30 hover:bg-red-600/30 text-red-400 font-bold rounded"
-            >
-              Retry Camera Permission
-            </button>
+              <button
+                onClick={() => {
+                  if (flightStage === 'armed-idle') {
+                    setFlightStage('flying');
+                    dronePos.current.y = placedPos.current.y + 0.3; // lift off slightly
+                  } else if (flightStage === 'flying') {
+                    setFlightStage('armed-idle');
+                    dronePos.current.y = placedPos.current.y; // land
+                  }
+                }}
+                disabled={!isArmed}
+                className={`w-full py-1.5 border font-bold rounded flex items-center justify-center gap-1.5 transition ${
+                  !isArmed
+                    ? 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 opacity-50 cursor-not-allowed'
+                    : flightStage === 'armed-idle'
+                      ? 'bg-blue-500/20 border-blue-500/40 text-blue-400 hover:bg-blue-500/30'
+                      : 'bg-yellow-500/20 border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/30'
+                }`}
+              >
+                <Play className="w-3.5 h-3.5" />
+                {flightStage === 'flying' ? 'Land Drone' : 'Takeoff'}
+              </button>
+
+              <button
+                onClick={() => {
+                  if (flightStage === 'flying' && flipDirection === null) {
+                    setFlipDirection('forward');
+                    setFlipProgress(0);
+                  }
+                }}
+                disabled={flightStage !== 'flying' || flipDirection !== null}
+                className={`w-full py-1.5 border font-bold rounded flex items-center justify-center gap-1.5 transition ${
+                  flightStage === 'flying' && flipDirection === null
+                    ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/30'
+                    : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 opacity-50 cursor-not-allowed'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" /> Perform Flip
+              </button>
+            </div>
           )}
 
           {/* AR Recovery Tools Section */}
@@ -1112,34 +1595,226 @@ export function ARSimulator() {
               <RotateCw className="w-3.5 h-3.5" /> Restart Session
             </button>
 
-            <button
-              onClick={handleRefreshTracking}
-              className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
-            >
-              <RefreshCw className="w-3.5 h-3.5" /> Refresh Tracking
-            </button>
+            {!isPresenting && (
+              <button
+                onClick={handleRefreshTracking}
+                className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Refresh Tracking
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* Interactive virtual joysticks at the bottom (Only when drone is placed) */}
+        {isPlaced ? (
+          <div className="w-full p-8 flex justify-between items-end bg-gradient-to-t from-slate-950/70 via-slate-950/30 to-transparent pointer-events-none">
+            
+            {/* Left Joystick: Throttle (Altitude Y) & Yaw (Rotation Y) */}
+            <VirtualJoystick 
+              label="Left Stick"
+              value={joystickLeft}
+              subLabels={{ up: 'Climb', down: 'Descend', left: 'Yaw L', right: 'Yaw R' }}
+              onChange={(vals) => setJoystickLeft(vals)}
+            />
+
+            {/* Warning / Guidance Alert */}
+            <div className="hidden lg:flex flex-col items-center max-w-xs text-center space-y-1 pointer-events-auto bg-white/85 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/85 backdrop-blur px-4 py-2.5 rounded-xl shadow-xl">
+              <span className={`text-[9px] font-mono font-bold uppercase tracking-wider ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
+                {flightStage === 'disarmed' ? 'DRONE DISARMED' : flightStage === 'armed-idle' ? 'MOTORS IDLING' : 'FLIGHT CONTROLS ACTIVE'}
+              </span>
+              <p className="text-[8px] text-slate-500 dark:text-slate-400 font-mono leading-relaxed">
+                {flightStage === 'disarmed'
+                  ? 'Click ARM DRONE (or Spacebar) to spin up motors.'
+                  : flightStage === 'armed-idle'
+                    ? 'Push left stick up (or press W) to take off.'
+                    : 'Steer with joysticks / WASD + Arrow Keys. Spacebar disarms instantly.'
+                }
+              </p>
+            </div>
+
+            {/* Right Joystick: Pitch (Z axis forward/back) & Roll (X axis left/right) */}
+            <VirtualJoystick 
+              label="Right Stick"
+              value={joystickRight}
+              subLabels={{ up: 'Pitch Fwd', down: 'Pitch Back', left: 'Roll L', right: 'Roll R' }}
+              onChange={(vals) => setJoystickRight(vals)}
+            />
+
+          </div>
+        ) : (
+          <div className="h-20" />
+        )}
+      </div>
+    );
+  };
+
+  const renderCanvasContent = () => {
+    const sceneContent = (
+      <>
+        {/* Transparent scene setup */}
+        <ambientLight intensity={isDark ? 0.8 : 1.2} color="#ffffff" />
+        <directionalLight position={[5, 10, 3]} intensity={isDark ? 1.0 : 1.5} color="#ffffff" />
+        <directionalLight position={[-5, 5, -3]} intensity={isDark ? 0.3 : 0.5} color="#cbd5e1" />
+        
+        <Environment preset="city" />
+
+        {!isPresenting && cameraMode === 'orbit' && (
+          <OrbitControls makeDefault enableDamping minDistance={1} maxDistance={8} />
+        )}
+
+        {!isPresenting && (
+          <ARCameraController
+            deviceOrientation={deviceOrientation}
+            screenOrientation={screenOrientation}
+            headingOffset={headingOffset}
+            cameraMode={cameraMode}
+            threeCameraRef={threeCamera}
+          />
+        )}
+
+        <DroneTracker
+          dronePosRef={dronePos}
+          onUpdate={setDroneIndicator}
+        />
+
+        {/* WebXR Native Ground Plane Hit-Testing & Placement */}
+        {isPresenting && (
+          <XRPlacement
+            isPlaced={isPlaced}
+            setIsPlaced={setIsPlaced}
+            placedPos={placedPos}
+            dronePos={dronePos}
+          />
+        )}
+
+        {/* WebXR Fallback Grid Floor Placement (desktop/mobile fallback) */}
+        {!isPresenting && (
+          <FallbackPlacement
+            isPlaced={isPlaced}
+            setIsPlaced={setIsPlaced}
+            placedPos={placedPos}
+            dronePos={dronePos}
+            isDark={isDark}
+          />
+        )}
+
+        {/* 3D Drone Model */}
+        {isPlaced && (
+          <ARDrone 
+            inputs={activeInputs}
+            positionRef={dronePos}
+            rotationRef={droneRot}
+            placedPos={placedPos}
+            isArmed={isArmed}
+            flightStage={flightStage}
+            setFlightStage={setFlightStage}
+            flipDirection={flipDirection}
+            setFlipDirection={setFlipDirection}
+            flipProgress={flipProgress}
+            setFlipProgress={setFlipProgress}
+          />
+        )}
+      </>
+    );
+
+    if (isTestEnv) {
+      return sceneContent;
+    }
+
+    return (
+      <XR store={xrStore}>
+        {sceneContent}
+        {/* WebXR DOM Overlay */}
+        <XRDomOverlay>
+          {renderHUD()}
+        </XRDomOverlay>
+      </XR>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 bg-black overflow-hidden flex flex-col justify-between">
+      
+      {/* 1. BACKGROUND LAYER: Webcam passthrough for fallback preview mode */}
+      {!isPresenting && cameraStream && (
+        <div className="absolute inset-0 z-0">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            onLoadedMetadata={(e) => {
+              const video = e.currentTarget;
+              const playPromise = video.play();
+              if (playPromise !== undefined) {
+                playPromise.catch(err => console.warn("Video autoplay failed, retrying on interaction:", err));
+              }
+            }}
+            className="w-full h-full object-cover"
+          />
         </div>
       )}
 
-      {/* Out of view drone indicator */}
-      {droneIndicator && droneIndicator.visible && (
-        <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
-          <div 
-            className="absolute bg-slate-950/85 border border-cyan-500/40 text-cyan-400 font-mono text-[9px] px-3 py-1.5 rounded-full flex items-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.3)] animate-pulse pointer-events-auto"
-            style={{
-              transform: `translate(${Math.cos(droneIndicator.angle * Math.PI / 180) * 110}px, ${-Math.sin(droneIndicator.angle * Math.PI / 180) * 110}px)`
-            }}
-          >
-            <span 
-              style={{ 
-                display: 'inline-block',
-                transform: `rotate(${-droneIndicator.angle}deg)`
-              }}
-            >
-              ➔
-            </span>
-            <span>Drone {droneIndicator.distance.toFixed(1)}m</span>
+      {/* Live OpenCV skin threshold hand tracking centroid overlays (Only for fallback stream) */}
+      {!isPresenting && cvEnabled && cameraStream && (
+        <div className="absolute inset-0 z-20 pointer-events-none font-mono text-[8px]">
+          {/* Left Hand Zone */}
+          <div className="absolute left-[10%] top-[20%] w-[30%] h-[60%] border-2 border-cyan-500/40 bg-cyan-950/5 rounded-2xl flex flex-col justify-between p-3 shadow-[0_0_15px_rgba(6,182,212,0.05)]">
+            <div className="flex justify-between items-center text-cyan-400 font-bold tracking-widest">
+              <span>CV_ZONE_L // FLIGHT CONTROL</span>
+              <span className={leftCentroid ? "text-emerald-400 animate-pulse" : "text-cyan-600"}>
+                {leftCentroid ? "• DETECTED" : "• SEARCHING"}
+              </span>
+            </div>
+            <div className="flex-1 relative flex items-center justify-center">
+              <div className="w-full h-px bg-cyan-500/10 border-dashed" />
+              <div className="h-full w-px bg-cyan-500/10 border-dashed" />
+              
+              {leftCentroid && (
+                <div 
+                  className="absolute w-6 h-6 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center transition-all duration-75"
+                  style={{ left: `${(leftCentroid.x - 0.1) / 0.3 * 100}%`, top: `${(leftCentroid.y - 0.2) / 0.6 * 100}%` }}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping absolute" />
+                  <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
+                  <div className="w-8 h-8 border border-dashed border-cyan-400/60 rounded-full absolute animate-spin" style={{ animationDuration: '6s' }} />
+                </div>
+              )}
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>THROTTLE: {(joystickLeft.y * 100).toFixed(0)}%</span>
+              <span>YAW: {(joystickLeft.x * 100).toFixed(0)}%</span>
+            </div>
+          </div>
+
+          {/* Right Hand Zone */}
+          <div className="absolute right-[10%] top-[20%] w-[30%] h-[60%] border-2 border-cyan-500/40 bg-cyan-950/5 rounded-2xl flex flex-col justify-between p-3 shadow-[0_0_15px_rgba(6,182,212,0.05)]">
+            <div className="flex justify-between items-center text-cyan-400 font-bold tracking-widest">
+              <span>CV_ZONE_R // ATTITUDE</span>
+              <span className={rightCentroid ? "text-emerald-400 animate-pulse" : "text-cyan-600"}>
+                {rightCentroid ? "• DETECTED" : "• SEARCHING"}
+              </span>
+            </div>
+            <div className="flex-1 relative flex items-center justify-center">
+              <div className="w-full h-px bg-cyan-500/10 border-dashed" />
+              <div className="h-full w-px bg-cyan-500/10 border-dashed" />
+
+              {rightCentroid && (
+                <div 
+                  className="absolute w-6 h-6 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center transition-all duration-75"
+                  style={{ left: `${(rightCentroid.x - 0.6) / 0.3 * 100}%`, top: `${(rightCentroid.y - 0.2) / 0.6 * 100}%` }}
+                >
+                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping absolute" />
+                  <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
+                  <div className="w-8 h-8 border border-dashed border-cyan-400/60 rounded-full absolute animate-spin" style={{ animationDuration: '6s' }} />
+                </div>
+              )}
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>PITCH: {(joystickRight.y * 100).toFixed(0)}%</span>
+              <span>ROLL: {(joystickRight.x * 100).toFixed(0)}%</span>
+            </div>
           </div>
         </div>
       )}
@@ -1149,133 +1824,16 @@ export function ARSimulator() {
         <Canvas
           camera={{ position: [0, 0.6, 2.2], fov: 60 }}
           gl={{ alpha: true, antialias: true }}
+          onCreated={({ gl }) => {
+            gl.xr.enabled = true; // Required by WebXR standard
+          }}
         >
-          {/* Transparent scene setup */}
-          <ambientLight intensity={isDark ? 0.8 : 1.2} color="#ffffff" />
-          <directionalLight position={[5, 10, 3]} intensity={isDark ? 1.0 : 1.5} color="#ffffff" />
-          <directionalLight position={[-5, 5, -3]} intensity={isDark ? 0.3 : 0.5} color="#cbd5e1" />
-          
-          <Environment preset="city" />
-
-          {cameraMode === 'orbit' && (
-            <OrbitControls makeDefault enableDamping minDistance={1} maxDistance={8} />
-          )}
-
-          <ARCameraController
-            deviceOrientation={deviceOrientation}
-            screenOrientation={screenOrientation}
-            headingOffset={headingOffset}
-            cameraMode={cameraMode}
-            threeCameraRef={threeCamera}
-          />
-
-          <DroneTracker
-            dronePosRef={dronePos}
-            onUpdate={setDroneIndicator}
-          />
-
-          {!cameraStream && (
-            <>
-              <gridHelper args={[30, 30, isDark ? '#005555' : '#cbd5e1', isDark ? '#161d2a' : '#e2e8f0']} position={[0, -1.5, 0]} />
-              <polarGridHelper args={[15, 16, 8, 64, isDark ? '#004444' : '#94a3b8', isDark ? '#0d1522' : '#cbd5e1']} position={[0, -1.49, 0]} />
-            </>
-          )}
-
-          {/* Render 3D Drone */}
-          <ARDrone 
-            inputs={activeInputs}
-            positionRef={dronePos}
-            rotationRef={droneRot}
-          />
+          {renderCanvasContent()}
         </Canvas>
       </div>
 
-      {/* 3. FOREGROUND LAYER: Cyber Telemetry HUD & Interactive Joysticks */}
-      
-      {/* Top HUD Status Ribbon */}
-      <div className="w-full p-4 z-20 flex justify-between items-start pointer-events-none">
-        
-        {/* Actions Button Panel */}
-        <div className="flex gap-2 pointer-events-auto">
-          <button
-            onClick={handleExit}
-            className="p-2.5 rounded-xl bg-white/85 dark:bg-slate-950/75 border border-slate-200 dark:border-slate-800 backdrop-blur-md hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition shadow-2xl flex items-center gap-2"
-          >
-            <X className="w-4.5 h-4.5" />
-            <span className="text-[10px] font-bold uppercase tracking-wider pr-1">Exit AR</span>
-          </button>
-
-          {/* Prompt/Shortcut key indicator */}
-          <div className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border backdrop-blur-md text-[8px] font-mono font-bold uppercase tracking-wider ${isDark ? 'bg-slate-950/75 border-slate-800/80 text-cyan-400' : 'bg-white/85 border-slate-200 text-cyan-605'}`}>
-            <Radio className={`w-3.5 h-3.5 animate-pulse ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
-            <span>AI Gesture Config: <kbd className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">Ctrl + Shift</kbd></span>
-          </div>
-        </div>
-
-        {/* Real-Time Telemetry HUD panel */}
-        <div className="bg-white/85 dark:bg-slate-950/75 border border-slate-200 dark:border-slate-800/80 backdrop-blur-md rounded-2xl p-4 w-60 shadow-2xl font-mono text-[9px] text-slate-700 dark:text-slate-300 uppercase space-y-2">
-          <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-1.5">
-            <span className={`font-bold tracking-widest flex items-center gap-1.5 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
-              <Activity className="w-3.5 h-3.5" /> Telemetry HUD
-            </span>
-            <span className={`text-[7px] px-1 rounded ${isDark ? 'bg-cyan-950 text-cyan-400' : 'bg-cyan-50 text-cyan-600 border border-cyan-200/50'}`}>
-              {cvEnabled ? 'AI CV Active' : 'AR Link'}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-y-1">
-            <span>Altitude:</span>
-            <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.alt.toFixed(2)} m</span>
-
-            <span>Pitch:</span>
-            <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.pitch}°</span>
-
-            <span>Roll:</span>
-            <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.roll}°</span>
-
-            <span>Yaw Heading:</span>
-            <span className="text-right text-slate-900 dark:text-white font-bold">{telemetry.yaw}°</span>
-          </div>
-          <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800/60 flex items-center justify-between text-[8px] text-slate-500 dark:text-slate-400">
-            <span className="flex items-center gap-1"><Battery className="w-3 h-3 text-emerald-400" /> 100%</span>
-            <span className="text-slate-500 dark:text-slate-450">Signal: 98%</span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Interactive virtual joysticks at the bottom */}
-      <div className="w-full p-8 z-20 flex justify-between items-end bg-gradient-to-t from-slate-950/70 via-slate-950/30 to-transparent pointer-events-none">
-        
-        {/* Left Joystick: Throttle (Altitude Y) & Yaw (Rotation Y) */}
-        <VirtualJoystick 
-          label="Left Stick"
-          value={joystickLeft}
-          subLabels={{ up: 'Climb', down: 'Descend', left: 'Yaw L', right: 'Yaw R' }}
-          onChange={(vals) => setJoystickLeft(vals)}
-        />
-
-        {/* Dynamic Warning Alert Overlay */}
-        <div className="hidden lg:flex flex-col items-center max-w-xs text-center space-y-1 pointer-events-auto bg-white/85 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/85 backdrop-blur px-4 py-2.5 rounded-xl shadow-xl">
-          <span className={`text-[9px] font-mono font-bold uppercase tracking-wider ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
-            {cvEnabled ? 'AI OpenCV GESTURE FLIGHT' : 'Controls Active'}
-          </span>
-          <p className="text-[8px] text-slate-500 dark:text-slate-400 font-mono leading-relaxed">
-            {cvEnabled 
-              ? 'Move hands inside the webcam zones. Left: Climb/Yaw. Right: Pitch/Roll.' 
-              : 'Drag the virtual knobs to steer PlutoX. Keyboard fallback active (W/S, A/D, Arrows).'
-            }
-          </p>
-        </div>
-
-        {/* Right Joystick: Pitch (Z axis forward/back) & Roll (X axis left/right) */}
-        <VirtualJoystick 
-          label="Right Stick"
-          value={joystickRight}
-          subLabels={{ up: 'Pitch Fwd', down: 'Pitch Back', left: 'Roll L', right: 'Roll R' }}
-          onChange={(vals) => setJoystickRight(vals)}
-        />
-
-      </div>
+      {/* Fallback Overlay rendering outside WebXR context */}
+      {!isPresenting && renderHUD()}
 
       {/* AI CV Gesture Settings Panel (Ctrl + Shift to open) */}
       <AnimatePresence>
@@ -1295,7 +1853,7 @@ export function ARSimulator() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-805">
                   <span className="font-bold text-slate-800 dark:text-slate-200">Enable Hand Gestures</span>
                   <button
                     onClick={() => setCvEnabled(!cvEnabled)}
@@ -1308,23 +1866,6 @@ export function ARSimulator() {
                     {cvEnabled ? 'ACTIVE' : 'INACTIVE'}
                   </button>
                 </div>
-
-                {cvEnabled && (
-                  <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 space-y-2">
-                    <span className="text-slate-500 dark:text-slate-400 text-[8px]">Live Thresholded Computer Vision Mask</span>
-                    <div className="flex justify-center bg-black rounded p-1 border border-slate-200 dark:border-slate-900">
-                      <canvas 
-                        ref={cvCanvasRef} 
-                        width={160} 
-                        height={120} 
-                        className="w-[160px] h-[120px] bg-slate-950 dark:bg-black rounded"
-                      />
-                    </div>
-                    <p className="text-[7.5px] text-slate-500 dark:text-slate-400 leading-relaxed text-center">
-                      Skin-tone segmentation (RGB range) isolating your hand. Place hands inside the overlay zones.
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div className="text-[7.5px] text-slate-550 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/30 p-2.5 border border-slate-200 dark:border-slate-900 rounded-xl leading-relaxed">
@@ -1335,7 +1876,6 @@ export function ARSimulator() {
           </div>
         )}
       </AnimatePresence>
-
     </div>
   );
 }

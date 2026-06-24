@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { Scene } from './components/Scene';
 import { FlightScene } from './components/FlightScene';
 import { TelemetryDashboard } from './components/UI/TelemetryDashboard';
+import { ClosedSimMobileMenu } from './components/UI/ClosedSimMobileMenu';
 import { TrainingMissionSystem } from './components/UI/TrainingMissionSystem';
 import { useDroneStore } from './store/useDroneStore';
 import { IntroOverlay } from './components/UI/IntroOverlay';
@@ -72,6 +73,7 @@ function App() {
   const activeMotors = useDroneStore((state) => state.activeMotors);
   const motorRPMs = useDroneStore((state) => state.motorRPMs);
   const showRotationDirections = useDroneStore((state) => state.showRotationDirections);
+  const isAcademyMode = useDroneStore((state) => state.isAcademyMode);
 
   const hoverComponent = useDroneStore((state) => state.hoverComponent);
   const selectComponent = useDroneStore((state) => state.selectComponent);
@@ -169,12 +171,18 @@ function App() {
       } else if (hash === '#/learn') {
         if (state.currentMode !== 'flight') state.setMode('flight');
         if (state.activeMissionIndex !== -1) state.selectMission(-1);
+        state.setAcademyMode(true);
+      } else if (hash === '#/sandbox') {
+        if (state.currentMode !== 'flight') state.setMode('flight');
+        if (state.activeMissionIndex !== -1) state.selectMission(-1);
+        state.setAcademyMode(false);
       } else if (hash.startsWith('#/sim/mission/')) {
         const indexStr = hash.replace('#/sim/mission/', '');
         const index = parseInt(indexStr, 10);
         if (!isNaN(index)) {
           if (state.currentMode !== 'flight') state.setMode('flight');
           if (state.activeMissionIndex !== index) state.selectMission(index);
+          state.setAcademyMode(true);
         }
       }
     };
@@ -386,7 +394,7 @@ function App() {
 
       {/* 2. LEFT SIDEBAR: Conditional rendering depending on Avionics Lab vs Flight Simulator */}
       <AnimatePresence mode="wait">
-        {currentMode === 'flight' || activeMissionIndex >= 0 ? (
+        {isAcademyMode && (currentMode === 'flight' || activeMissionIndex >= 0) ? (
           // A. PILOT TRAINING MISSION LIST (FLIGHT MODE)
           <TrainingMissionSystem 
             key="flight-sidebar"
@@ -395,7 +403,7 @@ function App() {
           />
         ) : (
           // B. PRE-FLIGHT AVIONICS DIAGNOSTICS PANELS (INSPECTION MODE)
-          currentMode !== 'home' && !immersiveMode && (
+          currentMode !== 'home' && currentMode !== 'flight' && !immersiveMode && (
             <>
             {/* ── Mobile Floating Anatomy Menu FAB ───────────────────── */}
             {isMobile && !mobileAnatomyOpen && (
@@ -829,6 +837,17 @@ function App() {
             onDisarm={() => orchestratorRef.current?.disarm()}
           />
         )}
+
+        {/* PLUTO CONTROLLER MOBILE MENU (Closed Simulation only, mobile only) */}
+        {currentMode === 'flight' && (
+          <ClosedSimMobileMenu
+            onReset={handleResetSimulator}
+            onToggleAltHold={handleToggleAltHold}
+            stickState={stickState}
+            onArm={() => orchestratorRef.current?.arm()}
+            onDisarm={() => orchestratorRef.current?.disarm()}
+          />
+        )}
       </div>      {/* 4. RIGHT SIDEBAR: Avionics Info Inspector (Only in Avionics Lab mode) */}
       <AnimatePresence>
         {currentMode !== 'flight' && selectedData && !immersiveMode && (
@@ -1080,7 +1099,7 @@ function App() {
                 />
                 <span className="hidden sm:inline-block text-slate-300 dark:text-slate-700 font-light">//</span>
                 <span className="hidden sm:inline-block text-slate-800 dark:text-slate-200 text-[10px] font-extrabold uppercase tracking-widest">
-                  {currentMode === 'flight' ? 'PILOT ACADEMY' : 'ANATOMY LAB'}
+                  {currentMode === 'flight' ? (isAcademyMode ? 'PILOT ACADEMY' : 'CLOSED SIMULATOR') : 'ANATOMY LAB'}
                 </span>
               </div>
             </div>

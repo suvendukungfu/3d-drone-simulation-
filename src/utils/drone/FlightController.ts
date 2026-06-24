@@ -53,6 +53,7 @@ export class FlightController {
   
   // Altitude hold tracker
   public isAltHoldActive = false;
+  public isLandingActive = false;
   private lockedAltitude = 0.0;
   
   // Diagnostic fields
@@ -89,6 +90,7 @@ export class FlightController {
     };
     
     this.isAltHoldActive = false;
+    this.isLandingActive = false;
     this.lockedAltitude = 0.0;
     this.filteredAltitude = 0.0;
     this.isAltInitialized = false;
@@ -133,48 +135,51 @@ export class FlightController {
       let targetClimbRate = 0;
       
       if (!hasTakenOff) {
-        // Safe takeoff control: keep motors at idle spin (0.10) if on ground and throttle neutral/low
-        if (stick.throttle > 0.55) {
+        // Safe takeoff control: keep motors at idle spin if on ground and throttle <= 15%
+        if (stick.throttle > 0.15) {
           // Commanded takeoff: apply climbing rate and slight takeoff throttle thrust
-          targetClimbRate = 0.5;
+          targetClimbRate = 0.4; // smooth 0.3-0.5 m/s lift rate
           mixedThrottle = this.hoverThrottleFeedforward + 0.05;
         } else {
           // Keep resting flat on landing pad
-          mixedThrottle = 0.10;
+          mixedThrottle = 0.08 + (stick.throttle / 0.15) * 0.07; // visual spin scales with throttle 0-15%
           this.climbState.integral = 0;
           this.climbState.prevError = 0;
           this.climbState.prevDerivative = 0;
           this.climbState.prevClimbRate = this.filteredClimbRate;
           this.lockedAltitude = this.filteredAltitude;
           
-          // Return idle spin immediately for all motors to prevent any ground attitude corrections
-          const idleSpin = 0.10;
-          return [idleSpin, idleSpin, idleSpin, idleSpin];
+          // Return visual spin command (no physics authority, locked on ground by orchestrator)
+          return [mixedThrottle, mixedThrottle, mixedThrottle, mixedThrottle];
         }
       } else {
         // Standard Pilot Flight Altitude Hold Loop
-        const isThrottleNeutral = stick.throttle >= 0.45 && stick.throttle <= 0.55;
-        
-        if (isThrottleNeutral) {
-          // Hold locked altitude using filtered altitude error
-          const altError = this.lockedAltitude - this.filteredAltitude;
-          targetClimbRate = THREE.MathUtils.clamp(altError * this.altitudeGains.kp, -1.0, 1.0);
-        } else if (stick.throttle > 0.55) {
-          // Climb Zone (55% to 100%) - continuous
-          targetClimbRate = ((stick.throttle - 0.55) / 0.45) * 1.5;
-          this.lockedAltitude = this.filteredAltitude;
-        } else if (stick.throttle >= 0.10 && stick.throttle < 0.45) {
-          // Descent Zone (10% to 45%) - continuous
-          targetClimbRate = ((stick.throttle - 0.45) / 0.35) * 1.0;
-          this.lockedAltitude = this.filteredAltitude;
+        if (this.isLandingActive) {
+          targetClimbRate = -0.35; // smooth controlled descent rate
         } else {
-          // Landing / Idle Zone (0% to 10%)
-          if (this.filteredAltitude > 0.25) {
-            targetClimbRate = -0.8;
+          const isThrottleNeutral = stick.throttle >= 0.45 && stick.throttle <= 0.55;
+          
+          if (isThrottleNeutral) {
+            // Hold locked altitude using filtered altitude error
+            const altError = this.lockedAltitude - this.filteredAltitude;
+            targetClimbRate = THREE.MathUtils.clamp(altError * this.altitudeGains.kp, -1.0, 1.0);
+          } else if (stick.throttle > 0.55) {
+            // Climb Zone (55% to 100%) - continuous
+            targetClimbRate = ((stick.throttle - 0.55) / 0.45) * 1.5;
+            this.lockedAltitude = this.filteredAltitude;
+          } else if (stick.throttle >= 0.10 && stick.throttle < 0.45) {
+            // Descent Zone (10% to 45%) - continuous
+            targetClimbRate = ((stick.throttle - 0.45) / 0.35) * 1.0;
+            this.lockedAltitude = this.filteredAltitude;
           } else {
-            targetClimbRate = -0.20;
+            // Landing / Idle Zone (0% to 10%)
+            if (this.filteredAltitude > 0.25) {
+              targetClimbRate = -0.8;
+            } else {
+              targetClimbRate = -0.20;
+            }
+            this.lockedAltitude = this.filteredAltitude;
           }
-          this.lockedAltitude = this.filteredAltitude;
         }
         
         // Reset PID integration on the ground to prevent windup bouncing
@@ -218,11 +223,11 @@ export class FlightController {
     // 2. Outer Angle Loop (Roll & Pitch Self-Leveling)
     // Convert stick inputs (-1 to 1) to target Euler angles (radians)
     const maxTiltAngle = 12.0 * (Math.PI / 180.0); // max 12 degrees tilt for slight, responsive movement
-    let targetRoll = -this.smoothedRoll * maxTiltAngle;
-    let targetPitch = -this.smoothedPitch * maxTiltAngle;
+    let targetRoll = this.isLandingActive ? 0.0 : this.smoothedRoll * maxTiltAngle;
+    let targetPitch = this.isLandingActive ? 0.0 : -this.smoothedPitch * maxTiltAngle;
     
     // Hover stabilization (active braking/drift damping) when sticks are neutral in flight
-    if (hasTakenOff) {
+    if (hasTakenOff && !this.isLandingActive) {
       const isRollStickNeutral = Math.abs(this.smoothedRoll) < 0.05;
       const isPitchStickNeutral = Math.abs(this.smoothedPitch) < 0.05;
       

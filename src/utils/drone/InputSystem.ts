@@ -38,6 +38,8 @@ export class InputSystem {
   private onAcademyToggle: (() => void) | null = null;
   private onCameraChange: ((camIndex: number) => void) | null = null;
   private onResetSim: (() => void) | null = null;
+  private onAutoTakeoff: (() => void) | null = null;
+  private onLanding: (() => void) | null = null;
   
   constructor() {
     this.handleKeyDown = this.handleKeyDown.bind(this);
@@ -105,6 +107,8 @@ export class InputSystem {
     onAcademyToggle?: () => void;
     onCameraChange?: (camIndex: number) => void;
     onResetSim?: () => void;
+    onAutoTakeoff?: () => void;
+    onLanding?: () => void;
   }): void {
     if (callbacks.onArmToggle) this.onArmToggle = callbacks.onArmToggle;
     if (callbacks.onFlipToggle) this.onFlipToggle = callbacks.onFlipToggle;
@@ -114,6 +118,8 @@ export class InputSystem {
     if (callbacks.onAcademyToggle) this.onAcademyToggle = callbacks.onAcademyToggle;
     if (callbacks.onCameraChange) this.onCameraChange = callbacks.onCameraChange;
     if (callbacks.onResetSim) this.onResetSim = callbacks.onResetSim;
+    if (callbacks.onAutoTakeoff) this.onAutoTakeoff = callbacks.onAutoTakeoff;
+    if (callbacks.onLanding) this.onLanding = callbacks.onLanding;
   }
 
   public setAnalogStickValues(leftX: number, leftY: number, rightX: number, rightY: number): void {
@@ -176,7 +182,15 @@ export class InputSystem {
         if (this.onAcademyToggle) this.onAcademyToggle();
       }
       if (key === 't') {
-        if (this.onTelemetryToggle) this.onTelemetryToggle();
+        const isArmed = useDroneStore.getState().telemetry.isArmed;
+        if (isArmed && this.onAutoTakeoff) {
+          this.onAutoTakeoff();
+        } else {
+          if (this.onTelemetryToggle) this.onTelemetryToggle();
+        }
+      }
+      if (key === 'l') {
+        if (this.onLanding) this.onLanding();
       }
       if (key === 'h') {
         if (this.onControlsToggle) this.onControlsToggle();

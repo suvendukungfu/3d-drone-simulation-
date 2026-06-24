@@ -101,15 +101,15 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
     if (envType === 'field') {
       orchestrator.physics.setBounds(-20, 20, -20, 20, 18);
     } else if (envType === 'course') {
-      orchestrator.physics.setBounds(-19.5, 19.5, -19.5, 19.5, 7.8);
+      orchestrator.physics.setBounds(-20, 20, -20, 20, 8);
     } else if (envType === 'warehouse') {
-      orchestrator.physics.setBounds(-14.5, 14.5, -14.5, 14.5, 9.8);
+      orchestrator.physics.setBounds(-15, 15, -15, 15, 10);
     } else if (envType === 'lab') {
-      orchestrator.physics.setBounds(-9.5, 9.5, -9.5, 9.5, 6.8);
+      orchestrator.physics.setBounds(-10, 10, -10, 10, 7);
     } else if (envType === 'classroom') {
-      orchestrator.physics.setBounds(-9.5, 9.5, -9.5, 9.5, 5.8);
+      orchestrator.physics.setBounds(-10, 10, -10, 10, 6);
     } else { // room
-      orchestrator.physics.setBounds(-7.8, 7.8, -7.8, 7.8, 5.8);
+      orchestrator.physics.setBounds(-8, 8, -8, 8, 6);
     }
   }, [envType, orchestrator]);
 
@@ -402,11 +402,11 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
       // and matrix updates, potentially producing a 1000x smaller microscopic drone)
       // and directly apply the verified pre-calculated scale and offset values.
       // - targetScale = 2.825: ensures a precise 0.30m visual span (real-world wingspan).
-      // - offsetY = 0.1004: aligns the visual bottom points to touch y=0.005 (landing pad) when physics is at y=0.05.
+      // - offsetY = 0.02712: aligns the visual bottom points to touch y=0.005 (landing pad) when physics is at y=0.05.
       // - offsetZ = -0.0345: aligns the visual model center to the physics body center of gravity.
       const targetScale = 2.825;
       const offsetX = 0;
-      const offsetY = 0.1004;
+      const offsetY = 0.02712;
       const offsetZ = -0.0345;
 
       const store = useDroneStore.getState();

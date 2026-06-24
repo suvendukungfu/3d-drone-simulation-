@@ -44,7 +44,7 @@ export class TelemetryEngine {
     isArmed: boolean,
     sensorError: boolean,
     calibrationActive: boolean,
-    flightMode: 'stabilize' | 'althold' | 'failsafe',
+    flightMode: 'stabilize' | 'althold' | 'failsafe' | 'disarmed' | 'armed_idle',
     dt: number
   ): TelemetryData {
     // 1. Flight time increments when armed

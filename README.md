@@ -5,6 +5,9 @@
 [![Three.js](https://img.shields.io/badge/Three.js-r164+-black?logo=three.js&logoColor=white)](https://threejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2+-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4+-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Netlify Status](https://api.netlify.com/api/v1/badges/f65659e9-c194-4f82-a31e-ec50bc7b6431/deploy-status)](https://app.netlify.com/projects/plutox-drone-sim-suvendu)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Netlify-00AD9F?style=for-the-badge&logo=netlify&logoColor=white)](https://plutox-drone-sim-suvendu.netlify.app)
+
 
 An interactive, high-fidelity 3D hardware simulation and educational training platform for Drona Aviation's **PlutoX (Primus X2)** nano-drone. This application allows students, engineers, and hobbyists to inspect, diagnose, and learn the physics and assembly of quadcopters in an immersive WebGL environment.
 

@@ -22,8 +22,18 @@
  */
 import * as THREE from 'three';
 import { RigidBodyState } from './types';
+import { useDroneStore } from '../../store/useDroneStore';
 
 export class PhysicsEngine {
+  // Contact and Proximity state
+  public lastCollision: {
+    collided: boolean;
+    speed: number;
+    normal: THREE.Vector3;
+    obstacleName: string;
+    isWall: boolean;
+  } | null = null;
+  public lastInProximity = false;
   // Drone physical parameters (micro-quadcopter like PlutoX)
   public mass = 0.055; // kg
   public gravity = 9.81; // m/s^2
@@ -154,9 +164,7 @@ export class PhysicsEngine {
     };
   }
   
-  // RK4 Integration step
-  public step(state: RigidBodyState, motorCommands: number[], dt: number): RigidBodyState {
-    const s1 = state;
+  private integrateRK4(s1: RigidBodyState, motorCommands: number[], dt: number): RigidBodyState {
     const k1 = this.getDerivatives(s1, motorCommands);
     
     // s2 = s1 + 0.5 * dt * k1
@@ -227,88 +235,827 @@ export class PhysicsEngine {
       .addScaledVector(k3.angularAcceleration, dt / 3.0)
       .addScaledVector(k4.angularAcceleration, dt / 6.0);
       
-    const nextState = {
+    return {
       position: nextPosition,
       velocity: nextVelocity,
       quaternion: nextQuaternion,
       angularVelocity: nextAngularVelocity
     };
+  }
+
+  // RK4 Integration step with sub-stepping for CCD
+  public step(state: RigidBodyState, motorCommands: number[], dt: number): RigidBodyState {
+    this.lastCollision = null;
+    this.lastInProximity = false;
+
+    const N = 4;
+    const subDt = dt / N;
+    const radius = 0.08;
+    let currentState = {
+      position: state.position.clone(),
+      velocity: state.velocity.clone(),
+      quaternion: state.quaternion.clone(),
+      angularVelocity: state.angularVelocity.clone()
+    };
     
-    // Apply collision and boundaries
-    this.handleCollisions(nextState);
+    for (let step = 0; step < N; step++) {
+      // Speculative velocity clamping: limit velocity so drone can't travel more than
+      // half the distance to the nearest wall boundary in one sub-step. This prevents
+      // tunneling even at extreme speeds.
+      const bounds = this.environmentBounds;
+      const pos = currentState.position;
+      const vel = currentState.velocity;
+      
+      const maxTravelX = Math.min(
+        pos.x - (bounds.minX + radius),
+        (bounds.maxX - radius) - pos.x
+      );
+      const maxTravelY = Math.min(
+        pos.y - bounds.minY,
+        (bounds.maxY - radius) - pos.y
+      );
+      const maxTravelZ = Math.min(
+        pos.z - (bounds.minZ + radius),
+        (bounds.maxZ - radius) - pos.z
+      );
+      
+      // Clamp velocity so max displacement per sub-step is half the gap
+      const safetyFactor = 0.5;
+      if (maxTravelX > 0 && Math.abs(vel.x) * subDt > maxTravelX * safetyFactor) {
+        vel.x = Math.sign(vel.x) * maxTravelX * safetyFactor / subDt;
+      }
+      if (maxTravelY > 0 && Math.abs(vel.y) * subDt > maxTravelY * safetyFactor) {
+        vel.y = Math.sign(vel.y) * maxTravelY * safetyFactor / subDt;
+      }
+      if (maxTravelZ > 0 && Math.abs(vel.z) * subDt > maxTravelZ * safetyFactor) {
+        vel.z = Math.sign(vel.z) * maxTravelZ * safetyFactor / subDt;
+      }
+      
+      currentState = this.integrateRK4(currentState, motorCommands, subDt);
+      this.handleCollisions(currentState);
+    }
     
-    return nextState;
+    return currentState;
   }
   
   // Boundary constraints & rebound calculations
   private handleCollisions(state: RigidBodyState): void {
     const bounds = this.environmentBounds;
+    const radius = 0.08; // 8cm drone radius
     
-    // 1. Ground Collision (drone radius is ~0.04m, so bottom of landing gear is 0.04m below position)
+    let maxCollision = this.lastCollision;
+    let inProximity = this.lastInProximity;
+    const proxThreshold = 0.25;
+
+    // Helper to register a collision
+    const registerCollision = (speed: number, normal: THREE.Vector3, name: string, isWall: boolean) => {
+      if (!maxCollision || speed > maxCollision.speed) {
+        maxCollision = {
+          collided: true,
+          speed,
+          normal: normal.clone(),
+          obstacleName: name,
+          isWall
+        };
+      }
+    };
+
+    // Helper to apply elastic rebound and friction
+    const applyRebound = (normal: THREE.Vector3, speed: number) => {
+      // Determine restitution coefficient based on speed
+      let e = 0.25;
+      if (speed < 1.5) {
+        e = 0.15; // Stage 2: Light Contact (absorbs energy)
+      } else if (speed <= 4.0) {
+        e = 0.40; // Stage 3: Moderate Impact
+      } else if (speed <= 6.0) {
+        e = 0.60; // Stage 4: Major Impact
+      } else {
+        e = 0.10; // Stage 5: Crash Event (very low bounce)
+      }
+
+      // Apply rebound to velocity
+      const vn = state.velocity.dot(normal);
+      const v_n_vec = normal.clone().multiplyScalar(vn);
+      const v_t_vec = state.velocity.clone().sub(v_n_vec);
+
+      // Dynamic glancing friction
+      const v_t_len = v_t_vec.length();
+      let effectiveFriction = this.frictionCoef;
+      if (v_t_len > 0.001) {
+        const ratio = Math.abs(vn) / v_t_len;
+        effectiveFriction = this.frictionCoef * Math.min(1.0, ratio * 2.0);
+      }
+
+      // Damp tangential velocity by dynamic friction
+      v_t_vec.multiplyScalar(1.0 - effectiveFriction);
+
+      // Set new velocity
+      state.velocity.copy(v_t_vec).addScaledVector(normal, -e * vn);
+
+      // Instability/disturbances
+      if (speed < 1.5) {
+        // Stage 2: Light Contact small yaw/roll/pitch disturbance
+        state.angularVelocity.x += (Math.random() - 0.5) * 1.5;
+        state.angularVelocity.y += (Math.random() - 0.5) * 1.5;
+        state.angularVelocity.z += (Math.random() - 0.5) * 1.5;
+      } else if (speed <= 4.0) {
+        // Stage 3: Moderate Impact wobble
+        state.angularVelocity.x += (Math.random() - 0.5) * 6.0;
+        state.angularVelocity.y += (Math.random() - 0.5) * 6.0;
+        state.angularVelocity.z += (Math.random() - 0.5) * 6.0;
+      } else if (speed <= 6.0) {
+        // Stage 4: Major Impact destabilization
+        state.angularVelocity.x += (Math.random() - 0.5) * 15.0;
+        state.angularVelocity.y += (Math.random() - 0.5) * 15.0;
+        state.angularVelocity.z += (Math.random() - 0.5) * 15.0;
+      }
+    };
+
+    // 1. Ground Collision (Landing pad)
     if (state.position.y <= bounds.minY) {
       state.position.y = bounds.minY;
       
-      // If we are crashing downwards, bounce!
-      if (state.velocity.y < 0) {
-        // If landing gently (velocity.y > -0.5 m/s), don't bounce at all!
-        if (state.velocity.y > -0.5) {
+      const vn = state.velocity.y;
+      if (vn < 0) {
+        const speed = -vn;
+        // If landing gently, damp completely
+        if (speed < 0.5) {
           state.velocity.y = 0;
         } else {
-          state.velocity.y = -state.velocity.y * this.groundRestitution;
+          registerCollision(speed, new THREE.Vector3(0, 1, 0), 'Ground', false);
+          applyRebound(new THREE.Vector3(0, 1, 0), speed);
         }
         
-        // Apply ground friction (damp lateral velocities)
+        // Ground friction
         state.velocity.x *= (1.0 - this.frictionCoef);
         state.velocity.z *= (1.0 - this.frictionCoef);
       }
       
-      // Senior Developer Ground Constraint:
-      // When resting on the ground, the landing gear prevents roll and pitch rotations
-      // through the floor. We zero out roll/pitch and their angular velocities,
-      // keeping only yaw to allow rotation while on the pad.
+      // Ground pitch/roll lock
       const euler = new THREE.Euler().setFromQuaternion(state.quaternion, 'YXZ');
-      euler.x = 0; // zero pitch
-      euler.z = 0; // zero roll
+      euler.x = 0;
+      euler.z = 0;
       state.quaternion.setFromEuler(euler);
-      
       state.angularVelocity.x = 0;
       state.angularVelocity.z = 0;
-      state.angularVelocity.y *= 0.7; // damp yaw on contact
+      state.angularVelocity.y *= 0.7;
+    }
+
+    // 2. Ceiling boundary
+    const ceilMaxY = bounds.maxY - radius;
+    if (state.position.y >= ceilMaxY) {
+      state.position.y = ceilMaxY;
+      const vn = state.velocity.y;
+      if (vn > 0) {
+        const speed = vn;
+        // Register collision at ALL speeds
+        registerCollision(speed, new THREE.Vector3(0, -1, 0), 'Ceiling', true);
+        if (speed < 0.3) {
+          state.velocity.y = 0;
+          // Apply sliding friction when scraping the ceiling
+          state.velocity.x *= 0.7;
+          state.velocity.z *= 0.7;
+          // Light angular wobble
+          state.angularVelocity.x += (Math.random() - 0.5) * 0.6;
+          state.angularVelocity.z += (Math.random() - 0.5) * 0.6;
+        } else {
+          applyRebound(new THREE.Vector3(0, -1, 0), speed);
+        }
+      }
+    } else if (ceilMaxY - state.position.y < proxThreshold) {
+      inProximity = true;
+    }
+
+    // 3. Wall boundaries — realistic PlutoX wall interaction
+    // Uses a two-zone system:
+    //   - Cushion zone (0.04m before wall): soft repulsion force pushes drone away
+    //   - Hard contact zone (at wall): position clamp + rebound + friction + wobble
+    // All collisions are registered regardless of speed for proper notification feedback.
+    
+    const cushionDepth = 0.04; // 4cm soft repulsion buffer before wall surface
+    const wallFriction = 0.35; // tangential velocity damping on wall contact
+
+    // Helper: handle one wall boundary axis
+    const handleWallCollision = (
+      axisValue: number,
+      wallLimit: number,
+      velocityComponent: number,
+      isNegativeSide: boolean,
+      wallName: string,
+      normal: THREE.Vector3,
+      setPosition: (v: number) => void,
+      setVelocity: (v: number) => void,
+      getVelocity: () => number
+    ) => {
+      const cushionBoundary = isNegativeSide
+        ? wallLimit + cushionDepth
+        : wallLimit - cushionDepth;
+      const isInCushion = isNegativeSide
+        ? axisValue < cushionBoundary && axisValue > wallLimit
+        : axisValue > cushionBoundary && axisValue < wallLimit;
+      const isPastWall = isNegativeSide
+        ? axisValue <= wallLimit
+        : axisValue >= wallLimit;
+      const isApproaching = isNegativeSide ? velocityComponent < 0 : velocityComponent > 0;
+      
+      if (isPastWall) {
+        // Hard contact: clamp position to wall surface
+        setPosition(wallLimit);
+        const speed = Math.abs(velocityComponent);
+        
+        if (isApproaching || speed > 0.001) {
+          // Register collision at ALL speeds for notification feedback
+          registerCollision(speed, normal, wallName, true);
+          
+          if (speed < 0.3) {
+            // Light contact: zero normal velocity, apply wall sliding friction
+            setVelocity(0);
+            // Apply tangential friction (slow the drone sliding along the wall)
+            const tangentialDamp = 1.0 - wallFriction;
+            state.velocity.x *= (normal.x !== 0 ? 1 : tangentialDamp);
+            state.velocity.y *= (normal.y !== 0 ? 1 : tangentialDamp);
+            state.velocity.z *= (normal.z !== 0 ? 1 : tangentialDamp);
+            // Small angular disturbance on light wall contact (prop wash reflection)
+            state.angularVelocity.x += (Math.random() - 0.5) * 0.8;
+            state.angularVelocity.y += (Math.random() - 0.5) * 0.6;
+            state.angularVelocity.z += (Math.random() - 0.5) * 0.8;
+          } else {
+            // Full rebound with staged response
+            applyRebound(normal, speed);
+          }
+        }
+      } else if (isInCushion && isApproaching) {
+        // Cushion zone: apply soft repulsion proportional to penetration depth
+        const penetration = isNegativeSide
+          ? cushionBoundary - axisValue
+          : axisValue - cushionBoundary;
+        const penetrationRatio = Math.min(1.0, penetration / cushionDepth);
+        // Quadratic repulsion force: stronger as drone gets closer to wall
+        const repulsionStrength = 2.5 * penetrationRatio * penetrationRatio;
+        const currentV = getVelocity();
+        const dampedV = currentV * (1.0 - 0.15 * penetrationRatio);
+        setVelocity(dampedV);
+        // Push velocity away from wall
+        state.velocity.addScaledVector(normal, repulsionStrength * 0.016); // ~1 frame at 60Hz
+        inProximity = true;
+      } else if (Math.abs(axisValue - wallLimit) < proxThreshold) {
+        inProximity = true;
+      }
+    };
+
+    // West Wall (minX)
+    const minWallX = bounds.minX + radius;
+    handleWallCollision(
+      state.position.x, minWallX, state.velocity.x,
+      true, 'West Wall', new THREE.Vector3(1, 0, 0),
+      (v) => { state.position.x = v; },
+      (v) => { state.velocity.x = v; },
+      () => state.velocity.x
+    );
+
+    // East Wall (maxX)
+    const maxWallX = bounds.maxX - radius;
+    handleWallCollision(
+      state.position.x, maxWallX, state.velocity.x,
+      false, 'East Wall', new THREE.Vector3(-1, 0, 0),
+      (v) => { state.position.x = v; },
+      (v) => { state.velocity.x = v; },
+      () => state.velocity.x
+    );
+
+    // North Wall (minZ)
+    const minWallZ = bounds.minZ + radius;
+    handleWallCollision(
+      state.position.z, minWallZ, state.velocity.z,
+      true, 'North Wall', new THREE.Vector3(0, 0, 1),
+      (v) => { state.position.z = v; },
+      (v) => { state.velocity.z = v; },
+      () => state.velocity.z
+    );
+
+    // South Wall (maxZ)
+    const maxWallZ = bounds.maxZ - radius;
+    handleWallCollision(
+      state.position.z, maxWallZ, state.velocity.z,
+      false, 'South Wall', new THREE.Vector3(0, 0, -1),
+      (v) => { state.position.z = v; },
+      (v) => { state.velocity.z = v; },
+      () => state.velocity.z
+    );
+
+    // 4. Box and Hoop obstacles
+    const { boxObstacles, hoopObstacles } = this.getObstacles();
+
+    for (const box of boxObstacles) {
+      let checkPos = state.position.clone();
+      const hasRotation = box.r !== undefined && box.r !== 0;
+
+      if (hasRotation) {
+        checkPos.sub(new THREE.Vector3(box.c[0], box.c[1], box.c[2]));
+        checkPos.applyAxisAngle(new THREE.Vector3(0, 1, 0), -box.r!);
+      }
+
+      const localBox = hasRotation
+        ? { c: [0, 0, 0] as [number, number, number], s: box.s, label: box.label }
+        : box;
+
+      const col = this.checkBoxCollision(checkPos, radius, localBox);
+      if (col && col.collided) {
+        if (hasRotation) {
+          col.normal.applyAxisAngle(new THREE.Vector3(0, 1, 0), box.r!);
+        }
+
+        // Resolve penetration
+        state.position.addScaledVector(col.normal, col.penetration);
+        
+        const vn = state.velocity.dot(col.normal);
+        if (vn < 0) {
+          const speed = -vn;
+          // Register collision at ALL speeds for feedback
+          registerCollision(speed, col.normal, box.label, false);
+          
+          if (speed < 0.3) {
+            // Gentle sliding contact: damp normal velocity component
+            const v_n_vec = col.normal.clone().multiplyScalar(vn);
+            state.velocity.sub(v_n_vec);
+            // Apply tangential sliding friction
+            const tangential = state.velocity.clone().sub(col.normal.clone().multiplyScalar(state.velocity.dot(col.normal)));
+            state.velocity.sub(tangential.multiplyScalar(0.3));
+            // Small angular disturbance on contact
+            state.angularVelocity.x += (Math.random() - 0.5) * 0.8;
+            state.angularVelocity.y += (Math.random() - 0.5) * 0.6;
+            state.angularVelocity.z += (Math.random() - 0.5) * 0.8;
+
+            // Ground-like flat stabilization if resting on top of the box
+            if (col.normal.y > 0.9) {
+              const euler = new THREE.Euler().setFromQuaternion(state.quaternion, 'YXZ');
+              euler.x = 0;
+              euler.z = 0;
+              state.quaternion.setFromEuler(euler);
+              state.angularVelocity.x = 0;
+              state.angularVelocity.z = 0;
+              state.angularVelocity.y *= 0.7;
+            }
+          } else {
+            applyRebound(col.normal, speed);
+          }
+        }
+      } else {
+        // Proximity check
+        const localBoxCenter = hasRotation ? [0, 0, 0] : box.c;
+        const hX = box.s[0] / 2;
+        const hY = box.s[1] / 2;
+        const hZ = box.s[2] / 2;
+        const minX = localBoxCenter[0] - hX;
+        const maxX = localBoxCenter[0] + hX;
+        const minY = localBoxCenter[1] - hY;
+        const maxY = localBoxCenter[1] + hY;
+        const minZ = localBoxCenter[2] - hZ;
+        const maxZ = localBoxCenter[2] + hZ;
+        const closestX = Math.max(minX, Math.min(checkPos.x, maxX));
+        const closestY = Math.max(minY, Math.min(checkPos.y, maxY));
+        const closestZ = Math.max(minZ, Math.min(checkPos.z, maxZ));
+        const dist = Math.sqrt(
+          (checkPos.x - closestX) ** 2 +
+          (checkPos.y - closestY) ** 2 +
+          (checkPos.z - closestZ) ** 2
+        );
+        if (dist - radius < proxThreshold) {
+          inProximity = true;
+        }
+      }
+    }
+
+    for (const hoop of hoopObstacles) {
+      const col = this.checkHoopCollision(state.position, radius, hoop);
+      if (col && col.collided) {
+        // Resolve penetration
+        state.position.addScaledVector(col.normal, col.penetration);
+        
+        const vn = state.velocity.dot(col.normal);
+        if (vn < 0) {
+          const speed = -vn;
+          if (speed < 0.3) {
+            const v_n_vec = col.normal.clone().multiplyScalar(vn);
+            state.velocity.sub(v_n_vec);
+          } else {
+            registerCollision(speed, col.normal, 'Gate Frame', false);
+            applyRebound(col.normal, speed);
+          }
+        }
+      } else {
+        // Proximity check
+        const cx = hoop.c[0];
+        const cy = hoop.c[1];
+        const cz = hoop.c[2];
+        const majorR = hoop.r;
+        const minorR = hoop.t;
+        const lenV = Math.sqrt((state.position.x - cx) ** 2 + (state.position.y - cy) ** 2);
+        let qx = cx + majorR;
+        let qy = cy;
+        if (lenV > 0.0001) {
+          qx = cx + majorR * ((state.position.x - cx) / lenV);
+          qy = cy + majorR * ((state.position.y - cy) / lenV);
+        }
+        const distTorus = Math.sqrt(
+          (state.position.x - qx) ** 2 +
+          (state.position.y - qy) ** 2 +
+          (state.position.z - cz) ** 2
+        );
+        if (distTorus - minorR - radius < proxThreshold) {
+          inProximity = true;
+        }
+      }
+    }
+
+    // Save final collision state
+    this.lastCollision = maxCollision;
+    this.lastInProximity = inProximity;
+  }
+
+  private createArchObstacles(
+    cx: number,
+    cy: number,
+    cz: number,
+    theta: number,
+    width: number,
+    height: number,
+    depth: number,
+    labelPrefix: string
+  ): { c: [number, number, number]; s: [number, number, number]; label: string; r: number }[] {
+    const parts = [
+      { lx: -width / 2, ly: height / 2, lz: 0, sx: 0.2, sy: height, sz: depth, label: `${labelPrefix} Left Pillar` },
+      { lx: width / 2, ly: height / 2, lz: 0, sx: 0.2, sy: height, sz: depth, label: `${labelPrefix} Right Pillar` },
+      { lx: 0, ly: height, lz: 0, sx: width + 0.2, sy: 0.2, sz: depth, label: `${labelPrefix} Beam` }
+    ];
+
+    return parts.map(part => {
+      const localCenter = new THREE.Vector3(part.lx, part.ly, part.lz);
+      if (theta !== 0) {
+        localCenter.applyAxisAngle(new THREE.Vector3(0, 1, 0), theta);
+      }
+      return {
+        c: [cx + localCenter.x, cy + localCenter.y, cz + localCenter.z] as [number, number, number],
+        s: [part.sx, part.sy, part.sz] as [number, number, number],
+        label: part.label,
+        r: theta
+      };
+    });
+  }
+
+  private getObstacles() {
+    try {
+      const store = useDroneStore.getState() as any;
+      const envType = store.flightEnvironment;
+      const activeMissionIndex = store.activeMissionIndex;
+      
+      let boxObstacles: { c: [number, number, number]; s: [number, number, number]; label: string; r?: number }[] = [];
+      if (envType === 'room') {
+        boxObstacles = [
+          { c: [-2.5, 0.4, -2.5], s: [1.5, 0.8, 1.5], label: 'Desk Table' },
+          { c: [2.5, 0.6, -1.0], s: [0.8, 1.2, 0.8], label: 'Book Shelf' },
+          { c: [-3.0, 0.45, 2.5], s: [1.2, 0.9, 1.2], label: 'Cabinet' }
+        ];
+      } else if (envType === 'lab') {
+        boxObstacles = [
+          { c: [-3.5, 0.5, -3.5], s: [2.5, 1.0, 1.2], label: 'Bench A' },
+          { c: [3.5, 0.5, -3.5], s: [2.5, 1.0, 1.2], label: 'Bench B' },
+          { c: [-4.0, 0.6, 2.0], s: [1.5, 1.2, 1.5], label: 'Component Locker' }
+        ];
+      } else if (envType === 'classroom') {
+        boxObstacles = [
+          { c: [0, 0.45, -6.5], s: [1.6, 0.9, 0.8], label: "Teacher's Desk" },
+          
+          { c: [-2.5, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 1' },
+          { c: [-2.5, 0.41, -2.95], s: [0.42, 0.82, 0.42], label: 'Student Chair 1' },
+          
+          { c: [0, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 2' },
+          { c: [0, 0.41, -2.95], s: [0.42, 0.82, 0.42], label: 'Student Chair 2' },
+          
+          { c: [2.5, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 3' },
+          { c: [2.5, 0.41, -2.95], s: [0.42, 0.82, 0.42], label: 'Student Chair 3' },
+          
+          { c: [-2.5, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 4' },
+          { c: [-2.5, 0.41, 1.05], s: [0.42, 0.82, 0.42], label: 'Student Chair 4' },
+          
+          { c: [0, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 5' },
+          { c: [0, 0.41, 1.05], s: [0.42, 0.82, 0.42], label: 'Student Chair 5' },
+          
+          { c: [2.5, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 6' },
+          { c: [2.5, 0.41, 1.05], s: [0.42, 0.82, 0.42], label: 'Student Chair 6' },
+          
+          { c: [-7.5, 1.0, 4.0], s: [1.2, 2.0, 0.8], label: 'Bookshelf' }
+        ];
+      } else if (envType === 'warehouse') {
+        boxObstacles = [
+          { c: [-5.0, 1.5, -4.0], s: [2.0, 3.0, 1.2], label: 'Storage Rack A' },
+          { c: [5.0, 1.5, -4.0], s: [2.0, 3.0, 1.2], label: 'Storage Rack B' },
+          { c: [-6.0, 0.75, 4.0], s: [1.5, 1.5, 1.5], label: 'Cargo Crate A' },
+          { c: [6.0, 0.75, 4.0], s: [1.5, 1.5, 1.5], label: 'Cargo Crate B' },
+          { c: [0.0, 1.0, -8.0], s: [4.0, 2.0, 1.0], label: 'Pallet Rack' }
+        ];
+      } else if (envType === 'field') {
+        boxObstacles = [
+          { c: [-4.5, 1.8, -4.5], s: [0.8, 3.6, 0.8], label: 'Conifer Tree' },
+          { c: [5.5, 1.2, -6.5], s: [1.0, 2.4, 1.0], label: 'Granite Boulder' },
+          { c: [-6.5, 1.5, 5.5], s: [0.6, 3.0, 0.6], label: 'Telemetry Mast' }
+        ];
+      } else if (envType === 'course') {
+        boxObstacles = [
+          { c: [-5.0, 1.8, 3.0], s: [0.8, 3.6, 0.8], label: 'Tower A' },
+          { c: [5.0, 1.8, 3.0], s: [0.8, 3.6, 0.8], label: 'Tower B' },
+          { c: [0.0, 1.8, -5.0], s: [1.2, 3.6, 1.2], label: 'Center Column' },
+          { c: [-2.5, 0.5, 6.0], s: [1.5, 1.0, 1.5], label: 'Hazard Zone 1' },
+          { c: [2.5, 0.5, 6.0], s: [1.5, 1.0, 1.5], label: 'Hazard Zone 2' },
+          ...this.createArchObstacles(0, 0, 1.5, 0, 2.5, 2.2, 0.25, 'Arch 1'),
+          ...this.createArchObstacles(-2.5, 0, -1.0, Math.PI / 4, 2.2, 1.8, 0.25, 'Arch 2'),
+          ...this.createArchObstacles(2.5, 0, -1.0, -Math.PI / 4, 2.2, 1.8, 0.25, 'Arch 3')
+        ];
+      }
+
+      let hoopObstacles: { id: string; c: [number, number, number]; r: number; t: number }[] = [];
+      if (envType === 'course' && (activeMissionIndex === 9 || activeMissionIndex === 10)) {
+        hoopObstacles = [
+          { id: 'gate1_hoop', c: [-2.5, 1.2, -2.5], r: 0.65, t: 0.05 },
+          { id: 'gate2_hoop', c: [0.0, 1.8, 3.5], r: 0.65, t: 0.05 },
+          { id: 'gate3_hoop', c: [2.5, 1.2, -2.5], r: 0.65, t: 0.05 }
+        ];
+      }
+
+      return { boxObstacles, hoopObstacles };
+    } catch (e) {
+      return { boxObstacles: [], hoopObstacles: [] };
+    }
+  }
+
+  private checkBoxCollision(
+    position: THREE.Vector3,
+    radius: number,
+    box: { c: [number, number, number]; s: [number, number, number]; label: string }
+  ): { collided: boolean; normal: THREE.Vector3; penetration: number } | null {
+    const hX = box.s[0] / 2;
+    const hY = box.s[1] / 2;
+    const hZ = box.s[2] / 2;
+    const minX = box.c[0] - hX;
+    const maxX = box.c[0] + hX;
+    const minY = box.c[1] - hY;
+    const maxY = box.c[1] + hY;
+    const minZ = box.c[2] - hZ;
+    const maxZ = box.c[2] + hZ;
+
+    const closestX = Math.max(minX, Math.min(position.x, maxX));
+    const closestY = Math.max(minY, Math.min(position.y, maxY));
+    const closestZ = Math.max(minZ, Math.min(position.z, maxZ));
+
+    const dx = position.x - closestX;
+    const dy = position.y - closestY;
+    const dz = position.z - closestZ;
+
+    const distSq = dx * dx + dy * dy + dz * dz;
+    const dist = Math.sqrt(distSq);
+
+    const isCenterInside =
+      position.x > minX && position.x < maxX &&
+      position.y > minY && position.y < maxY &&
+      position.z > minZ && position.z < maxZ;
+
+    if (isCenterInside) {
+      const dl = position.x - minX;
+      const dr = maxX - position.x;
+      const db = position.y - minY;
+      const dt = maxY - position.y;
+      const dk = position.z - minZ;
+      const df = maxZ - position.z;
+
+      const minDist = Math.min(dl, dr, db, dt, dk, df);
+      const normal = new THREE.Vector3();
+
+      if (minDist === dl) normal.set(-1, 0, 0);
+      else if (minDist === dr) normal.set(1, 0, 0);
+      else if (minDist === db) normal.set(0, -1, 0);
+      else if (minDist === dt) normal.set(0, 1, 0);
+      else if (minDist === dk) normal.set(0, 0, -1);
+      else normal.set(0, 0, 1);
+
+      return {
+        collided: true,
+        normal,
+        penetration: radius + minDist
+      };
+    } else if (dist < radius) {
+      const normal = new THREE.Vector3();
+      if (dist > 0.0001) {
+        normal.set(dx / dist, dy / dist, dz / dist);
+      } else {
+        normal.set(0, 1, 0);
+      }
+      return {
+        collided: true,
+        normal,
+        penetration: radius - dist
+      };
+    }
+
+    return null;
+  }
+
+  private checkHoopCollision(
+    position: THREE.Vector3,
+    radius: number,
+    hoop: { id: string; c: [number, number, number]; r: number; t: number }
+  ): { collided: boolean; normal: THREE.Vector3; penetration: number } | null {
+    const cx = hoop.c[0];
+    const cy = hoop.c[1];
+    const cz = hoop.c[2];
+    const majorR = hoop.r;
+    const minorR = hoop.t;
+
+    const px = position.x;
+    const py = position.y;
+    const pz = position.z;
+
+    const vx = px - cx;
+    const vy = py - cy;
+    const lenV = Math.sqrt(vx * vx + vy * vy);
+
+    let qx = cx;
+    let qy = cy;
+    let qz = cz;
+
+    if (lenV > 0.0001) {
+      qx = cx + majorR * (vx / lenV);
+      qy = cy + majorR * (vy / lenV);
+    } else {
+      qx = cx + majorR;
+    }
+
+    const dx = px - qx;
+    const dy = py - qy;
+    const dz = pz - qz;
+    const distTorus = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    const collisionDist = minorR + radius;
+
+    if (distTorus < collisionDist) {
+      const normal = new THREE.Vector3();
+      if (distTorus > 0.0001) {
+        normal.set(dx / distTorus, dy / distTorus, dz / distTorus);
+      } else {
+        normal.set(0, 0, 1);
+      }
+      return {
+        collided: true,
+        normal,
+        penetration: collisionDist - distTorus
+      };
+    }
+
+    return null;
+  }
+
+  private intersectRayAABB(
+    origin: THREE.Vector3,
+    dir: THREE.Vector3,
+    box: { c: [number, number, number]; s: [number, number, number]; r?: number }
+  ): number {
+    let localOrigin = origin.clone();
+    let localDir = dir.clone();
+    if (box.r !== undefined && box.r !== 0) {
+      const center = new THREE.Vector3(box.c[0], box.c[1], box.c[2]);
+      localOrigin.sub(center).applyAxisAngle(new THREE.Vector3(0, 1, 0), -box.r);
+      localDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), -box.r);
+    } else {
+      localOrigin.sub(new THREE.Vector3(box.c[0], box.c[1], box.c[2]));
     }
     
-    // 2. Ceiling boundary
-    if (state.position.y >= bounds.maxY) {
-      state.position.y = bounds.maxY;
-      if (state.velocity.y > 0) {
-        state.velocity.y = -state.velocity.y * 0.1; // small damp rebound
+    const hX = box.s[0] / 2;
+    const hY = box.s[1] / 2;
+    const hZ = box.s[2] / 2;
+    
+    let tmin = -Infinity;
+    let tmax = Infinity;
+    
+    // X axis
+    if (Math.abs(localDir.x) > 0.0001) {
+      let t1 = (-hX - localOrigin.x) / localDir.x;
+      let t2 = (hX - localOrigin.x) / localDir.x;
+      tmin = Math.max(tmin, Math.min(t1, t2));
+      tmax = Math.min(tmax, Math.max(t1, t2));
+    } else if (localOrigin.x < -hX || localOrigin.x > hX) {
+      return Infinity;
+    }
+    
+    // Y axis
+    if (Math.abs(localDir.y) > 0.0001) {
+      let t1 = (-hY - localOrigin.y) / localDir.y;
+      let t2 = (hY - localOrigin.y) / localDir.y;
+      tmin = Math.max(tmin, Math.min(t1, t2));
+      tmax = Math.min(tmax, Math.max(t1, t2));
+    } else if (localOrigin.y < -hY || localOrigin.y > hY) {
+      return Infinity;
+    }
+    
+    // Z axis
+    if (Math.abs(localDir.z) > 0.0001) {
+      let t1 = (-hZ - localOrigin.z) / localDir.z;
+      let t2 = (hZ - localOrigin.z) / localDir.z;
+      tmin = Math.max(tmin, Math.min(t1, t2));
+      tmax = Math.min(tmax, Math.max(t1, t2));
+    } else if (localOrigin.z < -hZ || localOrigin.z > hZ) {
+      return Infinity;
+    }
+    
+    if (tmax >= tmin && tmax >= 0) {
+      return tmin > 0 ? tmin : 0;
+    }
+    return Infinity;
+  }
+
+  private intersectRaySphere(
+    origin: THREE.Vector3,
+    dir: THREE.Vector3,
+    center: THREE.Vector3,
+    radius: number
+  ): number {
+    const oc = origin.clone().sub(center);
+    const a = dir.dot(dir);
+    const b = 2.0 * oc.dot(dir);
+    const c = oc.dot(oc) - radius * radius;
+    const discriminant = b * b - 4 * a * c;
+    if (discriminant < 0) {
+      return Infinity;
+    }
+    const t1 = (-b - Math.sqrt(discriminant)) / (2.0 * a);
+    const t2 = (-b + Math.sqrt(discriminant)) / (2.0 * a);
+    if (t2 >= 0) {
+      return t1 > 0 ? t1 : 0;
+    }
+    return Infinity;
+  }
+
+  public getRaycastDistance(state: RigidBodyState): number {
+    const origin = state.position;
+    
+    // Define forward and side directions (Forward, Left, Right)
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(state.quaternion);
+    const left = new THREE.Vector3(-1, 0, 0).applyQuaternion(state.quaternion);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(state.quaternion);
+    
+    const directions = [forward, left, right];
+    let minDistance = Infinity;
+    
+    const bounds = this.environmentBounds;
+    const { boxObstacles, hoopObstacles } = this.getObstacles();
+    
+    for (const dir of directions) {
+      // 1. Raycast against walls
+      if (dir.x < 0) {
+        const d = (origin.x - bounds.minX) / -dir.x;
+        minDistance = Math.min(minDistance, d);
+      } else if (dir.x > 0) {
+        const d = (bounds.maxX - origin.x) / dir.x;
+        minDistance = Math.min(minDistance, d);
+      }
+      
+      if (dir.z < 0) {
+        const d = (origin.z - bounds.minZ) / -dir.z;
+        minDistance = Math.min(minDistance, d);
+      } else if (dir.z > 0) {
+        const d = (bounds.maxZ - origin.z) / dir.z;
+        minDistance = Math.min(minDistance, d);
+      }
+      
+      if (dir.y < 0) {
+        const d = (origin.y - bounds.minY) / -dir.y;
+        minDistance = Math.min(minDistance, d);
+      } else if (dir.y > 0) {
+        const d = (bounds.maxY - origin.y) / dir.y;
+        minDistance = Math.min(minDistance, d);
+      }
+      
+      // 2. Raycast against box obstacles
+      for (const box of boxObstacles) {
+        const d = this.intersectRayAABB(origin, dir, box);
+        minDistance = Math.min(minDistance, d);
+      }
+      
+      // 3. Raycast against hoop obstacles
+      for (const hoop of hoopObstacles) {
+        const center = new THREE.Vector3(hoop.c[0], hoop.c[1], hoop.c[2]);
+        const d = this.intersectRaySphere(origin, dir, center, hoop.r + hoop.t);
+        minDistance = Math.min(minDistance, d);
       }
     }
     
-    // 3. Walls (X boundary)
-    if (state.position.x <= bounds.minX) {
-      state.position.x = bounds.minX;
-      if (state.velocity.x < 0) state.velocity.x = -state.velocity.x * this.groundRestitution;
-      state.angularVelocity.multiplyScalar(0.8);
-    } else if (state.position.x >= bounds.maxX) {
-      state.position.x = bounds.maxX;
-      if (state.velocity.x > 0) state.velocity.x = -state.velocity.x * this.groundRestitution;
-      state.angularVelocity.multiplyScalar(0.8);
-    }
-    
-    // 4. Walls (Z boundary)
-    if (state.position.z <= bounds.minZ) {
-      state.position.z = bounds.minZ;
-      if (state.velocity.z < 0) state.velocity.z = -state.velocity.z * this.groundRestitution;
-      state.angularVelocity.multiplyScalar(0.8);
-    } else if (state.position.z >= bounds.maxZ) {
-      state.position.z = bounds.maxZ;
-      if (state.velocity.z > 0) state.velocity.z = -state.velocity.z * this.groundRestitution;
-      state.angularVelocity.multiplyScalar(0.8);
-    }
+    // Subtract drone radius to get distance from drone outer edge
+    const edgeDistance = minDistance - 0.08;
+    return Math.max(0, edgeDistance);
   }
-  
+
   public reset(): void {
-    // Initial static values reset if needed
+    this.lastCollision = null;
+    this.lastInProximity = false;
   }
   
   // Dynamic bounds updates for different environment scales

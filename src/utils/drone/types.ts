@@ -40,7 +40,7 @@ export interface FlightControlStick {
 
 export interface TelemetryData {
   isArmed: boolean;
-  flightMode: 'stabilize' | 'althold' | 'failsafe';
+  flightMode: 'stabilize' | 'althold' | 'failsafe' | 'disarmed' | 'armed_idle';
   altitude: number;
   verticalSpeed: number;
   speed: number;
