@@ -85,6 +85,35 @@ export function IntroOverlay() {
 
   const spotlight = useSpotlight();
 
+  // Mouse tilt variables for showcase frame
+  const tiltX = useMotionValue(0);
+  const tiltY = useMotionValue(0);
+  const transX = useMotionValue(0);
+  const transY = useMotionValue(0);
+
+  const tiltXSpring = useSpring(tiltX, { stiffness: 120, damping: 20 });
+  const tiltYSpring = useSpring(tiltY, { stiffness: 120, damping: 20 });
+  const transXSpring = useSpring(transX, { stiffness: 120, damping: 20 });
+  const transYSpring = useSpring(transY, { stiffness: 120, damping: 20 });
+
+  const handleShowcaseMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
+    // Max rotation 12deg, Max translation 10px
+    tiltX.set(-(y / (rect.height / 2)) * 12);
+    tiltY.set((x / (rect.width / 2)) * 12);
+    transX.set((x / (rect.width / 2)) * 10);
+    transY.set((y / (rect.height / 2)) * 10);
+  };
+
+  const handleShowcaseMouseLeave = () => {
+    tiltX.set(0);
+    tiltY.set(0);
+    transX.set(0);
+    transY.set(0);
+  };
+
   const handleEnterFlightSim = () => { setFlightSimModalOpen(true); };
   const handleExploreAnatomy = () => { setMode('explore'); };
   const handleLearnToFly = () => {
@@ -392,7 +421,7 @@ export function IntroOverlay() {
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="w-full md:col-span-5 flex flex-col justify-center space-y-8 text-left py-4 md:py-0 order-1"
+            className="w-full md:col-span-5 flex flex-col justify-center space-y-5 md:space-y-8 text-left py-4 md:py-0 order-1"
           >
             {/* Eyebrow badge */}
             <motion.div variants={fadeUp}>
@@ -406,15 +435,49 @@ export function IntroOverlay() {
             </motion.div>
             
             {/* Title */}
-            <motion.div variants={fadeUp} className="space-y-5">
-              <h1 className="text-[2.35rem] sm:text-[2.75rem] lg:text-[3.15rem] font-bold tracking-[-0.03em] leading-[1.08] text-slate-900 dark:text-white">
+            <motion.div variants={fadeUp} className="space-y-3.5 md:space-y-5">
+              <h1 className="text-[2.2rem] sm:text-[2.65rem] lg:text-[3.15rem] font-bold tracking-[-0.03em] leading-[1.08] text-slate-900 dark:text-white">
                 Professional Drone Pilot<br />
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-600 dark:from-cyan-400 dark:via-blue-400 dark:to-teal-400 font-extrabold">Training Platform</span>
               </h1>
               
-              <p className="text-[14px] text-slate-500 dark:text-slate-400 leading-[1.75] font-[400] max-w-[440px] tracking-[-0.005em]">
+              <p className="text-[13px] md:text-[14px] text-slate-500 dark:text-slate-400 leading-[1.75] font-[400] max-w-[440px] tracking-[-0.005em]">
                 Welcome to the pilot academy for Drona Aviation's flagship PlutoX nano-drone. Dissect 3D avionics systems, perform hardware-in-the-loop diagnostics, and master flight controllers inside our high-fidelity physics simulator.
               </p>
+            </motion.div>
+
+            {/* Mobile-only Drone Showcase */}
+            <motion.div 
+              variants={fadeUp}
+              className="block md:hidden w-full flex justify-center py-2 my-1"
+            >
+              <div className="w-full max-w-[280px] sm:max-w-[320px] aspect-[4/3] relative flex items-center justify-center rounded-2xl border border-slate-200/40 dark:border-slate-800/20 bg-white/40 dark:bg-[#0a0c14]/40 backdrop-blur-md overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+                {/* Concentric engineering rings */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03]">
+                  <div className="w-[85%] h-[85%] border border-dashed border-blue-400 dark:border-cyan-500 rounded-full animate-[spin_180s_linear_infinite]" />
+                  <div className="absolute w-[55%] h-[55%] border border-slate-300 dark:border-slate-700 rounded-full" />
+                </div>
+                
+                {/* Inner blueprint grid */}
+                <div className="absolute inset-0 bg-blueprint-grid opacity-[0.08] dark:opacity-[0.04] pointer-events-none" />
+
+                {/* Laser scan line */}
+                <div className="absolute inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-blue-500/60 to-transparent dark:via-cyan-400/60 shadow-[0_0_8px_1px_rgba(59,130,246,0.3)] dark:shadow-[0_0_8px_1px_rgba(6,182,212,0.4)] animate-scan-laser pointer-events-none z-20" />
+
+                {/* Ground shadow */}
+                <div className="absolute bottom-[16%] left-1/2 w-[140px] h-[12px] pointer-events-none" style={{ transform: 'translateX(-50%) rotateX(75deg)' }}>
+                  <div className="w-full h-full bg-slate-900/5 dark:bg-black/20 rounded-full blur-md animate-shadow-pulse" />
+                </div>
+
+                {/* Floating Drone Image */}
+                <div className="absolute z-10 w-[65%] aspect-square flex items-center justify-center pointer-events-none animate-float-drone select-none">
+                  <img
+                    src="/plutox_new_home.png"
+                    alt="PlutoX Nano Drone"
+                    className="w-full h-auto object-contain select-none filter drop-shadow-[0_8px_20px_rgba(0,0,0,0.05)] dark:drop-shadow-[0_8px_20px_rgba(0,0,0,0.25)]"
+                  />
+                </div>
+              </div>
             </motion.div>
 
             {/* ── CTA CARDS ──────────────────────────────────────── */}
@@ -520,15 +583,27 @@ export function IntroOverlay() {
             variants={showcaseReveal}
             initial="hidden"
             animate="visible"
-            className="w-full md:col-span-7 flex items-center justify-center relative py-4 md:py-0 order-2 md:order-3"
+            className="hidden md:flex w-full md:col-span-7 items-center justify-center relative py-4 md:py-0 order-2 md:order-3"
           >
-            <div className="w-full max-w-[480px] lg:max-w-[520px] aspect-square relative flex items-center justify-center group">
+            <div 
+              onMouseMove={handleShowcaseMouseMove}
+              onMouseLeave={handleShowcaseMouseLeave}
+              className="w-full max-w-[480px] lg:max-w-[520px] aspect-square relative flex items-center justify-center group"
+              style={{ perspective: 1000 }}
+            >
               
               {/* ── ANIMATED GRADIENT BORDER (Linear-style) ───────── */}
               <div className="absolute inset-[-1.5px] rounded-[30px] animated-border opacity-60 group-hover:opacity-100 transition-opacity duration-700" />
               
               {/* Main showcase container */}
-              <div className="w-full h-full rounded-[28px] border-0 bg-white/60 dark:bg-[#0a0c14]/70 backdrop-blur-lg shadow-[0_0_0_1px_rgba(0,0,0,0.03),0_24px_80px_-16px_rgba(0,0,0,0.05)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_24px_80px_-16px_rgba(0,0,0,0.4)] group-hover:shadow-[0_0_0_1px_rgba(59,130,246,0.08),0_40px_100px_-20px_rgba(59,130,246,0.1)] dark:group-hover:shadow-[0_0_0_1px_rgba(6,182,212,0.1),0_40px_100px_-20px_rgba(6,182,212,0.15)] transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden relative flex items-center justify-center">
+              <motion.div 
+                style={{
+                  rotateX: tiltXSpring,
+                  rotateY: tiltYSpring,
+                  transformStyle: 'preserve-3d',
+                }}
+                className="w-full h-full rounded-[28px] border-0 bg-white/60 dark:bg-[#0a0c14]/70 backdrop-blur-lg shadow-[0_0_0_1px_rgba(0,0,0,0.03),0_24px_80px_-16px_rgba(0,0,0,0.05)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_24px_80px_-16px_rgba(0,0,0,0.4)] group-hover:shadow-[0_0_0_1px_rgba(59,130,246,0.08),0_40px_100px_-20px_rgba(59,130,246,0.1)] dark:group-hover:shadow-[0_0_0_1px_rgba(6,182,212,0.1),0_40px_100px_-20px_rgba(6,182,212,0.15)] transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden relative flex items-center justify-center"
+              >
                 
                 {/* Inner noise texture */}
                 <div className="absolute inset-0 noise-overlay pointer-events-none opacity-50" />
@@ -543,6 +618,9 @@ export function IntroOverlay() {
                   <div className="absolute w-[36%] h-[36%] border border-dashed border-slate-200 dark:border-slate-800 rounded-full animate-[spin_80s_linear_infinite_reverse]" />
                 </div>
 
+                {/* Cyberpunk Scanner Line */}
+                <div className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500/80 to-transparent dark:via-cyan-400/80 shadow-[0_0_12px_2px_rgba(59,130,246,0.5)] dark:shadow-[0_0_12px_2px_rgba(6,182,212,0.6)] animate-scan-laser pointer-events-none z-20" />
+
                 {/* Spotlight glow */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] h-[340px] bg-[radial-gradient(circle,rgba(59,130,246,0.04)_0%,transparent_70%)] dark:bg-[radial-gradient(circle,rgba(6,182,212,0.06)_0%,transparent_70%)] pointer-events-none rounded-full group-hover:w-[380px] group-hover:h-[380px] transition-all duration-1000" />
 
@@ -552,7 +630,15 @@ export function IntroOverlay() {
                 </div>
 
                 {/* Drone Hero Image */}
-                <div className="absolute z-10 w-[80%] max-w-[340px] lg:max-w-[380px] aspect-square flex items-center justify-center pointer-events-none animate-float-drone select-none">
+                <motion.div 
+                  style={{
+                    x: transXSpring,
+                    y: transYSpring,
+                    z: 50,
+                    transformStyle: 'preserve-3d',
+                  }}
+                  className="absolute z-10 w-[80%] max-w-[340px] lg:max-w-[380px] aspect-square flex items-center justify-center pointer-events-none animate-float-drone select-none"
+                >
                   <motion.img
                     src="/plutox_new_home.png"
                     alt="PlutoX Nano Drone"
@@ -561,8 +647,8 @@ export function IntroOverlay() {
                     transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.45 }}
                     className="w-full h-auto object-contain select-none filter drop-shadow-[0_12px_28px_rgba(0,0,0,0.06)] dark:drop-shadow-[0_12px_28px_rgba(0,0,0,0.25)]"
                   />
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
             </div>
           </motion.div>
         </div>

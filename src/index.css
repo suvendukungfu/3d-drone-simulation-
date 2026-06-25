@@ -58,15 +58,21 @@ html.dark, html.dark body, html.dark #root {
 
 @keyframes float-drone {
   0%, 100% {
-    transform: translateY(0px) rotate(0deg);
+    transform: translateY(0px) translateX(0px) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: translateY(-9px) translateX(3px) rotate(1.8deg) scale(1.008);
   }
   50% {
-    transform: translateY(-6px) rotate(0.5deg);
+    transform: translateY(-2px) translateX(-3px) rotate(-1.2deg) scale(0.992);
+  }
+  75% {
+    transform: translateY(-11px) translateX(2px) rotate(2deg) scale(1.015);
   }
 }
 
 .animate-float-drone {
-  animation: float-drone 6s ease-in-out infinite;
+  animation: float-drone 7.5s ease-in-out infinite;
 }
 
 @keyframes spin-blueprint {
