@@ -72,13 +72,13 @@ export function IntroOverlay() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.4 }}
-      className="absolute inset-0 z-20 pointer-events-auto flex flex-col justify-between p-6 overflow-y-auto md:overflow-hidden select-none font-sans text-slate-800 dark:text-slate-200 bg-blueprint-grid bg-[#F8FAFC] dark:bg-[#070a13]"
+      className="absolute inset-0 z-20 pointer-events-auto flex flex-col justify-between p-6 md:p-8 overflow-y-auto md:overflow-hidden select-none font-sans text-slate-800 dark:text-slate-200 bg-blueprint-grid bg-[#F8FAFC] dark:bg-[#070a13]"
     >
       {/* Subtle Radial Gradients */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(59,130,246,0.02),transparent_70%)] dark:bg-[radial-gradient(circle_at_50%_30%,rgba(6,182,212,0.04),transparent_70%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(59,130,246,0.03),transparent_65%)] dark:bg-[radial-gradient(circle_at_50%_45%,rgba(6,182,212,0.05),transparent_65%)] pointer-events-none" />
 
       {/* Dynamic Ambient Aerospace Layer (Ultra-subtle blueprint, trajectory, waypoints, radar) */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none opacity-[0.32] dark:opacity-[0.24]">
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none opacity-[0.22] dark:opacity-[0.14]">
         <style dangerouslySetInnerHTML={{ __html: `
           @keyframes slow-radar {
             from { transform: rotate(0deg); }
@@ -368,131 +368,144 @@ export function IntroOverlay() {
       </div>
 
       {/* 1. REFINED NAVBAR */}
-      <header className="w-full h-14 flex justify-between items-center relative z-30 max-w-7xl mx-auto pointer-events-auto border-b border-slate-200/30 dark:border-slate-800/35 px-4 md:px-6">
+      <header className="w-full h-16 flex justify-between items-center relative z-30 max-w-7xl mx-auto pointer-events-auto px-6 md:px-8">
         <div className="flex items-center">
           <img 
             src="/drona_logo.png" 
             alt="Drona Aviation Logo" 
-            className="h-9 w-auto object-contain dark:invert select-none" 
+            className="h-8.5 w-auto object-contain dark:invert select-none opacity-90 hover:opacity-100 transition-opacity duration-200" 
           />
         </div>
-
       </header>
 
       {/* 2. SPLIT-SCREEN GRID LAYOUT */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-10 gap-y-6 md:gap-y-5 md:gap-x-8 lg:gap-x-12 items-center my-6 md:my-8 w-full max-w-7xl mx-auto px-4 md:px-6 relative z-10 overflow-visible pointer-events-auto">
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-y-10 md:gap-y-0 md:gap-x-12 lg:gap-x-16 items-center my-6 md:my-0 w-full max-w-7xl mx-auto px-6 md:px-8 relative z-10 overflow-visible pointer-events-auto">
         
-        {/* A1. TITLE & DESCRIPTION */}
-        <div className="w-full md:col-start-1 md:col-end-5 md:row-start-1 flex flex-col justify-center space-y-3 text-left py-2 md:py-0 order-1">
-          <div className="text-[10px] font-mono font-bold tracking-widest text-blue-600 dark:text-cyan-400 uppercase">
-            Aerospace Training Platform
+        {/* Left Column (col-span-5) */}
+        <div className="w-full md:col-span-5 flex flex-col justify-center space-y-8 text-left py-2 md:py-0 order-1">
+          {/* A1. TITLE & DESCRIPTION */}
+          <div className="flex flex-col space-y-4">
+            <div className="text-[11px] font-mono font-semibold tracking-[0.22em] text-blue-655 dark:text-cyan-405 uppercase select-none">
+              Aerospace Training Platform
+            </div>
+            
+            <h1 className="text-4xl sm:text-[2.5rem] lg:text-[2.85rem] font-bold tracking-tight leading-[1.12] text-slate-900 dark:text-white font-sans">
+              Professional Drone Pilot<br />
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-cyan-400 dark:to-blue-500 font-extrabold">Training Platform</span>
+            </h1>
+            
+            <p className="text-[13px] md:text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-normal max-w-lg">
+              Welcome to the pilot academy for Drona Aviation's flagship PlutoX nano-drone. Dissect 3D avionics systems, perform hardware-in-the-loop diagnostics, and master flight controllers inside our high-fidelity physics simulator.
+            </p>
           </div>
-          
-          <h1 className="text-3xl sm:text-4xl lg:text-[2.6rem] font-bold tracking-tight leading-[1.15] text-slate-900 dark:text-white font-sans">
-            Professional Drone Pilot<br />
-            <span className="text-blue-600 dark:text-cyan-400 font-extrabold">Training Platform</span>
-          </h1>
-          
-          <p className="text-xs sm:text-[12.5px] text-slate-500 dark:text-slate-400 leading-relaxed font-normal max-w-md">
-            Welcome to the pilot academy for Drona Aviation's flagship PlutoX nano-drone. Dissect 3D avionics systems, perform hardware-in-the-loop diagnostics, and master flight controllers inside our high-fidelity physics simulator.
-          </p>
+
+          {/* A2. THREE OPTION CARDS */}
+          <div className="flex flex-col gap-3.5">
+            {/* Card 1: Enter Flight Sim */}
+            <button
+              onClick={handleEnterFlightSim}
+              className="w-full flex items-center justify-between p-4.5 rounded-2xl border border-slate-200/50 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/20 backdrop-blur-md hover:bg-white dark:hover:bg-slate-900/40 hover:border-slate-350 dark:hover:border-slate-700/80 hover:shadow-[0_8px_30px_rgb(0,0,0,0.02)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 transition-all duration-200 ease-out group active:scale-[0.985] text-left"
+            >
+              <div className="flex items-center gap-4 w-full">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800/80 flex items-center justify-center text-slate-450 dark:text-slate-400 group-hover:text-blue-605 dark:group-hover:text-cyan-400 group-hover:bg-blue-50/50 dark:group-hover:bg-cyan-950/20 group-hover:border-blue-100/70 dark:group-hover:border-cyan-900/40 transition-all duration-200 ease-out shrink-0">
+                  <Gamepad2 className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[13px] font-semibold text-slate-900 dark:text-white leading-none">Enter Flight Sim</span>
+                    <span className="text-[9px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/15 uppercase tracking-wider leading-none">
+                      {appLinkStatus === 'connected' ? 'Link Active' : 'Ready'}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 block truncate font-normal leading-normal">
+                    AR passthrough overlay or closed virtual sim
+                  </span>
+                </div>
+              </div>
+              <ArrowRight className="w-4.5 h-4.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 ease-out shrink-0" />
+            </button>
+
+            {/* Card 2: Explore Anatomy */}
+            <button
+              onClick={handleExploreAnatomy}
+              className="w-full flex items-center justify-between p-4.5 rounded-2xl border border-slate-200/50 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/20 backdrop-blur-md hover:bg-white dark:hover:bg-slate-900/40 hover:border-slate-350 dark:hover:border-slate-700/80 hover:shadow-[0_8px_30px_rgb(0,0,0,0.02)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 transition-all duration-200 ease-out group active:scale-[0.985] text-left"
+            >
+              <div className="flex items-center gap-4 w-full">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800/80 flex items-center justify-center text-slate-450 dark:text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 group-hover:bg-purple-50/50 dark:group-hover:bg-purple-950/20 group-hover:border-purple-100/70 dark:group-hover:border-purple-900/40 transition-all duration-200 ease-out shrink-0">
+                  <Cpu className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[13px] font-semibold text-slate-900 dark:text-white leading-none">Explore Anatomy</span>
+                    <span className="text-[9px] font-mono font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/15 uppercase tracking-wider leading-none">
+                      {clickedCount > 0 ? `${clickedCount}/11 Explored` : '11 Avionics Nodes'}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 block truncate font-normal leading-normal">
+                    Dissect 3D parts & read aerospace descriptions
+                  </span>
+                </div>
+              </div>
+              <ArrowRight className="w-4.5 h-4.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 ease-out shrink-0" />
+            </button>
+
+            {/* Card 3: Learn to Fly Pluto */}
+            <button
+              onClick={handleLearnToFly}
+              className="w-full flex items-center justify-between p-4.5 rounded-2xl border border-slate-200/50 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/20 backdrop-blur-md hover:bg-white dark:hover:bg-slate-900/40 hover:border-slate-350 dark:hover:border-slate-700/80 hover:shadow-[0_8px_30px_rgb(0,0,0,0.02)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 transition-all duration-200 ease-out group active:scale-[0.985] text-left"
+            >
+              <div className="flex items-center gap-4 w-full">
+                <div className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800/80 flex items-center justify-center text-slate-450 dark:text-slate-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 group-hover:bg-amber-50/50 dark:group-hover:bg-amber-955/20 group-hover:border-amber-100/70 dark:group-hover:border-amber-900/40 transition-all duration-200 ease-out shrink-0">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[13px] font-semibold text-slate-900 dark:text-white leading-none">Learn to Fly Pluto</span>
+                    <span className="text-[9px] font-mono font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/15 uppercase tracking-wider leading-none">
+                      Level {unlockedCount}/5 Unlocked
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 block truncate font-normal leading-normal">
+                    Clear pilot certification academy levels
+                  </span>
+                </div>
+              </div>
+              <ArrowRight className="w-4.5 h-4.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 ease-out shrink-0" />
+            </button>
+          </div>
         </div>
 
-        {/* A2. THREE OPTION CARDS */}
-        <div className="w-full md:col-start-1 md:col-end-5 md:row-start-2 flex flex-col gap-2.5 order-3 md:order-2 py-2 md:py-0">
-          {/* Card 1: Enter Flight Sim */}
-          <button
-            onClick={handleEnterFlightSim}
-            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
-          >
-            <div className="flex items-center gap-3 w-full">
-              <Gamepad2 className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors shrink-0" />
-              <div className="flex-1 min-w-0 pr-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-900 dark:text-white">Enter Flight Sim</span>
-                  <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/15 uppercase tracking-wider scale-90 origin-left">
-                    {appLinkStatus === 'connected' ? 'Link Active' : 'Ready'}
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
-                  AR passthrough overlay or closed virtual sim
-                </span>
-              </div>
-            </div>
-            
-            <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
-          </button>
-
-          {/* Card 2: Explore Anatomy */}
-          <button
-            onClick={handleExploreAnatomy}
-            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
-          >
-            <div className="flex items-center gap-3 w-full">
-              <Cpu className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-purple-650 dark:group-hover:text-purple-400 transition-colors shrink-0" />
-              <div className="flex-1 min-w-0 pr-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-900 dark:text-white">Explore Anatomy</span>
-                  <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/15 uppercase tracking-wider scale-90 origin-left">
-                    {clickedCount > 0 ? `${clickedCount}/11 Explored` : '11 Avionics Nodes'}
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
-                  Dissect 3D parts & read aerospace descriptions
-                </span>
-              </div>
-            </div>
-            
-            <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
-          </button>
-
-          {/* Card 3: Learn to Fly Pluto */}
-          <button
-            onClick={handleLearnToFly}
-            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200/40 dark:border-slate-800/45 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 hover:border-slate-300/60 dark:hover:border-slate-700/60 transition-all duration-200 group active:scale-[0.99] text-left"
-          >
-            <div className="flex items-center gap-3 w-full">
-              <GraduationCap className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 group-hover:text-emerald-650 dark:group-hover:text-emerald-450 transition-colors shrink-0" />
-              <div className="flex-1 min-w-0 pr-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-900 dark:text-white">Learn to Fly Pluto</span>
-                  <span className="text-[8px] font-mono font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/15 uppercase tracking-wider scale-90 origin-left">
-                    Level {unlockedCount}/5 Unlocked
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-550 dark:text-slate-400 mt-0.5 block truncate font-light">
-                  Clear pilot certification academy levels
-                </span>
-              </div>
-            </div>
-            
-            <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all duration-200 shrink-0" />
-          </button>
-        </div>
-
+        {/* Right Column (col-span-7) */}
         {/* B. RIGHT COLUMN: Centered static drone showcase frame */}
-        <div className="w-full md:col-start-5 md:col-end-11 md:row-start-1 md:row-span-2 flex items-center justify-center relative py-4 md:py-0 order-2 md:order-3">
-          <div className="w-full max-w-[450px] aspect-square relative flex items-center justify-center overflow-hidden rounded-3xl border border-slate-200/35 dark:border-slate-800/45 bg-slate-50/10 dark:bg-slate-950/15 backdrop-blur-[2px]">
-            {/* Subtle Blueprint Grid Pattern */}
-            <div className="absolute inset-0 bg-blueprint-grid opacity-60 dark:opacity-40 pointer-events-none" />
+        <div className="w-full md:col-span-7 flex items-center justify-center relative py-4 md:py-0 order-2 md:order-3">
+          <div className="w-full max-w-[480px] aspect-square relative flex items-center justify-center overflow-hidden rounded-[2rem] border border-slate-200/50 dark:border-slate-800/60 bg-white/60 dark:bg-slate-950/20 backdrop-blur-md shadow-[0_32px_96px_-24px_rgba(0,0,0,0.04)] dark:shadow-[0_32px_96px_-24px_rgba(0,0,0,0.4)] hover:shadow-[0_45px_110px_-20px_rgba(59,130,246,0.07)] dark:hover:shadow-[0_45px_110px_-20px_rgba(6,182,212,0.12)] hover:-translate-y-1 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group">
+            {/* Subtle Aerospace Blueprint Matrix Grid */}
+            <div className="absolute inset-0 bg-blueprint-grid opacity-20 dark:opacity-15 pointer-events-none" />
+
+            {/* Thin Blueprint Engineering Concentric Rings */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.12]">
+              <div className="w-[85%] h-[85%] border border-dashed border-blue-500 rounded-full animate-[spin_120s_linear_infinite]" />
+              <div className="absolute w-[60%] h-[60%] border border-slate-300 dark:border-slate-700 rounded-full" />
+              <div className="absolute w-[35%] h-[35%] border border-dashed border-slate-200 dark:border-slate-800 rounded-full" />
+            </div>
 
             {/* Spotlight Glow Effect projection */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[280px] h-[380px] bg-gradient-to-b from-blue-500/[0.03] dark:from-cyan-500/[0.04] to-transparent blur-2xl pointer-events-none rounded-full" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] h-[340px] bg-gradient-to-b from-blue-500/[0.04] dark:from-cyan-500/[0.06] to-transparent blur-3xl pointer-events-none rounded-full" />
 
             {/* Soft Shadow Underneath */}
-            <div className="absolute bottom-[23%] left-1/2 w-[240px] h-[24px] pointer-events-none" style={{ transform: 'translateX(-50%) rotateX(75deg)' }}>
-              <div className="w-full h-full bg-slate-950/10 dark:bg-black/35 rounded-full blur-md animate-shadow-pulse" />
+            <div className="absolute bottom-[18%] left-1/2 w-[240px] h-[24px] pointer-events-none" style={{ transform: 'translateX(-50%) rotateX(75deg)' }}>
+              <div className="w-full h-full bg-slate-950/5 dark:bg-black/25 rounded-full blur-lg animate-shadow-pulse" />
             </div>
 
             {/* Static Centered Drone Hero Image */}
-            <div className="absolute z-10 w-[85%] max-w-[380px] lg:max-w-[430px] aspect-square flex items-center justify-center pointer-events-none animate-float-drone">
+            <div className="absolute z-10 w-[84%] max-w-[360px] lg:max-w-[400px] aspect-square flex items-center justify-center pointer-events-none animate-float-drone select-none">
               <motion.img
                 src="/plutox_new_home.png"
                 alt="PlutoX Nano Drone"
                 initial={{ opacity: 0, scale: 0.95, y: 15 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
-                className="w-full h-auto object-contain select-none"
+                className="w-full h-auto object-contain select-none filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.04)]"
               />
             </div>
           </div>
@@ -502,36 +515,36 @@ export function IntroOverlay() {
 
       <AnimatePresence>
         {isFlightSimModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-12 md:pt-4 bg-slate-900/30 backdrop-blur-[3px] pointer-events-auto overflow-y-auto">
+          <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-12 md:pt-4 bg-slate-900/10 backdrop-blur-md pointer-events-auto overflow-y-auto">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              initial={{ opacity: 0, scale: 0.96, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 150 }}
-              className="relative max-w-2xl w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-[0_20px_50px_rgba(0,0,0,0.08)] overflow-hidden flex flex-col space-y-6 shrink-0 mb-8 md:mb-0"
+              exit={{ opacity: 0, scale: 0.96, y: 15 }}
+              transition={{ type: 'spring', damping: 26, stiffness: 160 }}
+              className="relative max-w-2xl w-full bg-white/95 dark:bg-slate-955/95 border border-slate-200/60 dark:border-slate-800/80 rounded-[2rem] p-8 shadow-[0_32px_96px_-24px_rgba(0,0,0,0.08)] overflow-hidden flex flex-col space-y-6 shrink-0 mb-8 md:mb-0"
             >
               <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.001)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.001)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.001)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.001)_1px,transparent_1px)] bg-[size:20px_20px] opacity-20 pointer-events-none" />
               
               <button
                 onClick={() => setFlightSimModalOpen(false)}
-                className="absolute top-6 right-6 p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white text-slate-500 transition-all duration-300 z-10"
+                className="absolute top-6 right-6 p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white text-slate-500 transition-all duration-200 z-10"
               >
                 <X className="w-4 h-4" />
               </button>
 
               <div className="space-y-3 pr-8 relative">
                 <div className="flex items-center gap-4 text-[9px] font-mono tracking-wide">
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 text-blue-605 dark:text-blue-400 font-semibold">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 font-semibold">
                     <Database className="w-2.5 h-2.5 text-blue-500" /> Simulation Core Online
                   </span>
                   <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Flight Systems Ready
                   </span>
                 </div>
-                <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white font-sans">
+                <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white font-sans">
                   Mission mode selection
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-normal leading-relaxed font-sans">
+                <p className="text-[13px] text-slate-500 dark:text-slate-405 font-normal leading-relaxed font-sans">
                   Configure simulation arena parameters. Authorize localized AR hardware pass-through telemetry or initialize the closed virtual 6-DOF physics sandbox environment.
                 </p>
               </div>
@@ -539,16 +552,16 @@ export function IntroOverlay() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
                   onClick={startARMode}
-                  className="flex flex-col text-left p-6 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-550 hover:shadow-[0_10px_20px_rgba(59,130,246,0.04)] transition-all duration-300 group relative overflow-hidden active:scale-[0.98] flex-1 justify-between h-full"
+                  className="flex flex-col text-left p-6 rounded-2xl bg-white/80 dark:bg-slate-950/30 border border-slate-200/60 dark:border-slate-800/80 hover:border-slate-350 dark:hover:border-slate-700/80 hover:bg-white dark:hover:bg-slate-900/40 hover:shadow-[0_12px_36px_-5px_rgba(59,130,246,0.04)] hover:-translate-y-0.5 transition-all duration-205 ease-out group relative overflow-hidden active:scale-[0.98] flex-1 justify-between h-full"
                 >
                   <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.01),transparent)] translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                   
                   <div>
                     <div className="flex justify-between items-start w-full mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white transition-all duration-200">
                         <Camera className="w-5 h-5" />
                       </div>
-                      <span className="text-[9px] font-sans font-semibold tracking-normal px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-950/30 text-blue-605 dark:text-blue-400">
+                      <span className="text-[9px] font-sans font-semibold tracking-normal px-2 py-0.5 rounded border border-blue-100 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400">
                         Experimental
                       </span>
                     </div>
@@ -557,18 +570,18 @@ export function IntroOverlay() {
                       AR Passthrough
                     </h4>
                     
-                    <p className="text-[11px] text-slate-550 dark:text-slate-400 font-normal leading-relaxed mt-2 font-sans">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal leading-relaxed mt-2 font-sans">
                       Stream your live room camera feed and steer the 3D model using floating virtual joystick knobs.
                     </p>
 
                     <div className="space-y-2.5 mt-4 pt-4 border-t border-slate-100 dark:border-slate-900">
                       <div>
                         <span className="text-slate-400 dark:text-slate-500 font-sans font-medium text-[9px] uppercase tracking-normal">Use Case</span>
-                        <p className="text-[11px] text-slate-650 dark:text-slate-350 mt-0.5 font-sans font-normal leading-relaxed">View Pluto drone inside your physical room using camera passthrough.</p>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 font-sans font-normal leading-relaxed">View Pluto drone inside your physical room using camera passthrough.</p>
                       </div>
                       <div className="flex justify-between items-center text-[10px]">
                         <span>
-                          <span className="text-slate-400 dark:text-slate-500 font-sans font-medium text-[9px] uppercase tracking-normal">Hardware: </span>
+                           <span className="text-slate-400 dark:text-slate-500 font-sans font-medium text-[9px] uppercase tracking-normal">Hardware: </span>
                           <strong className="text-slate-700 dark:text-slate-350 font-mono font-semibold">{isMobileDevice ? 'Device Camera' : 'Webcam'}</strong>
                         </span>
                         <span>
@@ -586,17 +599,17 @@ export function IntroOverlay() {
 
                 <button
                   onClick={startClosedSim}
-                  className="flex flex-col text-left p-6 rounded-2xl bg-blue-55/25 dark:bg-blue-95/20 border-2 border-blue-500/25 dark:border-blue-500/20 hover:border-blue-500/60 dark:hover:border-blue-550 transition-all duration-300 group relative overflow-hidden active:scale-[0.98] flex-1 justify-between h-full"
+                  className="flex flex-col text-left p-6 rounded-2xl bg-blue-50/15 dark:bg-blue-950/10 border border-blue-500/30 dark:border-blue-500/20 hover:border-blue-500/60 dark:hover:border-blue-400 hover:shadow-[0_12px_36px_-5px_rgba(59,130,246,0.06)] hover:-translate-y-0.5 transition-all duration-205 ease-out group relative overflow-hidden active:scale-[0.98] flex-1 justify-between h-full"
                 >
                   <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl pointer-events-none" />
                   <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.02),transparent)] translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                   
                   <div>
                     <div className="flex justify-between items-start w-full mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white transition-all duration-200">
                         <Box className="w-5 h-5" />
                       </div>
-                      <span className="text-[9px] font-sans font-semibold tracking-normal px-2 py-0.5 rounded border border-emerald-500/20 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-605 dark:text-emerald-400">
+                      <span className="text-[9px] font-sans font-semibold tracking-normal px-2 py-0.5 rounded border border-emerald-500/20 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400">
                         Recommended
                       </span>
                     </div>
@@ -605,22 +618,22 @@ export function IntroOverlay() {
                       Closed Simulator
                     </h4>
                     
-                    <p className="text-[11px] text-slate-550 dark:text-slate-400 font-normal leading-relaxed mt-2 font-sans">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal leading-relaxed mt-2 font-sans">
                       Load detailed virtual environments (Warehouse, Lab, Hoop Arena) with full 6-DOF physics and {isMobileDevice ? 'virtual joystick flight loops.' : 'keyboard flight loops.'}
                     </p>
 
                     <div className="space-y-2.5 mt-4 pt-4 border-t border-slate-100 dark:border-slate-900">
                       <div>
-                        <span className="text-slate-400 dark:text-slate-555 font-sans font-medium text-[9px] uppercase tracking-normal">Use Case</span>
-                        <p className="text-[11px] text-slate-650 dark:text-slate-350 mt-0.5 font-sans font-normal leading-relaxed">Professional pilot training using virtual environments.</p>
+                        <span className="text-slate-400 dark:text-slate-500 font-sans font-medium text-[9px] uppercase tracking-normal">Use Case</span>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 font-sans font-normal leading-relaxed">Professional pilot training using virtual environments.</p>
                       </div>
                       <div className="flex justify-between items-center text-[10px]">
                         <span>
-                          <span className="text-slate-400 dark:text-slate-555 font-sans font-medium text-[9px] uppercase tracking-normal">Hardware: </span>
+                          <span className="text-slate-400 dark:text-slate-500 font-sans font-medium text-[9px] uppercase tracking-normal">Hardware: </span>
                           <strong className="text-slate-700 dark:text-slate-350 font-mono font-semibold">{isMobileDevice ? 'Virtual Joysticks' : 'Keyboard'}</strong>
                         </span>
                         <span>
-                          <span className="text-slate-400 dark:text-slate-555 font-sans font-medium text-[9px] uppercase tracking-normal">Diff: </span>
+                          <span className="text-slate-400 dark:text-slate-500 font-sans font-medium text-[9px] uppercase tracking-normal">Diff: </span>
                           <strong className="text-slate-700 dark:text-slate-350 font-mono font-semibold">Beginner-Friendly</strong>
                         </span>
                       </div>
@@ -633,11 +646,11 @@ export function IntroOverlay() {
                 </button>
               </div>
 
-              <div className="flex gap-3 items-start p-4 bg-amber-50 dark:bg-amber-955/25 border border-amber-200 dark:border-amber-900/40 rounded-2xl text-slate-800 dark:text-slate-200 leading-relaxed relative overflow-hidden">
-                <ClipboardList className="w-5 h-5 text-amber-600 dark:text-amber-505 shrink-0 mt-0.5" />
+              <div className="flex gap-3 items-start p-4 bg-amber-50/25 dark:bg-amber-955/15 border border-amber-200/40 dark:border-amber-900/35 rounded-2xl text-slate-800 dark:text-slate-200 leading-relaxed relative overflow-hidden">
+                <ClipboardList className="w-5 h-5 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <span className="font-sans text-xs font-semibold tracking-normal text-amber-850 dark:text-amber-400 block">Mission Briefing & Diagnostics</span>
-                  <p className="font-sans text-[11px] font-normal text-amber-800/95 dark:text-amber-300/90 leading-relaxed">
+                  <p className="font-sans text-[11px] font-normal text-slate-500 dark:text-slate-400 leading-relaxed">
                     Camera permissions are strictly required for AR mode passthrough telemetry. Closed Simulator sandbox courses are recommended for training and level certification.
                   </p>
                 </div>
