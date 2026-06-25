@@ -451,7 +451,7 @@ export function IntroOverlay() {
             {/* Mobile-only Drone Showcase */}
             <motion.div 
               variants={fadeUp}
-              className="block md:hidden w-full flex justify-center py-2 my-1"
+              className="flex md:hidden w-full justify-center py-2 my-1"
             >
               <div className="w-full max-w-[280px] sm:max-w-[320px] aspect-[4/3] relative flex items-center justify-center rounded-2xl border border-slate-200/40 dark:border-slate-800/20 bg-white/40 dark:bg-[#0a0c14]/40 backdrop-blur-md overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
                 {/* Concentric engineering rings */}
