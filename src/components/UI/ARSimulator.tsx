@@ -1506,7 +1506,7 @@ export function ARSimulator() {
       <div className={`fixed inset-0 z-40 flex items-center justify-center p-4 overflow-y-auto uppercase ${isDark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-800'}`}>
         <div className={`absolute inset-0 pointer-events-none bg-[size:32px_32px] ${isDark ? 'bg-[linear-gradient(rgba(0,240,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.02)_1px,transparent_1px)]' : 'bg-[linear-gradient(rgba(148,163,184,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.04)_1px,transparent_1px)]'}`} />
         
-        <div className={`w-[440px] relative z-10 p-6 rounded-3xl border backdrop-blur-xl shadow-2xl space-y-6 font-mono text-[9px] ${
+        <div className={`w-full max-w-[440px] relative z-10 p-6 rounded-3xl border backdrop-blur-xl shadow-2xl space-y-6 font-mono text-[9px] ${
           isDark 
             ? 'bg-slate-900/80 border-cyan-500/20 shadow-cyan-950/20' 
             : 'bg-white/90 border-slate-200 shadow-slate-300/30'
@@ -2111,7 +2111,7 @@ export function ARSimulator() {
       <AnimatePresence>
         {cvOverlayOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm pointer-events-auto">
-            <div className="w-[340px] bg-white/95 dark:bg-slate-950/90 border border-slate-250 dark:border-cyan-500/30 rounded-2xl p-6 shadow-2xl dark:shadow-[0_0_30px_rgba(6,182,212,0.2)] relative font-mono text-[9px] text-slate-700 dark:text-slate-300 uppercase space-y-4">
+            <div className="w-full max-w-[340px] bg-white/95 dark:bg-slate-950/90 border border-slate-250 dark:border-cyan-500/30 rounded-2xl p-6 shadow-2xl dark:shadow-[0_0_30px_rgba(6,182,212,0.2)] relative font-mono text-[9px] text-slate-700 dark:text-slate-300 uppercase space-y-4">
               <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-2">
                 <span className={`font-bold tracking-widest flex items-center gap-1.5 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
                   <Activity className="w-3.5 h-3.5" /> AI Gesture Control (OpenCV)

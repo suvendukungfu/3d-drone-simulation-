@@ -52,6 +52,10 @@ html.dark, html.dark body, html.dark #root {
   }
 }
 
+body.mobile-menu-open .virtual-joysticks {
+  display: none !important;
+}
+
 /* =============================================================
    Aerospace Redesign Custom CSS Utilities
    ============================================================= */

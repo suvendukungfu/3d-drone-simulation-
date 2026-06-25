@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDroneStore } from '../../store/useDroneStore';
 import {
@@ -237,6 +237,17 @@ export function ClosedSimMobileMenu({
   onFlip
 }: ClosedSimMobileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('mobile-menu-open');
+    } else {
+      document.body.classList.remove('mobile-menu-open');
+    }
+    return () => {
+      document.body.classList.remove('mobile-menu-open');
+    };
+  }, [isOpen]);
 
   const telemetry = useDroneStore((s) => s.telemetry);
   const flightEnvironment = useDroneStore((s) => s.flightEnvironment);

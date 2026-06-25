@@ -860,15 +860,30 @@ function App() {
       </div>      {/* 4. RIGHT SIDEBAR: Avionics Info Inspector (Only in Avionics Lab mode) */}
       <AnimatePresence>
         {currentMode !== 'flight' && selectedData && !immersiveMode && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 380, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 120 }}
-            style={{ overflow: 'hidden' }}
-            className="h-full pt-16 bg-white/95 backdrop-blur-md border-l border-slate-200 z-10 flex flex-col justify-between shrink-0 shadow-[-10px_0_30px_rgba(0,0,0,0.02)]"
-          >
-            <div className="w-[380px] p-6 h-full flex flex-col justify-between overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
+          <>
+            {isMobile && (
+              <motion.div
+                key="inspector-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => selectComponent(null)}
+                className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] pointer-events-auto"
+              />
+            )}
+            <motion.div
+              key="inspector-sidebar"
+              initial={isMobile ? { x: '100%', opacity: 1 } : { width: 0, opacity: 0 }}
+              animate={isMobile ? { x: 0, opacity: 1 } : { width: 380, opacity: 1 }}
+              exit={isMobile ? { x: '100%', opacity: 1 } : { width: 0, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 120 }}
+              style={isMobile ? undefined : { overflow: 'hidden' }}
+              className={isMobile 
+                ? "fixed right-0 top-0 h-full w-full max-w-[380px] bg-white/95 dark:bg-slate-950/95 pt-16 border-l border-slate-200 dark:border-slate-800 z-50 flex flex-col justify-between shadow-2xl pointer-events-auto" 
+                : "h-full pt-16 bg-white/95 dark:bg-slate-950/90 backdrop-blur-md border-l border-slate-200 dark:border-slate-800 z-10 flex flex-col justify-between shrink-0 shadow-[-10px_0_30px_rgba(0,0,0,0.02)]"
+              }
+            >
+              <div className="w-full sm:w-[380px] p-6 h-full flex flex-col justify-between overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
               <div className="flex-1 overflow-y-auto pr-1 space-y-6 scrollbar-thin scrollbar-thumb-slate-200">
                 
                 {/* Header */}
@@ -1030,6 +1045,7 @@ function App() {
               </div>
             </div>
           </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -1081,7 +1097,7 @@ function App() {
             initial={{ y: -64, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -64, opacity: 0 }}
-            className={`absolute top-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between pointer-events-auto z-20 shadow-sm ${
+            className={`absolute top-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 flex items-center justify-between pointer-events-auto z-20 shadow-sm ${
               currentMode === 'flight' ? 'hidden md:flex' : ''
             }`}
           >
@@ -1104,7 +1120,7 @@ function App() {
                 <img 
                   src="/drona_logo.png" 
                   alt="Drona Aviation" 
-                  className="h-9 w-auto object-contain dark:invert select-none" 
+                  className="h-7 sm:h-9 w-auto object-contain dark:invert select-none" 
                 />
                 <span className="hidden sm:inline-block text-slate-300 dark:text-slate-700 font-light">//</span>
                 <span className="hidden sm:inline-block text-slate-800 dark:text-slate-200 text-[10px] font-extrabold uppercase tracking-widest">
@@ -1124,7 +1140,7 @@ function App() {
                 } ${activeMissionIndex >= 0 && missionStatus !== 'passed' ? 'cursor-not-allowed opacity-60' : ''}`}
               >
                 <Cpu className="w-3.5 h-3.5" />
-                <span>Anatomy Lab</span>
+                <span>Anatomy<span className="hidden sm:inline"> Lab</span></span>
               </button>
               <button
                 onClick={() => handleModeSwitch('flight')}
@@ -1135,12 +1151,12 @@ function App() {
                 } ${activeMissionIndex >= 0 && missionStatus !== 'passed' ? 'cursor-not-allowed opacity-60' : ''}`}
               >
                 <Gamepad2 className="w-3.5 h-3.5" />
-                <span>Flight Sim</span>
+                <span>Flight<span className="hidden sm:inline"> Sim</span></span>
               </button>
             </div>
 
             {/* Right side status indicators */}
-            <div className="flex items-center gap-4 text-[9px] font-mono text-slate-500 dark:text-slate-400">
+            <div className="hidden sm:flex items-center gap-4 text-[9px] font-mono text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="uppercase tracking-widest text-[8px] font-bold text-slate-500 dark:text-slate-400">Telemetry: Link Active</span>

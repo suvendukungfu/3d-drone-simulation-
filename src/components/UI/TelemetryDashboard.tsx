@@ -234,7 +234,7 @@ export function TelemetryDashboard({
 
       {/* Floating Quest Checklist Overlay (visible when sidebar is closed) */}
       {activeMissionIndex >= 0 && !isAcademyOpen && showChecklist && (
-        <div className="flex absolute top-4 md:top-16 left-4 bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-3 rounded-xl w-52 sm:w-60 shadow-[0_8px_25px_rgba(0,0,0,0.03)] pointer-events-auto z-20 flex-col gap-2">
+        <div className="flex absolute top-20 md:top-16 left-4 bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-3 rounded-xl w-52 sm:w-60 shadow-[0_8px_25px_rgba(0,0,0,0.03)] pointer-events-auto z-20 flex-col gap-2">
           <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800/80 pb-1.5">
             <Award className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider truncate">

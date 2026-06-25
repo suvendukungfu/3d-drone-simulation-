@@ -25,7 +25,7 @@ export function LearningWorkflow() {
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/60 p-5 rounded-2xl w-[500px] shadow-[0_8px_30px_rgba(0,0,0,0.03)] flex flex-col items-center text-center"
+            className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/60 p-5 rounded-2xl w-full max-w-[90vw] sm:w-[500px] shadow-[0_8px_30px_rgba(0,0,0,0.03)] flex flex-col items-center text-center"
           >
             <span className="text-[10px] bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40 font-mono tracking-widest px-2.5 py-1 rounded-full uppercase mb-2">
               Phase 1: Pre-Flight Identification
@@ -61,7 +61,7 @@ export function LearningWorkflow() {
               initial={{ y: 50, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -50, opacity: 0 }}
-              className="bg-white dark:bg-slate-900 border border-blue-100 dark:border-blue-900/40 p-5 rounded-2xl w-[600px] shadow-[0_10px_35px_rgba(0,0,0,0.04)] flex gap-4 items-start"
+              className="bg-white dark:bg-slate-900 border border-blue-100 dark:border-blue-900/40 p-5 rounded-2xl w-full max-w-[90vw] md:w-[600px] shadow-[0_10px_35px_rgba(0,0,0,0.04)] flex gap-4 items-start"
             >
               <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40">
                 <AlertTriangle className="w-6 h-6 animate-pulse" />
@@ -88,7 +88,7 @@ export function LearningWorkflow() {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-8 rounded-3xl w-[580px] shadow-[0_15px_40px_rgba(0,0,0,0.04)] flex flex-col items-center text-center max-w-full"
+              className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 rounded-3xl w-full max-w-[90vw] sm:w-[580px] shadow-[0_15px_40px_rgba(0,0,0,0.04)] flex flex-col items-center text-center"
             >
               <div className="w-16 h-16 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-4">
                 <Award className="w-10 h-10 animate-bounce" />
