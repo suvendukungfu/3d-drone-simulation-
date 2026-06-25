@@ -84,6 +84,8 @@ export function IntroOverlay() {
   }, []);
 
   const spotlight = useSpotlight();
+  const spotlightX = useTransform(spotlight.x, (v) => v - 300);
+  const spotlightY = useTransform(spotlight.y, (v) => v - 300);
 
   // Mouse tilt variables for showcase frame
   const tiltX = useMotionValue(0);
@@ -280,8 +282,8 @@ export function IntroOverlay() {
         <motion.div
           className="fixed w-[600px] h-[600px] rounded-full pointer-events-none z-[2]"
           style={{
-            x: useTransform(spotlight.x, (v) => v - 300),
-            y: useTransform(spotlight.y, (v) => v - 300),
+            x: spotlightX,
+            y: spotlightY,
             background: 'radial-gradient(circle, rgba(59,130,246,0.04) 0%, transparent 70%)',
           }}
         />
