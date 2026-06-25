@@ -7,7 +7,7 @@ import { SimulatorOrchestrator } from '../utils/drone/SimulatorOrchestrator';
 import { EnvironmentManager } from './EnvironmentManager';
 import { PlutoXModel } from './PlutoXModel';
 import { sound } from '../utils/soundController';
-import { MISSIONS } from './UI/TrainingMissionSystem';
+
 import { XCircle } from 'lucide-react';
 
 const isMobileDevice = typeof window !== 'undefined' && 
@@ -81,9 +81,8 @@ interface SimulationLoopProps {
 function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMeshRef }: SimulationLoopProps) {
   const { camera } = useThree();
   const flightCameraView = useDroneStore((state) => state.flightCameraView);
-  const activeMissionIndex = useDroneStore((state) => state.activeMissionIndex);
   const updateFlightTelemetry = useDroneStore((state) => state.updateFlightTelemetry);
-  const setMissionObjectives = useDroneStore((state) => state.setMissionObjectives);
+
   
   // Propeller angles tracker
   const propAngles = useRef([0, 0, 0, 0]);
@@ -296,22 +295,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
         groundHeight: 0.05
       });
       
-      // Update active mission objectives in-place
-      const missionStore = useDroneStore.getState() as any;
-      if (missionStore.activeMissionIndex >= 0 && missionStore.missionStatus === 'active') {
-        const currentMission = MISSIONS[missionStore.activeMissionIndex];
-        if (currentMission) {
-          const completedObjectives = currentMission.checkObjective(orchestrator, activeMissionIndex, physState);
-          setMissionObjectives(completedObjectives);
-          
-          // Check if all objectives are completed
-          const allCompleted = completedObjectives.every((obj: boolean) => obj);
-          if (allCompleted) {
-            missionStore.setMissionStatus('passed');
-            sound.playClick();
-          }
-        }
-      }
+
     }
   });
 

@@ -51,7 +51,7 @@ export class PhysicsEngine {
   public Izz = 5.8e-5;
   
   // Damping coefficients
-  public linearDragCoef = 0.22; // N/(m/s) — reduces drift during hover
+  public linearDragCoef = 0.08; // N/(m/s) — reduces drift during hover
   public angularDragCoef = 0.0005; // Nm/(rad/s) — damps rotation for stability
   
   // Boundary properties

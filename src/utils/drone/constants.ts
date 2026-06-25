@@ -50,7 +50,7 @@ export const IDLE_MOTOR_SPIN = 0.10;
 export const DRONE_COLLISION_RADIUS_M = 0.08;
 
 /** Maximum tilt angle for self-leveling control (radians) */
-export const MAX_TILT_ANGLE_RAD = 12.0 * (Math.PI / 180.0);
+export const MAX_TILT_ANGLE_RAD = 30.0 * (Math.PI / 180.0);
 
 /** Crash detection angle threshold (radians, ~78°) */
 export const CRASH_ANGLE_RAD = 1.36;

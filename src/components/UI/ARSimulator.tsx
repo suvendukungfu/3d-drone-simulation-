@@ -7,9 +7,9 @@ import { useDroneStore } from '../../store/useDroneStore';
 import { PlutoXModel } from '../PlutoXModel';
 import { 
   X, Activity, Battery, Radio, Sliders, Compass, RotateCcw, RotateCw, RefreshCw,
-  Shield, ShieldOff, Zap, Play, Smartphone, Video, CheckCircle2, AlertCircle
+  Shield, ShieldOff, Zap, Play, Smartphone, Video, CheckCircle2, AlertCircle, Monitor
 } from 'lucide-react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { createXRStore, XR, XRDomOverlay, useXRHitTest, useXRInputSourceEvent } from '@react-three/xr';
 
 // Initialize the WebXR Store
@@ -568,8 +568,14 @@ export function ARSimulator() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const uiContainerRef = useRef<HTMLDivElement>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
 
   const isTestEnv = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+  const isMobileDevice = typeof window !== 'undefined' && (
+    /Android|iPhone|iPad|iPod|Windows Phone|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    (typeof navigator !== 'undefined' && /Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints && navigator.maxTouchPoints > 1)
+  );
+  const [showDesktopAdvisory, setShowDesktopAdvisory] = useState(!isMobileDevice && !isTestEnv);
 
   // WebXR and Flight stage states
   const [arSessionStarted, setArSessionStarted] = useState(isTestEnv);
@@ -1002,14 +1008,39 @@ export function ARSimulator() {
     });
   }, []);
 
+  // Sync camera stream state to ref to avoid stale closures in effects
+  useEffect(() => {
+    cameraStreamRef.current = cameraStream;
+  }, [cameraStream]);
+
+  // Sync the loaded camera stream to the video element once it is mounted in the DOM
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video && cameraStream) {
+      if (video.srcObject !== cameraStream) {
+        video.srcObject = cameraStream;
+        video.onloadedmetadata = () => {
+          const playPromise = video.play();
+          if (playPromise !== undefined && typeof playPromise.catch === 'function') {
+            playPromise.catch((err) => console.warn("Video play failed in sync effect:", err));
+          }
+        };
+        const playPromise = video.play();
+        if (playPromise !== undefined && typeof playPromise.catch === 'function') {
+          playPromise.catch((err) => console.warn("Initial video play failed in sync effect:", err));
+        }
+      }
+    }
+  }, [cameraStream, isPresenting]);
+
   // 1. Manage camera lifecycle based on active state
   useEffect(() => {
     if (isARActive && arSessionStarted && !isPresenting) {
       initCamera();
     }
     return () => {
-      if (cameraStream) {
-        cameraStream.getTracks().forEach((track) => track.stop());
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
   }, [isARActive, arSessionStarted, isPresenting]);
@@ -1223,6 +1254,252 @@ export function ARSimulator() {
     setARActive(false);
   };
 
+  const handleLaunchClosedSim = () => {
+    // End WebXR session if active
+    const session = xrStore.getState().session;
+    if (session) {
+      session.end().catch((err) => console.warn("Failed to end WebXR session:", err));
+    }
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+    }
+    setCameraStream(null);
+    setARActive(false);
+
+    // Switch to Closed Simulator
+    const store = useDroneStore.getState();
+    store.setMode('flight');
+    store.selectMission(-1);
+    store.setAcademyMode(false);
+    if (store.isAcademyOpen) {
+      store.toggleAcademy();
+    }
+  };
+
+  if (showDesktopAdvisory) {
+    return (
+      <div className={`fixed inset-0 z-50 flex justify-center items-start p-0 sm:p-6 md:p-8 overflow-y-auto normal-case ${isDark ? 'bg-slate-950/80 text-white' : 'bg-slate-50/80 text-slate-800'} backdrop-blur-md`}>
+        <div className={`absolute inset-0 pointer-events-none bg-[size:32px_32px] ${isDark ? 'bg-[linear-gradient(rgba(0,240,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.02)_1px,transparent_1px)]' : 'bg-[linear-gradient(rgba(148,163,184,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.04)_1px,transparent_1px)]'}`} />
+        
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.97, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          className={`w-full min-h-screen sm:min-h-0 sm:my-auto my-0 sm:max-w-2xl relative z-10 p-6 sm:p-8 rounded-none sm:rounded-3xl border-0 sm:border shadow-2xl flex flex-col justify-between sm:justify-start space-y-6 sm:space-y-8 font-sans ${
+            isDark 
+              ? 'bg-slate-900/95 border-slate-855/85 shadow-cyan-950/15 text-white' 
+              : 'bg-white/95 border-slate-200 shadow-slate-300/30 text-slate-800'
+          }`}
+        >
+          {/* Scrollable Container for Mobile Viewports to prevent overflow cutoff */}
+          <div className="flex-1 overflow-y-auto sm:overflow-visible space-y-6 sm:space-y-8 pr-1 -mr-1 sm:pr-0 sm:mr-0">
+            {/* Header Section */}
+            <div className="flex flex-col items-center space-y-4 pt-4 sm:pt-0">
+              <div className="flex items-center gap-4">
+                <div className="p-3.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 rounded-2xl shadow-sm transition-all duration-200">
+                  <Monitor className="w-5.5 h-5.5" />
+                </div>
+                <div className="h-[2px] w-12 sm:w-16 bg-gradient-to-r from-slate-200 to-cyan-500 dark:from-slate-800 dark:to-cyan-500 relative">
+                  <div className="absolute inset-0 bg-cyan-400 blur-[2px] opacity-40" />
+                </div>
+                <div className="p-3.5 bg-cyan-50/50 dark:bg-cyan-950/20 border border-cyan-200 dark:border-cyan-500/30 text-cyan-500 dark:text-cyan-400 rounded-2xl shadow-sm relative">
+                  <Smartphone className="w-5.5 h-5.5" />
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                  </span>
+                </div>
+              </div>
+              
+              <div className="text-center space-y-2 max-w-lg">
+                <h2 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  AR Experience Works Best on Mobile
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-normal">
+                  Your desktop supports preview mode. For full AR tracking, use a mobile device.
+                </p>
+              </div>
+            </div>
+
+            {/* Device Comparison Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              
+              {/* Desktop Card */}
+              <div className={`p-5 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700 ${
+                isDark 
+                  ? 'bg-slate-900/40 border-slate-800/80 text-slate-300' 
+                  : 'bg-slate-50/60 border-slate-200 text-slate-700'
+              }`}>
+                <div>
+                  <div className="flex items-center gap-2 mb-4 border-b border-slate-200/40 dark:border-slate-800/40 pb-2.5">
+                    <Monitor className="w-4 h-4 text-slate-400" />
+                    <span className="font-semibold text-[10px] tracking-wider uppercase text-slate-500 dark:text-slate-400">Desktop</span>
+                  </div>
+                  <ul className="space-y-3 font-sans text-xs tracking-wide">
+                    <li className="flex items-center gap-2.5">
+                      <span className="text-emerald-500 flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-xs font-semibold">✓</span>
+                      <span className="text-slate-600 dark:text-slate-300 font-medium">Webcam Preview</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <span className="text-emerald-500 flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-xs font-semibold">✓</span>
+                      <span className="text-slate-600 dark:text-slate-300 font-medium">Keyboard</span>
+                    </li>
+                    <li className="flex items-center gap-2.5 opacity-40">
+                      <span className="text-slate-400 dark:text-slate-600 flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-900/50 text-xs">✕</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Gyroscope</span>
+                    </li>
+                    <li className="flex items-center gap-2.5 opacity-40">
+                      <span className="text-slate-400 dark:text-slate-600 flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-900/50 text-xs">✕</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Spatial Tracking</span>
+                    </li>
+                  </ul>
+                </div>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-5 block font-medium">Standard computer setup</span>
+              </div>
+
+              {/* Mobile Card (Recommended) */}
+              <div className={`p-5 rounded-2xl border text-left flex flex-col justify-between relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
+                isDark 
+                  ? 'bg-cyan-950/10 border-cyan-500/35 text-white shadow-[0_0_20px_rgba(6,182,212,0.04)] hover:border-cyan-500/50' 
+                  : 'bg-blue-50/20 border-blue-500/20 hover:border-blue-500/40 text-slate-800 shadow-[0_0_15px_rgba(59,130,246,0.01)]'
+              }`}>
+                <div className="absolute top-4 right-4">
+                  <span className="bg-blue-600 dark:bg-cyan-500 text-white text-[8px] font-bold px-2.5 py-0.5 rounded-full tracking-wider uppercase shadow-sm">
+                    Recommended
+                  </span>
+                </div>
+                
+                <div>
+                  <div className="flex items-center gap-2 mb-4 border-b border-slate-200/40 dark:border-slate-800/40 pb-2.5">
+                    <Smartphone className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-blue-600'}`} />
+                    <span className={`font-semibold text-[10px] tracking-wider uppercase ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>Mobile</span>
+                  </div>
+                  <ul className="space-y-3 font-sans text-xs tracking-wide">
+                    <li className="flex items-center gap-2.5">
+                      <span className="text-emerald-500 flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-xs font-semibold">✓</span>
+                      <span className="text-slate-700 dark:text-slate-200 font-medium">Camera</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <span className="text-emerald-500 flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-xs font-semibold">✓</span>
+                      <span className="text-slate-700 dark:text-slate-200 font-medium">Gyroscope</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <span className="text-emerald-500 flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-xs font-semibold">✓</span>
+                      <span className="text-slate-700 dark:text-slate-200 font-medium">Motion Tracking</span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <span className="text-emerald-500 flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-xs font-semibold">✓</span>
+                      <span className="text-slate-700 dark:text-slate-200 font-bold">Full AR Experience</span>
+                    </li>
+                  </ul>
+                </div>
+                <span className={`text-[10px] mt-5 block font-semibold ${isDark ? 'text-cyan-400' : 'text-blue-600'}`}>Fully optimized simulation</span>
+              </div>
+
+            </div>
+
+            {/* Quick Context Blocks (Information Hierarchy) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all duration-200 hover:border-slate-350 dark:hover:border-slate-800 ${isDark ? 'bg-slate-900/20 border-slate-800/60' : 'bg-slate-50/40 border-slate-200/60'}`}>
+                <div>
+                  <span className="font-bold text-[8.5px] text-slate-400 dark:text-slate-500 tracking-wider uppercase block mb-1">Why this happens</span>
+                  <p className="text-[10.5px] leading-relaxed text-slate-550 dark:text-slate-400 font-normal">
+                    Augmented reality relies on built-in gyroscopes and cameras to align the virtual drone with your physical room movements.
+                  </p>
+                </div>
+              </div>
+              
+              <div className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all duration-200 hover:border-slate-350 dark:hover:border-slate-800 ${isDark ? 'bg-slate-900/20 border-slate-800/60' : 'bg-slate-50/40 border-slate-200/60'}`}>
+                <div>
+                  <span className="font-bold text-[8.5px] text-slate-400 dark:text-slate-500 tracking-wider uppercase block mb-1">What's available on desktop</span>
+                  <p className="text-[10.5px] leading-relaxed text-slate-550 dark:text-slate-400 font-normal">
+                    Proceed using your webcam to overlay the drone on your camera feed, controlled with your computer keyboard.
+                  </p>
+                </div>
+              </div>
+
+              <div className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all duration-200 hover:border-slate-350 dark:hover:border-slate-800 ${isDark ? 'bg-slate-900/20 border-slate-800/60' : 'bg-slate-50/40 border-slate-200/60'}`}>
+                <div>
+                  <span className="font-bold text-[8.5px] text-slate-400 dark:text-slate-500 tracking-wider uppercase block mb-1">What's available on mobile</span>
+                  <p className="text-[10.5px] leading-relaxed text-slate-550 dark:text-slate-400 font-normal">
+                    A complete handheld interface using your phone's tilt sensors for realistic piloting in actual physical space.
+                  </p>
+                </div>
+              </div>
+
+              <div className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all duration-200 hover:border-slate-350 dark:hover:border-slate-800 ${isDark ? 'bg-slate-900/20 border-slate-800/60' : 'bg-slate-50/40 border-slate-200/60'}`}>
+                <div>
+                  <span className="font-bold text-[8.5px] text-slate-400 dark:text-slate-500 tracking-wider uppercase block mb-1">Best recommendation</span>
+                  <p className="text-[10.5px] leading-relaxed text-slate-550 dark:text-slate-400 font-normal">
+                    For high-fidelity computer training, use the Closed Simulator featuring full 3D environments and physics.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Feature Support Status Grid */}
+            <div className={`border rounded-2xl p-5 text-left transition-all duration-200 hover:border-slate-350 dark:hover:border-slate-800 ${isDark ? 'bg-slate-950/20 border-slate-800/60' : 'bg-slate-50/30 border-slate-200'}`}>
+              <span className="font-bold text-[8.5px] text-slate-400 dark:text-slate-500 tracking-widest block mb-3.5 uppercase">Feature Support Status</span>
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/40 text-xs">
+                <div className="flex justify-between items-center py-3">
+                  <span className="text-slate-600 dark:text-slate-300 font-medium">Camera Preview</span>
+                  <span className="text-emerald-500 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    ✓ Available
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-3">
+                  <span className="text-slate-600 dark:text-slate-300 font-medium">Gyroscope</span>
+                  <span className="text-slate-400 dark:text-slate-500 font-mono text-[10px] uppercase tracking-wider">Mobile Only</span>
+                </div>
+                <div className="flex justify-between items-center py-3">
+                  <span className="text-slate-600 dark:text-slate-300 font-medium">Spatial Tracking</span>
+                  <span className="text-slate-400 dark:text-slate-500 font-mono text-[10px] uppercase tracking-wider">Mobile Only</span>
+                </div>
+                <div className="flex justify-between items-center py-3">
+                  <span className="text-slate-655 dark:text-slate-300 font-medium">Room Mapping</span>
+                  <span className="text-slate-400 dark:text-slate-500 font-mono text-[10px] uppercase tracking-wider">Mobile Only</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action CTAs */}
+          <div className="flex flex-col gap-3 pt-3 sm:pt-4 border-t border-slate-100 dark:border-slate-800/40">
+            <button
+              onClick={handleLaunchClosedSim}
+              className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/10 text-center tracking-wider text-xs uppercase hover:shadow-cyan-500/15 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              Switch to Closed Simulator
+            </button>
+            
+            <button
+              onClick={() => setShowDesktopAdvisory(false)}
+              className={`w-full py-3.5 rounded-2xl border text-center font-bold text-[11px] uppercase tracking-wider hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 ${
+                isDark 
+                  ? 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700' 
+                  : 'bg-white border-slate-200 text-slate-655 hover:text-slate-900 hover:border-slate-300'
+              }`}
+            >
+              Continue with Desktop Preview
+            </button>
+
+            <button
+              onClick={handleExit}
+              className={`w-full py-2.5 rounded-xl text-center transition text-[10px] font-bold tracking-wider uppercase hover:text-slate-800 dark:hover:text-slate-300 ${
+                isDark 
+                  ? 'text-slate-500' 
+                  : 'text-slate-400'
+              }`}
+            >
+              Back
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   // Lobby landing page overlay when AR session hasn't started yet
   if (!arSessionStarted) {
     return (
@@ -1303,11 +1580,6 @@ export function ARSimulator() {
             </div>
           </div>
 
-          {/* Guidelines info */}
-          <div className={`p-3 rounded-xl border text-[7.5px] leading-relaxed lowercase ${isDark ? 'bg-cyan-950/10 border-cyan-900/40 text-cyan-400/80' : 'bg-cyan-50 border-cyan-100 text-cyan-600'}`}>
-            <span className="font-bold block mb-0.5 uppercase">Developer Advisory:</span>
-            For a true WebXR immersive-ar experience with automatic ground plane tracking, use an Android Chrome browser. iOS Safari and Desktop environments will load in AR Preview Mode with mouse OrbitControls and webcam overlay.
-          </div>
 
           {/* Action Buttons */}
           <div className="flex flex-col gap-2 pt-2">

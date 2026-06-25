@@ -284,11 +284,22 @@ export function TrainingMissionSystem({
   const resetStickInputsTested = useDroneStore((state) => state.resetStickInputsTested);
   const resetMotorsTested = useDroneStore((state) => state.resetMotorsTested);
 
-  const [objectives, setObjectives] = useState<boolean[]>([]);
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
   const checkpointsRef = useRef<Checkpoint[]>([]);
   const hoverTimer = useRef(0.0);
-  const targetCompletedRef = useRef<boolean[]>([]);
+  
+  const missionObjectivesCompleted = useDroneStore((state) => state.missionObjectivesCompleted);
+  const setMissionObjectives = useDroneStore((state) => state.setMissionObjectives);
+  
+  const activeMission = activeMissionIndex >= 0 ? MISSIONS[activeMissionIndex] : null;
+  const objectives = missionObjectivesCompleted.length === (activeMission?.objectives.length || 0)
+    ? missionObjectivesCompleted
+    : new Array(activeMission?.objectives.length || 0).fill(false);
+  
+  useEffect(() => {
+    console.log("TrainingMissionSystem: MOUNTED");
+    return () => console.log("TrainingMissionSystem: UNMOUNTED");
+  }, []);
   
   // Mission 11 (Certification) Timer
   const [examTimer, setExamTimer] = useState(60);
@@ -336,9 +347,10 @@ export function TrainingMissionSystem({
         orchestrator.reset();
       }
       const mission = MISSIONS[activeMissionIndex];
-      const initialObjs = new Array(mission.objectives.length).fill(false);
-      setObjectives(initialObjs);
-      targetCompletedRef.current = initialObjs;
+      if (useDroneStore.getState().missionObjectivesCompleted.length !== mission.objectives.length) {
+        const initialObjs = new Array(mission.objectives.length).fill(false);
+        setMissionObjectives(initialObjs);
+      }
       
       const cps = mission.checkpoints ? JSON.parse(JSON.stringify(mission.checkpoints)) : [];
       setCheckpoints(cps);
@@ -371,7 +383,7 @@ export function TrainingMissionSystem({
         }
       }
     } else {
-      setObjectives([]);
+      setMissionObjectives([]);
       setCheckpoints([]);
       checkpointsRef.current = [];
       onCheckpointsUpdated([]);
@@ -393,9 +405,12 @@ export function TrainingMissionSystem({
     const interval = setInterval(() => {
       const physState = orchestrator.getPhysicsState();
       const mission = MISSIONS[activeMissionIndex];
-      const currentObjs = [...targetCompletedRef.current];
+      
+      const storeObjectives = useDroneStore.getState().missionObjectivesCompleted;
+      const currentObjs = storeObjectives.length === mission.objectives.length
+        ? [...storeObjectives]
+        : new Array(mission.objectives.length).fill(false);
 
-      // A. Evaluate general logic objectives
       const baseCheck = mission.checkObjective(orchestrator, activeMissionIndex, physState);
       baseCheck.forEach((val, idx) => {
         if (val) currentObjs[idx] = true;
@@ -477,9 +492,8 @@ export function TrainingMissionSystem({
         }
       }
 
-      // Update State
-      setObjectives(currentObjs);
-      targetCompletedRef.current = currentObjs;
+      // Update State in the store
+      setMissionObjectives(currentObjs);
 
       // D. Verify if all objectives are completed
       const allCompleted = currentObjs.every(obj => obj);
@@ -901,10 +915,16 @@ export function TrainingMissionSystem({
             )}
 
             {missionStatus === 'failed' && (
-              <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 p-4 rounded-xl flex flex-col items-center text-center gap-2 shadow-sm">
+              <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 p-4 rounded-xl flex flex-col items-center text-center gap-2 shadow-sm w-full">
                 <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400 animate-pulse" />
-                <h4 className="text-sm font-bold text-red-808 dark:text-red-305 uppercase">Lesson Failed</h4>
+                <h4 className="text-sm font-bold text-red-800 dark:text-red-300 uppercase">Lesson Failed</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Failed check, triggered crash, or timed out.</p>
+                <button
+                  onClick={handleRestartMission}
+                  className="w-full mt-2 py-2 rounded-lg bg-red-650 hover:bg-red-550 text-white text-[11px] font-bold uppercase shadow-md shadow-red-700/20 text-center transition-colors duration-300 pointer-events-auto"
+                >
+                  Try Again
+                </button>
               </div>
             )}
           </div>

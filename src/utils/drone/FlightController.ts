@@ -165,11 +165,11 @@ export class FlightController {
             targetClimbRate = THREE.MathUtils.clamp(altError * this.altitudeGains.kp, -1.0, 1.0);
           } else if (stick.throttle > 0.55) {
             // Climb Zone (55% to 100%) - continuous
-            targetClimbRate = ((stick.throttle - 0.55) / 0.45) * 1.5;
+            targetClimbRate = ((stick.throttle - 0.55) / 0.45) * 2.2;
             this.lockedAltitude = this.filteredAltitude;
           } else if (stick.throttle >= 0.10 && stick.throttle < 0.45) {
             // Descent Zone (10% to 45%) - continuous
-            targetClimbRate = ((stick.throttle - 0.45) / 0.35) * 1.0;
+            targetClimbRate = ((stick.throttle - 0.45) / 0.35) * 1.5;
             this.lockedAltitude = this.filteredAltitude;
           } else {
             // Landing / Idle Zone (0% to 10%)
@@ -222,7 +222,7 @@ export class FlightController {
     
     // 2. Outer Angle Loop (Roll & Pitch Self-Leveling)
     // Convert stick inputs (-1 to 1) to target Euler angles (radians)
-    const maxTiltAngle = 12.0 * (Math.PI / 180.0); // max 12 degrees tilt for slight, responsive movement
+    const maxTiltAngle = 30.0 * (Math.PI / 180.0); // max 30 degrees tilt for fast, responsive movement
     let targetRoll = this.isLandingActive ? 0.0 : this.smoothedRoll * maxTiltAngle;
     let targetPitch = this.isLandingActive ? 0.0 : -this.smoothedPitch * maxTiltAngle;
     
@@ -238,13 +238,13 @@ export class FlightController {
         
         if (isRollStickNeutral) {
           // If roll stick is centered, tilt roll to damp local X velocity
-          const rollBrake = -bodyVel.x * 0.12; // tilt roll proportional to speed
-          targetRoll = THREE.MathUtils.clamp(rollBrake, -0.08, 0.08); // limit max brake angle
+          const rollBrake = -bodyVel.x * 0.15; // tilt roll proportional to speed
+          targetRoll = THREE.MathUtils.clamp(rollBrake, -0.20, 0.20); // limit max brake angle
         }
         if (isPitchStickNeutral) {
           // If pitch stick is centered, tilt pitch to damp local Z velocity
-          const pitchBrake = bodyVel.z * 0.12; // tilt pitch opposite to forward speed
-          targetPitch = THREE.MathUtils.clamp(pitchBrake, -0.08, 0.08);
+          const pitchBrake = bodyVel.z * 0.15; // tilt pitch opposite to forward speed
+          targetPitch = THREE.MathUtils.clamp(pitchBrake, -0.20, 0.20);
         }
       }
     }
@@ -256,7 +256,7 @@ export class FlightController {
     // Target rates (rad/s)
     const targetRollRate = rollAngleErr * this.rollAngleGains.kp;
     const targetPitchRate = pitchAngleErr * this.pitchAngleGains.kp;
-    const targetYawRate = -this.smoothedYaw * 0.8; // max yaw rate: 0.8 rad/s (~45 deg/s) for slow controlled rotation
+    const targetYawRate = -this.smoothedYaw * 2.2; // max yaw rate: 2.2 rad/s (~126 deg/s) for responsive rotation
     
     const targetRates = new THREE.Vector3(targetPitchRate, targetYawRate, targetRollRate);
     

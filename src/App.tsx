@@ -837,17 +837,6 @@ function App() {
             onDisarm={() => orchestratorRef.current?.disarm()}
           />
         )}
-
-        {/* PLUTO CONTROLLER MOBILE MENU (Closed Simulation only, mobile only) */}
-        {currentMode === 'flight' && (
-          <ClosedSimMobileMenu
-            onReset={handleResetSimulator}
-            onToggleAltHold={handleToggleAltHold}
-            stickState={stickState}
-            onArm={() => orchestratorRef.current?.arm()}
-            onDisarm={() => orchestratorRef.current?.disarm()}
-          />
-        )}
       </div>      {/* 4. RIGHT SIDEBAR: Avionics Info Inspector (Only in Avionics Lab mode) */}
       <AnimatePresence>
         {currentMode !== 'flight' && selectedData && !immersiveMode && (
@@ -1153,6 +1142,17 @@ function App() {
 
       {/* 8. VIRTUAL JOYSTICKS FOR MOBILE DEVICES */}
       <VirtualJoysticks orchestrator={orchestratorRef.current!} />
+
+      {/* PLUTO CONTROLLER MOBILE MENU (Closed Simulation only, mobile only) */}
+      {currentMode === 'flight' && (
+        <ClosedSimMobileMenu
+          onReset={handleResetSimulator}
+          onToggleAltHold={handleToggleAltHold}
+          stickState={stickState}
+          onArm={() => orchestratorRef.current?.arm()}
+          onDisarm={() => orchestratorRef.current?.disarm()}
+        />
+      )}
 
       {/* 9. PORTRAIT ORIENTATION LOCK OVERLAY FOR MOBILE/TABLET FLIGHT SIMULATOR */}
       <AnimatePresence>

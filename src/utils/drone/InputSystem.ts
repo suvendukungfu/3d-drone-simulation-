@@ -288,11 +288,16 @@ export class InputSystem {
     if (this.hasAnalogInput) {
       // 1. Throttle:
       let throttleInput = this.analogLeft.y; // -1 to 1 from joystick
+      const telemetry = useDroneStore.getState().telemetry;
+      const hasTakenOff = telemetry && telemetry.altitude > 0.08;
+
+      let targetThrottle;
       if (Math.abs(throttleInput) < 0.08) {
-        throttleInput = 0; // deadzone around center hover position
+        targetThrottle = hasTakenOff ? 0.50 : 0.0; // default hover center in air, zero on ground
+      } else {
+        // Map smoothly to [0, 1] range: center (0) is 0.5 hover throttle
+        targetThrottle = 0.5 + throttleInput * 0.5;
       }
-      // Map smoothly to [0, 1] range: center (0) is 0.5 hover throttle
-      const targetThrottle = 0.5 + throttleInput * 0.5;
       this.stick.throttle += (targetThrottle - this.stick.throttle) * 8.0 * dt; // smooth slew to target
       
       // 2. Yaw:

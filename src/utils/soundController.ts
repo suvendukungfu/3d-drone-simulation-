@@ -68,8 +68,8 @@ class SoundController {
       this.initCtx();
       if (!this.ctx) return;
 
-      // Stop if already running
-      this.stopMotorSound(motorId);
+      // If already running, do nothing
+      if (this.motorOscillators[motorId]) return;
 
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();

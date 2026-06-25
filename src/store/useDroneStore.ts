@@ -51,6 +51,23 @@ const getLocalStorageEnv = (key: string, defaultVal: FlightEnvironment): FlightE
   return defaultVal;
 };
 
+const getLocalStorageLevels = (): boolean[] => {
+  if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
+    const val = window.localStorage.getItem('unlockedLevels');
+    if (val !== null) {
+      try {
+        const parsed = JSON.parse(val);
+        if (Array.isArray(parsed) && parsed.length === 5) {
+          return parsed.map(Boolean);
+        }
+      } catch (e) {
+        console.warn("Failed to parse unlockedLevels from localStorage", e);
+      }
+    }
+  }
+  return [true, false, false, false, false];
+};
+
 export type AppMode = 'home' | 'explore' | 'inspect' | 'learning' | 'flight';
 export type CameraView = 'orbit' | 'inspect' | 'top' | 'bottom' | 'left' | 'right' | 'front' | 'back';
 export type FlightCameraView = 'chase' | 'fpv' | 'orbit';
@@ -277,7 +294,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   isolationMode: false,
   showAnatomyExploded: false,
 
-  unlockedLevels: [true, false, false, false, false],
+  unlockedLevels: getLocalStorageLevels(),
   isFlightSimModalOpen: false,
   isARActive: false,
   theme: getSafeTheme(),
@@ -316,7 +333,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   activeMissionIndex: -1, // start at menu
   missionStatus: 'idle',
   missionObjectivesCompleted: [],
-  certificationEarned: false,
+  certificationEarned: getLocalStorageBool('certificationEarned', false),
   telemetry: DEFAULT_TELEMETRY,
   warnings: [],
   isAcademyOpen: true,
@@ -674,6 +691,9 @@ export const useDroneStore = create<DroneState>((set, get) => ({
         const isUnlocked = get().unlockedLevels[levelIndex];
         if (!isUnlocked) {
           console.warn(`Attempted to select locked mission index: ${index}`);
+          if (typeof window !== 'undefined') {
+            window.location.hash = '#/learn';
+          }
           return;
         }
       }
@@ -694,6 +714,9 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   earnCertification: (earned) => {
     if (earned) {
       sound.playClick();
+    }
+    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
+      window.localStorage.setItem('certificationEarned', String(earned));
     }
     set({ certificationEarned: earned });
   },
@@ -785,6 +808,9 @@ export const useDroneStore = create<DroneState>((set, get) => ({
     const nextLevels = [...state.unlockedLevels];
     if (levelIndex + 1 < nextLevels.length) {
       nextLevels[levelIndex + 1] = true;
+    }
+    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
+      window.localStorage.setItem('unlockedLevels', JSON.stringify(nextLevels));
     }
     return { unlockedLevels: nextLevels };
   }),
