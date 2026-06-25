@@ -359,40 +359,40 @@ export function ClosedSimMobileMenu({
                 </button>
               </div>
 
-              {/* Home Navigation button */}
-              <div className="px-4 py-3 shrink-0 border-b border-white/5">
-                <button
-                  onClick={handleGoHome}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 text-[11px] font-extrabold uppercase tracking-widest transition-all duration-300 active:scale-[0.97]"
-                >
-                  <Home className="w-4 h-4" />
-                  Exit to Home Page
-                </button>
-              </div>
-
-              {/* Arm Status Badge */}
-              <div className="px-4 py-3 shrink-0">
-                <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${
-                  telemetry?.isArmed
-                    ? 'bg-red-500/10 border-red-500/35 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
-                    : 'bg-white/3 border-white/8 text-white/40'
-                }`}>
-                  <span className="relative flex h-2 w-2">
-                    {telemetry?.isArmed && (
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                    )}
-                    <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                      telemetry?.isArmed ? 'bg-red-500' : 'bg-white/25'
-                    }`} />
-                  </span>
-                  <span className="font-semibold tracking-widest leading-none">
-                    {telemetry?.isArmed ? 'ARMED — FLIGHT ACTIVE' : 'DISARMED — SAFE'}
-                  </span>
-                </div>
-              </div>
-
               {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-3.5 scrollbar-thin">
+              <div className="flex-1 overflow-y-auto px-4 pt-4 pb-6 space-y-3.5 scrollbar-thin">
+                
+                {/* Home Navigation button */}
+                <div className="pb-3 border-b border-white/5">
+                  <button
+                    onClick={handleGoHome}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 text-[11px] font-extrabold uppercase tracking-widest transition-all duration-300 active:scale-[0.97]"
+                  >
+                    <Home className="w-4 h-4" />
+                    Exit to Home Page
+                  </button>
+                </div>
+
+                {/* Arm Status Badge */}
+                <div>
+                  <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all duration-300 ${
+                    telemetry?.isArmed
+                      ? 'bg-red-500/10 border-red-500/35 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
+                      : 'bg-white/3 border-white/8 text-white/40'
+                  }`}>
+                    <span className="relative flex h-2 w-2">
+                      {telemetry?.isArmed && (
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                      )}
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                        telemetry?.isArmed ? 'bg-red-500' : 'bg-white/25'
+                      }`} />
+                    </span>
+                    <span className="font-semibold tracking-widest leading-none">
+                      {telemetry?.isArmed ? 'ARMED — FLIGHT ACTIVE' : 'DISARMED — SAFE'}
+                    </span>
+                  </div>
+                </div>
 
                 {/* ── FLIGHT DATA ── */}
                 <MenuSection
@@ -699,13 +699,13 @@ export function ClosedSimMobileMenu({
                     ))}
                   </div>
                 </MenuSection>
-              </div>
 
-              {/* Footer */}
-              <div className="px-4 py-4 border-t border-white/5 shrink-0 bg-[#02040b]/80">
-                <p className="text-[9px] text-white/20 font-mono text-center uppercase tracking-widest font-semibold">
-                  Pluto Controller — Closed Sim v1.0
-                </p>
+                {/* Footer */}
+                <div className="pt-4 pb-2 border-t border-white/5">
+                  <p className="text-[9px] text-white/20 font-mono text-center uppercase tracking-widest font-semibold">
+                    Pluto Controller — Closed Sim v1.0
+                  </p>
+                </div>
               </div>
             </motion.div>
           </>
