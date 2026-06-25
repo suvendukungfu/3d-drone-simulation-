@@ -4,8 +4,8 @@ import { useDroneStore } from '../store/useDroneStore';
 import * as THREE from 'three';
 
 // Mock the Zustand store hooks to prevent React UI rendering side-effects during headless tests
-vi.mock('../../store/useDroneStore', () => {
-  const storeState = {
+vi.mock('../store/useDroneStore', () => {
+  let storeState = {
     droneInitFailed: false,
     flightEnvironment: 'room',
     activeMissionIndex: 0,
@@ -15,12 +15,34 @@ vi.mock('../../store/useDroneStore', () => {
       flightMode: 'althold',
       flightTime: 0
     },
-    addNotification: () => {}
+    notifications: [] as any[],
+    addNotification: (text: string, type: string) => {
+      storeState.notifications.push({ text, type });
+    },
+    setDroneInitFailed: (val: boolean) => {
+      storeState.droneInitFailed = val;
+    },
+    setDroneSpawnDiagnostics: () => {}
   };
-  return {
-    useDroneStore: {
-      getState: () => storeState
+
+  const useDroneStoreMock = (selector: any) => {
+    if (typeof selector === 'function') {
+      return selector(storeState);
     }
+    return storeState;
+  };
+
+  (useDroneStoreMock as any).getState = () => storeState;
+  (useDroneStoreMock as any).setState = (fnOrObj: any) => {
+    if (typeof fnOrObj === 'function') {
+      storeState = { ...storeState, ...fnOrObj(storeState) };
+    } else {
+      storeState = { ...storeState, ...fnOrObj };
+    }
+  };
+
+  return {
+    useDroneStore: useDroneStoreMock
   };
 });
 
@@ -160,10 +182,11 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
 
     // Force takeoff to allow proximity alerts and normal flights
     (orchestrator as any).hasTakenOff = true;
+    useDroneStore.setState({ flightEnvironment: 'lab' });
 
-    // --- TEST 1: Stage 2 - Light contact (< 1.5 m/s) with Desk Table ---
+    // --- TEST 1: Stage 2 - Light contact (< 1.5 m/s) with Bench A ---
     let physState = orchestrator.getPhysicsState();
-    physState.position.set(-1.68, 0.5, -2.5);
+    physState.position.set(-2.18, 0.5, -3.5);
     physState.velocity.set(-1.0, 0, 0);
 
     orchestrator.update(dt);
@@ -177,7 +200,7 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
 
     // --- TEST 2: Stage 3 - Moderate impact (1.5 - 4.0 m/s) ---
     physState = orchestrator.getPhysicsState();
-    physState.position.set(-1.68, 0.5, -2.5);
+    physState.position.set(-2.18, 0.5, -3.5);
     physState.velocity.set(-2.5, 0, 0);
 
     orchestrator.update(dt);
@@ -189,7 +212,7 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
 
     // --- TEST 3: Stage 4 - Major impact (4.0 - 6.0 m/s) ---
     physState = orchestrator.getPhysicsState();
-    physState.position.set(-1.68, 0.5, -2.5);
+    physState.position.set(-2.18, 0.5, -3.5);
     physState.velocity.set(-5.0, 0, 0);
 
     orchestrator.update(dt);
@@ -201,7 +224,7 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
 
     // --- TEST 4: Stage 5 - Crash Event (> 6.0 m/s) ---
     physState = orchestrator.getPhysicsState();
-    physState.position.set(-1.68, 0.5, -2.5);
+    physState.position.set(-2.18, 0.5, -3.5);
     physState.velocity.set(-7.0, 0, 0);
 
     orchestrator.update(dt);
@@ -220,18 +243,18 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     (orchestrator as any).hasTakenOff = true;
     orchestrator.update(dt);
     
-    // Position drone 0.35m away from Desk Table (radius = 0.08, so center = -1.75 + 0.08 + 0.35 = -1.32)
+    // Position drone 0.35m away from Bench A (radius = 0.08, so center = -2.25 + 0.08 + 0.35 = -1.82)
     physState = orchestrator.getPhysicsState();
-    physState.position.set(-1.32, 0.5, -2.5);
+    physState.position.set(-1.82, 0.5, -3.5);
     physState.velocity.set(0, 0, 0);
     orchestrator.update(dt);
     expect(triggeredNotifications.some(n => n.text === 'CAUTION: OBSTACLE AHEAD' && n.type === 'warning')).toBe(true);
 
     triggeredNotifications.length = 0;
 
-    // Position drone 0.15m away (center = -1.75 + 0.08 + 0.15 = -1.52)
+    // Position drone 0.15m away (center = -2.25 + 0.08 + 0.15 = -2.02)
     physState = orchestrator.getPhysicsState();
-    physState.position.set(-1.52, 0.5, -2.5);
+    physState.position.set(-2.02, 0.5, -3.5);
     orchestrator.update(dt);
     expect(triggeredNotifications.some(n => n.text === 'WARNING: CLOSE PROXIMITY' && n.type === 'orange')).toBe(true);
 
@@ -310,11 +333,11 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     expect(orchestrator.physics.lastCollision?.collided).toBe(true);
 
     // --- TEST 2: Low-speed resting stabilization on desk ---
-    mockStore.flightEnvironment = 'room';
+    mockStore.flightEnvironment = 'lab';
     
-    // Desk table is at [-2.5, 0.4, -2.5] with size [1.5, 0.8, 1.5].
-    // Top face is at y = 0.8.
-    physState.position.set(-2.5, 0.82, -2.5);
+    // Bench A is at [-3.5, 0.5, -3.5] with size [2.5, 1.0, 1.2].
+    // Top face is at y = 1.0.
+    physState.position.set(-3.5, 1.02, -3.5);
     physState.velocity.set(0, -0.1, 0);
     physState.quaternion.setFromEuler(new THREE.Euler(0.2, 0.1, 0.3));
     physState.angularVelocity.set(1.0, 2.0, 3.0);
@@ -324,7 +347,7 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     physState = orchestrator.getPhysicsState();
 
     // Drone should be stabilized on the top face
-    expect(physState.position.y).toBeCloseTo(0.88, 4); // 0.8 + radius (0.08) = 0.88
+    expect(physState.position.y).toBeCloseTo(1.08, 4); // 1.0 + radius (0.08) = 1.08
     expect(physState.velocity.y).toBeCloseTo(0, 4);
     
     // Pitch/roll should be zeroed

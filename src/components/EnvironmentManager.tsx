@@ -469,10 +469,6 @@ export function EnvironmentManager({ activeCheckpoints }: { activeCheckpoints?: 
             fadeDistance={12} 
             infiniteGrid={false} 
           />
-          
-          <CubeObstacle position={[-2.5, 0.4, -2.5]} args={[1.5, 0.8, 1.5]} color="#1e293b" label="Desk Table" />
-          <CubeObstacle position={[2.5, 0.6, -1.0]} args={[0.8, 1.2, 0.8]} color="#0f172a" label="Book Shelf" />
-          <CubeObstacle position={[-3.0, 0.45, 2.5]} args={[1.2, 0.9, 1.2]} color="#1e293b" label="Cabinet" />
         </group>
       )}
       

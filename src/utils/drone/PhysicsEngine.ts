@@ -712,11 +712,7 @@ export class PhysicsEngine {
       
       let boxObstacles: { c: [number, number, number]; s: [number, number, number]; label: string; r?: number }[] = [];
       if (envType === 'room') {
-        boxObstacles = [
-          { c: [-2.5, 0.4, -2.5], s: [1.5, 0.8, 1.5], label: 'Desk Table' },
-          { c: [2.5, 0.6, -1.0], s: [0.8, 1.2, 0.8], label: 'Book Shelf' },
-          { c: [-3.0, 0.45, 2.5], s: [1.2, 0.9, 1.2], label: 'Cabinet' }
-        ];
+        boxObstacles = [];
       } else if (envType === 'lab') {
         boxObstacles = [
           { c: [-3.5, 0.5, -3.5], s: [2.5, 1.0, 1.2], label: 'Bench A' },

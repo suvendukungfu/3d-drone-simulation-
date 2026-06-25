@@ -165,5 +165,98 @@ describe('ClosedSimMobileMenu Component Tests', () => {
     fireEvent.click(exitBtn);
     expect(useDroneStore.getState().currentMode).toBe('home');
   });
+
+  test('Renders and triggers Takeoff, Land, and Flip buttons when armed', () => {
+    // Set isArmed to true
+    useDroneStore.setState({
+      telemetry: {
+        ...useDroneStore.getState().telemetry,
+        isArmed: true,
+      } as any
+    });
+
+    const onTakeoffSpy = vi.fn();
+    const onLandSpy = vi.fn();
+    const onFlipSpy = vi.fn();
+
+    render(
+      <ClosedSimMobileMenu
+        onReset={() => {}}
+        onToggleAltHold={() => {}}
+        stickState={defaultStickState}
+        hasTakenOff={false}
+        isLandingActive={false}
+        isFlipArmed={false}
+        isFlipping={false}
+        onTakeoff={onTakeoffSpy}
+        onLand={onLandSpy}
+        onFlip={onFlipSpy}
+      />
+    );
+
+    // Open menu
+    fireEvent.click(screen.getByRole('button', { name: /Open menu/i }));
+
+    // Find and click Takeoff Drone button
+    const takeoffBtn = screen.getByRole('button', { name: /Takeoff Drone/i });
+    expect(takeoffBtn).toBeInTheDocument();
+    expect(takeoffBtn).not.toBeDisabled();
+    fireEvent.click(takeoffBtn);
+    expect(onTakeoffSpy).toHaveBeenCalledTimes(1);
+
+    // The rest (Land and Flip) should be disabled since hasTakenOff is false
+    const landBtn = screen.getByRole('button', { name: /Land Drone/i });
+    const flipBtn = screen.getByRole('button', { name: /Arm Flip Mode/i });
+    expect(landBtn).toBeDisabled();
+    expect(flipBtn).toBeDisabled();
+  });
+
+  test('Enables and triggers Land and Flip buttons when airborne (hasTakenOff=true)', () => {
+    // Set isArmed to true
+    useDroneStore.setState({
+      telemetry: {
+        ...useDroneStore.getState().telemetry,
+        isArmed: true,
+      } as any
+    });
+
+    const onTakeoffSpy = vi.fn();
+    const onLandSpy = vi.fn();
+    const onFlipSpy = vi.fn();
+
+    render(
+      <ClosedSimMobileMenu
+        onReset={() => {}}
+        onToggleAltHold={() => {}}
+        stickState={defaultStickState}
+        hasTakenOff={true}
+        isLandingActive={false}
+        isFlipArmed={false}
+        isFlipping={false}
+        onTakeoff={onTakeoffSpy}
+        onLand={onLandSpy}
+        onFlip={onFlipSpy}
+      />
+    );
+
+    // Open menu
+    fireEvent.click(screen.getByRole('button', { name: /Open menu/i }));
+
+    // Takeoff button should be disabled when already taken off
+    const takeoffBtn = screen.getByRole('button', { name: /Takeoff Drone/i });
+    expect(takeoffBtn).toBeDisabled();
+
+    // Land button should be active and triggerable
+    const landBtn = screen.getByRole('button', { name: /Land Drone/i });
+    expect(landBtn).not.toBeDisabled();
+    fireEvent.click(landBtn);
+    expect(onLandSpy).toHaveBeenCalledTimes(1);
+
+    // Flip button should be active and triggerable
+    const flipBtn = screen.getByRole('button', { name: /Arm Flip Mode/i });
+    expect(flipBtn).not.toBeDisabled();
+    fireEvent.click(flipBtn);
+    expect(onFlipSpy).toHaveBeenCalledTimes(1);
+  });
 });
 

@@ -12,9 +12,30 @@ interface TelemetryDashboardProps {
   stickState: { throttle: number; yaw: number; pitch: number; roll: number };
   onArm?: () => void;
   onDisarm?: () => void;
+  hasTakenOff?: boolean;
+  isLandingActive?: boolean;
+  isFlipArmed?: boolean;
+  isFlipping?: boolean;
+  onTakeoff?: () => void;
+  onLand?: () => void;
+  onFlip?: () => void;
 }
 
-export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stickState, onArm, onDisarm }: TelemetryDashboardProps) {
+export function TelemetryDashboard({
+  onReset,
+  onCalibrate,
+  onToggleAltHold,
+  stickState,
+  onArm,
+  onDisarm,
+  hasTakenOff = false,
+  isLandingActive = false,
+  isFlipArmed = false,
+  isFlipping = false,
+  onTakeoff,
+  onLand,
+  onFlip
+}: TelemetryDashboardProps) {
   const telemetry = useDroneStore((state) => state.telemetry);
   const warnings = useDroneStore((state) => state.warnings);
   const flightEnvironment = useDroneStore((state) => state.flightEnvironment);
@@ -588,44 +609,43 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
 
       {/* 3. BOTTOM PILOT CONTROLS HUD */}
       <div className="hidden md:flex w-full justify-between items-end pointer-events-auto gap-4">
-        
-        {/* Left Side: Flight Mode Controller panel & HUD Toggles */}
-        {!isClosedSimulation ? (
-          <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-2xl w-[280px] shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex flex-col gap-3">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-widest uppercase">Flight Settings</span>
-              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                telemetry.isArmed ? 'bg-red-50 dark:bg-red-950/40 text-red-606 dark:text-red-400 border border-red-200 dark:border-red-900/60' : 'bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-500 border border-slate-202 dark:border-slate-800'
-              }`}>
-                {telemetry.isArmed ? 'ARMED' : 'DISARMED'}
-              </span>
-            </div>
+                {/* Left Side: Flight Mode Controller panel & HUD Toggles */}
+        <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-2xl w-[280px] shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex flex-col gap-3">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-widest uppercase">Flight Settings</span>
+            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+              telemetry.isArmed ? 'bg-red-50 dark:bg-red-950/40 text-red-606 dark:text-red-400 border border-red-200 dark:border-red-900/60' : 'bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-500 border border-slate-202 dark:border-slate-800'
+            }`}>
+              {telemetry.isArmed ? 'ARMED' : 'DISARMED'}
+            </span>
+          </div>
 
-            {/* Mode selections */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-655 dark:text-slate-300 font-medium">Altitude Hold (Auto-Level)</span>
-                <button 
-                  onClick={() => onToggleAltHold(telemetry.flightMode !== 'althold')}
-                  disabled={telemetry.flightMode === 'failsafe'}
-                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    telemetry.flightMode === 'althold' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'
-                  }`}
-                >
-                  <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    telemetry.flightMode === 'althold' ? 'translate-x-4' : 'translate-x-0'
-                  }`} />
-                </button>
-              </div>
-              
-              <div className="flex justify-between text-[11px] font-mono pt-1 text-slate-500 dark:text-slate-400">
-                <span>ACTIVE MODE:</span>
-                <span className="text-blue-600 dark:text-blue-400 font-bold">{getFlightModeLabel(telemetry.flightMode)}</span>
-              </div>
+          {/* Mode selections */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-655 dark:text-slate-300 font-medium">Altitude Hold (Auto-Level)</span>
+              <button 
+                onClick={() => onToggleAltHold(telemetry.flightMode !== 'althold')}
+                disabled={telemetry.flightMode === 'failsafe'}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  telemetry.flightMode === 'althold' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'
+                }`}
+              >
+                <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  telemetry.flightMode === 'althold' ? 'translate-x-4' : 'translate-x-0'
+                }`} />
+              </button>
             </div>
+            
+            <div className="flex justify-between text-[11px] font-mono pt-1 text-slate-500 dark:text-slate-450">
+              <span>ACTIVE MODE:</span>
+              <span className="text-blue-600 dark:text-blue-400 font-bold">{getFlightModeLabel(telemetry.flightMode)}</span>
+            </div>
+          </div>
 
-            {/* HUD settings toggle buttons */}
-            <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-2 text-[11px] text-slate-500 dark:text-slate-450 font-mono font-bold">
+          {/* HUD settings toggle buttons */}
+          <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-2 text-[11px] text-slate-500 dark:text-slate-450 font-mono font-bold">
+            {!isClosedSimulation && (
               <div className="flex justify-between items-center">
                 <span>TELEMETRY HUD (T)</span>
                 <button 
@@ -635,78 +655,122 @@ export function TelemetryDashboard({ onReset, onCalibrate, onToggleAltHold, stic
                   <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${showTelemetryDashboard ? 'translate-x-4' : 'translate-x-0'}`} />
                 </button>
               </div>
-              
-              <div className="flex justify-between items-center">
-                <span>CONTROLS HUD (H)</span>
-                <button 
-                  onClick={toggleControlsOverlay}
-                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${showControlsOverlay ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
-                >
-                  <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${showControlsOverlay ? 'translate-x-4' : 'translate-x-0'}`} />
-                </button>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span>CHECKLIST HUD (C)</span>
-                <button 
-                  onClick={toggleChecklist}
-                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${showChecklist ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
-                >
-                  <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${showChecklist ? 'translate-x-4' : 'translate-x-0'}`} />
-                </button>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span>SPAWN DEBUG (G)</span>
-                <button 
-                  onClick={useDroneStore.getState().toggleSpawnDebugMode}
-                  className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${isSpawnDebugMode ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
-                >
-                  <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${isSpawnDebugMode ? 'translate-x-4' : 'translate-x-0'}`} />
-                </button>
-              </div>
+            )}
+            
+            <div className="flex justify-between items-center">
+              <span>CONTROLS HUD (H)</span>
+              <button 
+                onClick={toggleControlsOverlay}
+                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${showControlsOverlay ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
+              >
+                <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${showControlsOverlay ? 'translate-x-4' : 'translate-x-0'}`} />
+              </button>
             </div>
 
-            <div className="flex flex-col gap-2 mt-1 border-t border-slate-100 dark:border-slate-800 pt-2.5">
-              <button
-                onClick={() => {
-                  if (telemetry.isArmed) {
-                    onDisarm?.();
-                  } else {
-                    onArm?.();
-                  }
-                }}
-                disabled={isInitChecking || droneInitFailed}
-                className={`py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border w-full ${
-                  telemetry.isArmed
-                    ? 'bg-red-50 dark:bg-red-950/40 border-red-400 dark:border-red-800 text-red-600 dark:text-red-450 hover:bg-red-600 hover:text-white shadow-sm'
-                    : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 dark:border-emerald-800 text-emerald-700 dark:text-emerald-450 hover:bg-emerald-600 dark:hover:bg-emerald-850 hover:text-white shadow-sm disabled:opacity-40 disabled:hover:bg-slate-50 dark:disabled:hover:bg-slate-950 disabled:hover:text-slate-400 dark:disabled:hover:text-slate-600 disabled:border-slate-200 dark:disabled:border-slate-800 disabled:shadow-none'
-                }`}
+            <div className="flex justify-between items-center">
+              <span>CHECKLIST HUD (C)</span>
+              <button 
+                onClick={toggleChecklist}
+                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${showChecklist ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
               >
-                {telemetry.isArmed ? 'Disarm Drone (Space)' : 'Arm Drone (Space)'}
+                <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${showChecklist ? 'translate-x-4' : 'translate-x-0'}`} />
               </button>
+            </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={onCalibrate}
-                  disabled={telemetry.isArmed || isInitChecking}
-                  className="py-1.5 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-50 border border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider rounded-lg text-slate-700 dark:text-slate-300 transition shadow-sm"
-                >
-                  Calibrate
-                </button>
-                <button
-                  onClick={onReset}
-                  className="py-1.5 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 border border-red-200 dark:border-red-900/60 text-[10px] font-bold uppercase tracking-wider rounded-lg text-red-655 dark:text-red-450 transition flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  Reset Sim
-                </button>
-              </div>
+            <div className="flex justify-between items-center">
+              <span>SPAWN DEBUG (G)</span>
+              <button 
+                onClick={useDroneStore.getState().toggleSpawnDebugMode}
+                className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none ${isSpawnDebugMode ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'}`}
+              >
+                <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${isSpawnDebugMode ? 'translate-x-4' : 'translate-x-0'}`} />
+              </button>
             </div>
           </div>
-        ) : (
-          <div className="w-[280px]" />
-        )}
+
+          <div className="flex flex-col gap-2 mt-1 border-t border-slate-100 dark:border-slate-800 pt-2.5">
+            <button
+              onClick={() => {
+                if (telemetry.isArmed) {
+                  onDisarm?.();
+                } else {
+                  onArm?.();
+                }
+              }}
+              disabled={isInitChecking || droneInitFailed}
+              className={`py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border w-full ${
+                telemetry.isArmed
+                  ? 'bg-red-50 dark:bg-red-950/40 border-red-400 dark:border-red-800 text-red-600 dark:text-red-450 hover:bg-red-600 hover:text-white shadow-sm'
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 dark:border-emerald-800 text-emerald-700 dark:text-emerald-450 hover:bg-emerald-600 dark:hover:bg-emerald-850 hover:text-white shadow-sm disabled:opacity-40 disabled:hover:bg-slate-50 dark:disabled:hover:bg-slate-950 disabled:hover:text-slate-400 dark:disabled:hover:text-slate-600 disabled:border-slate-200 dark:disabled:border-slate-800 disabled:shadow-none'
+              }`}
+            >
+              {telemetry.isArmed ? 'Disarm Drone (Space)' : 'Arm Drone (Space)'}
+            </button>
+
+            {telemetry.isArmed && (
+              <div className="flex flex-col gap-1.5 mt-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Flight Commands</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={onTakeoff}
+                    disabled={hasTakenOff}
+                    className={`py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border text-center shadow-sm ${
+                      hasTakenOff
+                        ? 'bg-slate-100 dark:bg-slate-900 border-slate-202 dark:border-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none'
+                        : 'bg-blue-50 dark:bg-blue-950/40 border-blue-400 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white'
+                    }`}
+                    title="Initiate auto-takeoff sequence (T key)"
+                  >
+                    Takeoff
+                  </button>
+                  <button
+                    onClick={onLand}
+                    disabled={!hasTakenOff || isLandingActive}
+                    className={`py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border text-center shadow-sm ${
+                      !hasTakenOff || isLandingActive
+                        ? 'bg-slate-100 dark:bg-slate-900 border-slate-202 dark:border-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none'
+                        : 'bg-amber-50 dark:bg-amber-950/40 border-amber-400 dark:border-amber-800 text-amber-600 dark:text-amber-400 hover:bg-amber-600 hover:text-white'
+                    }`}
+                    title="Initiate auto-landing sequence (L key)"
+                  >
+                    {isLandingActive ? 'Landing' : 'Land'}
+                  </button>
+                  <button
+                    onClick={onFlip}
+                    disabled={!hasTakenOff || isFlipping}
+                    className={`py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border text-center shadow-sm ${
+                      !hasTakenOff || isFlipping
+                        ? 'bg-slate-100 dark:bg-slate-900 border-slate-202 dark:border-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none'
+                        : isFlipArmed
+                          ? 'bg-violet-600 border-violet-500 text-white shadow-[0_0_10px_rgba(139,92,246,0.3)]'
+                          : 'bg-violet-50 dark:bg-violet-950/40 border-violet-400 dark:border-violet-800 text-violet-600 dark:text-violet-400 hover:bg-violet-600 hover:text-white'
+                    }`}
+                    title="Arm Flip mode (F key). Push direction stick to execute flip."
+                  >
+                    {isFlipping ? 'Flipping' : isFlipArmed ? 'Flip Armed' : 'Flip'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={onCalibrate}
+                disabled={telemetry.isArmed || isInitChecking}
+                className="py-1.5 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-50 border border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider rounded-lg text-slate-700 dark:text-slate-300 transition shadow-sm"
+              >
+                Calibrate
+              </button>
+              <button
+                onClick={onReset}
+                className="py-1.5 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 border border-red-200 dark:border-red-900/60 text-[10px] font-bold uppercase tracking-wider rounded-lg text-red-655 dark:text-red-450 transition flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Reset Sim
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Center: Live Transmitter Virtual Stick Visualizer */}
         {showControlsOverlay ? (

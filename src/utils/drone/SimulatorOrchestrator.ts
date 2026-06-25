@@ -945,6 +945,22 @@ export class SimulatorOrchestrator {
     return this.isArmed;
   }
 
+  public getHasTakenOff(): boolean {
+    return this.hasTakenOff;
+  }
+
+  public getIsLandingActive(): boolean {
+    return this.isLandingActive;
+  }
+
+  public getIsFlipArmed(): boolean {
+    return this.isFlipArmed;
+  }
+
+  public getIsFlipping(): boolean {
+    return this.isFlipping;
+  }
+
   public getPhysicsState(): RigidBodyState {
     return this.state;
   }

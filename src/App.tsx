@@ -56,6 +56,13 @@ function App() {
   // State of keyboard sticks for UI visualizer
   const [stickState, setStickState] = useState({ throttle: 0, yaw: 0, pitch: 0, roll: 0 });
 
+  const [orchestratorState, setOrchestratorState] = useState({
+    hasTakenOff: false,
+    isLandingActive: false,
+    isFlipArmed: false,
+    isFlipping: false
+  });
+
   // Zustand Store mappings
   const currentMode = useDroneStore((state) => state.currentMode);
   const hoveredComponent = useDroneStore((state) => state.hoveredComponent);
@@ -204,6 +211,12 @@ function App() {
         if (orchestratorRef.current) {
           const sticks = orchestratorRef.current.input.getStickState();
           setStickState(sticks);
+          setOrchestratorState({
+            hasTakenOff: orchestratorRef.current.getHasTakenOff(),
+            isLandingActive: orchestratorRef.current.getIsLandingActive(),
+            isFlipArmed: orchestratorRef.current.getIsFlipArmed(),
+            isFlipping: orchestratorRef.current.getIsFlipping()
+          });
         }
       }, 50);
       
@@ -835,6 +848,13 @@ function App() {
             stickState={stickState}
             onArm={() => orchestratorRef.current?.arm()}
             onDisarm={() => orchestratorRef.current?.disarm()}
+            hasTakenOff={orchestratorState.hasTakenOff}
+            isLandingActive={orchestratorState.isLandingActive}
+            isFlipArmed={orchestratorState.isFlipArmed}
+            isFlipping={orchestratorState.isFlipping}
+            onTakeoff={() => orchestratorRef.current?.triggerAutoTakeoff()}
+            onLand={() => orchestratorRef.current?.triggerLanding()}
+            onFlip={() => orchestratorRef.current?.toggleFlipArmed()}
           />
         )}
       </div>      {/* 4. RIGHT SIDEBAR: Avionics Info Inspector (Only in Avionics Lab mode) */}
@@ -1151,6 +1171,13 @@ function App() {
           stickState={stickState}
           onArm={() => orchestratorRef.current?.arm()}
           onDisarm={() => orchestratorRef.current?.disarm()}
+          hasTakenOff={orchestratorState.hasTakenOff}
+          isLandingActive={orchestratorState.isLandingActive}
+          isFlipArmed={orchestratorState.isFlipArmed}
+          isFlipping={orchestratorState.isFlipping}
+          onTakeoff={() => orchestratorRef.current?.triggerAutoTakeoff()}
+          onLand={() => orchestratorRef.current?.triggerLanding()}
+          onFlip={() => orchestratorRef.current?.toggleFlipArmed()}
         />
       )}
 

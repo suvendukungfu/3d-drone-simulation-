@@ -29,6 +29,13 @@ interface ClosedSimMobileMenuProps {
   onToggleAltHold: (active: boolean) => void;
   onRecenterCamera?: () => void;
   stickState: { throttle: number; yaw: number; pitch: number; roll: number };
+  hasTakenOff?: boolean;
+  isLandingActive?: boolean;
+  isFlipArmed?: boolean;
+  isFlipping?: boolean;
+  onTakeoff?: () => void;
+  onLand?: () => void;
+  onFlip?: () => void;
 }
 
 // ─── Section Accordion ────────────────────────────────────────────────────────
@@ -221,6 +228,13 @@ export function ClosedSimMobileMenu({
   onToggleAltHold,
   onRecenterCamera,
   stickState,
+  hasTakenOff = false,
+  isLandingActive = false,
+  isFlipArmed = false,
+  isFlipping = false,
+  onTakeoff,
+  onLand,
+  onFlip
 }: ClosedSimMobileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -502,6 +516,31 @@ export function ClosedSimMobileMenu({
                       variant={telemetry?.isArmed ? 'danger' : 'success'}
                       disabled={!isReady}
                     />
+                    {telemetry?.isArmed && (
+                      <>
+                        <ActionBtn
+                          icon={<Navigation className="w-3.5 h-3.5 rotate-45" />}
+                          label="Takeoff Drone"
+                          onClick={() => { onTakeoff?.(); close(); }}
+                          disabled={!isReady || hasTakenOff}
+                          variant="success"
+                        />
+                        <ActionBtn
+                          icon={<ChevronDown className="w-3.5 h-3.5" />}
+                          label={isLandingActive ? 'Landing Drone...' : 'Land Drone'}
+                          onClick={() => { onLand?.(); close(); }}
+                          disabled={!isReady || !hasTakenOff || isLandingActive}
+                          variant="warning"
+                        />
+                        <ActionBtn
+                          icon={<RefreshCw className="w-3.5 h-3.5 animate-spin-slow" />}
+                          label={isFlipping ? 'Flipping...' : isFlipArmed ? 'Flip Mode Armed' : 'Arm Flip Mode'}
+                          onClick={() => { onFlip?.(); close(); }}
+                          disabled={!isReady || !hasTakenOff || isFlipping}
+                          variant={isFlipArmed ? 'success' : 'default'}
+                        />
+                      </>
+                    )}
                     <ActionBtn
                       icon={<RefreshCw className="w-3.5 h-3.5" />}
                       label="Reset Drone"
