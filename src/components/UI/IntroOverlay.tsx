@@ -125,7 +125,7 @@ export function IntroOverlay() {
     store.setAcademyMode(true);
     if (!store.isAcademyOpen) store.toggleAcademy();
   };
-  const startARMode = () => { setFlightSimModalOpen(false); setARActive(true); };
+  const startARMode = () => { setFlightSimModalOpen(false); setMode('flight'); setARActive(true); };
   const startClosedSim = () => {
     setFlightSimModalOpen(false);
     setMode('flight');
