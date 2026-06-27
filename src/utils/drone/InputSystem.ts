@@ -449,6 +449,8 @@ export class InputSystem {
         if (Math.abs(this.stick.yaw) < 0.15) {
           const correction = error * 0.35;
           this.stick.yaw = Math.max(-1.0, Math.min(1.0, this.stick.yaw + correction));
+        } else {
+          this.lockedHeading = currentHeading;
         }
       }
     }
