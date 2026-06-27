@@ -145,7 +145,7 @@ export function IntroOverlay() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="absolute inset-0 z-20 pointer-events-auto flex flex-col overflow-y-auto md:overflow-hidden select-none bg-[#FAFBFD] dark:bg-[#07080e]"
+      className="absolute inset-0 z-20 pointer-events-auto flex flex-col overflow-y-auto lg:overflow-hidden select-none bg-[#FAFBFD] dark:bg-[#07080e]"
       style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" }}
     >
 
@@ -384,7 +384,7 @@ export function IntroOverlay() {
       <div className="relative z-10 flex flex-col flex-1 min-h-0">
 
         {/* ── NAVBAR ──────────────────────────────────────────────── */}
-        <header className="w-full flex justify-between items-center relative z-30 pointer-events-auto max-w-[1320px] mx-auto px-6 md:px-10 lg:px-14 pt-6 pb-2 md:pt-7 md:pb-0">
+        <header className="w-full flex justify-between items-center relative z-30 pointer-events-auto max-w-[1320px] mx-auto px-4 sm:px-6 md:px-10 lg:px-14 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-2 md:pt-7 md:pb-0">
           <motion.div
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
@@ -401,7 +401,7 @@ export function IntroOverlay() {
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: 0.15 }}
-            className="hidden md:flex items-center gap-3 text-[10px] font-mono text-slate-400 dark:text-slate-500 tracking-wider select-none"
+            className="hidden lg:flex items-center gap-3 text-[10px] font-mono text-slate-400 dark:text-slate-500 tracking-wider select-none"
           >
             <span className="flex items-center gap-1.5">
               <span className="relative flex h-2 w-2">
@@ -416,14 +416,14 @@ export function IntroOverlay() {
         </header>
 
         {/* ── HERO SPLIT-SCREEN GRID ─────────────────────────────── */}
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-y-8 md:gap-y-0 md:gap-x-8 lg:gap-x-12 xl:gap-x-16 items-center w-full max-w-[1320px] mx-auto px-6 md:px-10 lg:px-14 relative overflow-visible pointer-events-auto">
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-y-6 sm:gap-y-8 lg:gap-y-0 lg:gap-x-8 xl:gap-x-16 items-center w-full max-w-[1320px] mx-auto px-4 sm:px-6 md:px-10 lg:px-14 relative overflow-visible pointer-events-auto">
           
           {/* ── LEFT COLUMN ──────────────────────────────────────── */}
           <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="w-full md:col-span-5 flex flex-col justify-center space-y-5 md:space-y-8 text-left py-4 md:py-0 order-1"
+            className="w-full lg:col-span-5 flex flex-col justify-center space-y-4 sm:space-y-5 lg:space-y-8 text-left py-4 lg:py-0 order-1"
           >
             {/* Eyebrow badge */}
             <motion.div variants={fadeUp}>
@@ -438,7 +438,7 @@ export function IntroOverlay() {
             
             {/* Title */}
             <motion.div variants={fadeUp} className="space-y-3.5 md:space-y-5">
-              <h1 className="text-[2.2rem] sm:text-[2.65rem] lg:text-[3.15rem] font-bold tracking-[-0.03em] leading-[1.08] text-slate-900 dark:text-white">
+              <h1 className="text-[clamp(1.6rem,5.5vw,2.2rem)] sm:text-[2.2rem] md:text-[2.65rem] lg:text-[3.15rem] font-bold tracking-[-0.03em] leading-[1.08] text-slate-900 dark:text-white">
                 Professional Drone Pilot<br />
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-500 to-violet-600 dark:from-cyan-400 dark:via-blue-400 dark:to-teal-400 font-extrabold">Training Platform</span>
               </h1>
@@ -451,9 +451,9 @@ export function IntroOverlay() {
             {/* Mobile-only Drone Showcase */}
             <motion.div 
               variants={fadeUp}
-              className="flex md:hidden w-full justify-center py-2 my-1"
+              className="flex lg:hidden w-full justify-center py-2 my-1"
             >
-              <div className="w-full max-w-[280px] sm:max-w-[320px] aspect-[4/3] relative flex items-center justify-center rounded-2xl border border-slate-200/40 dark:border-slate-800/20 bg-white/40 dark:bg-[#0a0c14]/40 backdrop-blur-md overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+              <div className="w-full max-w-[260px] sm:max-w-[320px] md:max-w-[360px] aspect-[4/3] max-h-[40vh] relative flex items-center justify-center rounded-2xl border border-slate-200/40 dark:border-slate-800/20 bg-white/40 dark:bg-[#0a0c14]/40 backdrop-blur-md overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.03)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
                 {/* Concentric engineering rings */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03]">
                   <div className="w-[85%] h-[85%] border border-dashed border-blue-400 dark:border-cyan-500 rounded-full animate-[spin_180s_linear_infinite]" />
@@ -483,7 +483,7 @@ export function IntroOverlay() {
             </motion.div>
 
             {/* ── CTA CARDS ──────────────────────────────────────── */}
-            <motion.div variants={containerVariants} className="flex flex-col gap-2">
+            <motion.div variants={containerVariants} className="flex flex-col gap-2 w-full max-w-full">
 
               {/* Card 1: Enter Flight Sim */}
               <motion.button
@@ -585,12 +585,12 @@ export function IntroOverlay() {
             variants={showcaseReveal}
             initial="hidden"
             animate="visible"
-            className="hidden md:flex w-full md:col-span-7 items-center justify-center relative py-4 md:py-0 order-2 md:order-3"
+            className="hidden lg:flex w-full lg:col-span-7 items-center justify-center relative py-4 lg:py-0 order-2 lg:order-3"
           >
             <div 
               onMouseMove={handleShowcaseMouseMove}
               onMouseLeave={handleShowcaseMouseLeave}
-              className="w-full max-w-[480px] lg:max-w-[520px] aspect-square relative flex items-center justify-center group"
+              className="w-full max-w-[min(480px,70vh)] lg:max-w-[min(520px,72vh)] aspect-square relative flex items-center justify-center group"
               style={{ perspective: 1000 }}
             >
               
@@ -660,7 +660,7 @@ export function IntroOverlay() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8, duration: 0.6 }}
-          className="w-full max-w-[1320px] mx-auto px-6 md:px-10 lg:px-14 pb-5 pt-2 md:pb-6 pointer-events-none"
+          className="w-full max-w-[1320px] mx-auto px-4 sm:px-6 md:px-10 lg:px-14 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] pt-2 md:pb-6 pointer-events-none"
         >
           <div className="flex items-center justify-between text-[9px] font-mono text-slate-350 dark:text-slate-600 tracking-[0.08em] select-none uppercase">
             <div className="flex items-center gap-5">
@@ -687,7 +687,7 @@ export function IntroOverlay() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-12 md:pt-4 pointer-events-auto overflow-y-auto"
+            className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 pt-8 sm:pt-4 pointer-events-auto overflow-y-auto"
           >
             {/* Backdrop */}
             <motion.div
@@ -703,14 +703,14 @@ export function IntroOverlay() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 28, stiffness: 180 }}
-              className="relative max-w-2xl w-full overflow-hidden rounded-[28px] shrink-0 mb-8 md:mb-0"
+              className="relative max-w-2xl w-full overflow-hidden rounded-[20px] sm:rounded-[28px] shrink-0 mb-8 sm:mb-0 max-h-[90vh] sm:max-h-[92vh]"
               style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" }}
             >
               {/* Modal animated gradient border */}
               <div className="absolute inset-0 rounded-[28px] animated-border opacity-30" />
               
               {/* Modal content */}
-              <div className="relative m-[1.5px] rounded-[27px] bg-white/97 dark:bg-[#0c0f18]/97 backdrop-blur-2xl p-8 flex flex-col space-y-6 overflow-hidden">
+              <div className="relative m-[1.5px] rounded-[19px] sm:rounded-[27px] bg-white/97 dark:bg-[#0c0f18]/97 backdrop-blur-2xl p-4 sm:p-6 md:p-8 flex flex-col space-y-4 sm:space-y-6 overflow-y-auto max-h-[calc(90vh-4px)] sm:max-h-[calc(92vh-4px)]">
                 <div className="absolute inset-0 noise-overlay pointer-events-none opacity-30" />
                 <div className="absolute inset-0 bg-blueprint-grid opacity-[0.02] pointer-events-none" />
                 
