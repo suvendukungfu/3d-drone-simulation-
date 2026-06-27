@@ -1,12 +1,13 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, lazy, Suspense } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Environment, Grid, ContactShadows, Center } from '@react-three/drei';
 import * as THREE from 'three';
 import { useDroneStore } from '../store/useDroneStore';
 import { droneComponents } from '../data/droneComponents';
 import { PlutoXModel, getComponentIdByMeshName, getCornerIndex } from './PlutoXModel';
-import { PlutoAnatomyExploded } from './PlutoAnatomyExploded';
 import { FloatingHotspots } from './FloatingHotspots';
+
+const PlutoAnatomyExploded = lazy(() => import('./PlutoAnatomyExploded').then(m => ({ default: m.PlutoAnatomyExploded })));
 
 const SEARCH_ID_MAP: Record<string, string> = {
   accelerometer: 'imuSensor',
@@ -371,7 +372,11 @@ export function Scene({ controlsRef, vrEye }: SceneProps) {
         {/* Center the group & render model */}
         <Center>
           {showAnatomyExploded
-            ? <PlutoAnatomyExploded />
+            ? (
+              <Suspense fallback={null}>
+                <PlutoAnatomyExploded />
+              </Suspense>
+            )
             : (
               <>
                 <PlutoXModel />

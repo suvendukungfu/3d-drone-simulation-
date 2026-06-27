@@ -392,16 +392,16 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     expect(orchestrator.getMotorCommands()[0]).toBeCloseTo(0.08, 2);
     expect(orchestrator.getPhysicsState().position.y).toBeCloseTo(0.05, 4);
 
-    // 3. TAKEOFF READY: Simulate pressing 'w' to throttle up. Slew rate takes time to pass 15% takeoff threshold.
+    // 3. MANUAL TAKEOFF: Simulate pressing 'w' to throttle up. With improved keyboard response, 
+    // it quickly passes the 15% takeoff threshold.
     (orchestrator.input as any).keys['w'] = true;
     orchestrator.update(dt);
 
-    // Motors spin faster (0.108), but drone remains on ground, no lift
+    // The motor command increases immediately as takeoff initiates
     expect(orchestrator.getMotorCommands()[0]).toBeGreaterThan(0.08);
-    expect(orchestrator.getMotorCommands()[0]).toBeLessThan(0.15);
-    expect(orchestrator.getPhysicsState().position.y).toBeCloseTo(0.05, 4);
+    expect(orchestrator.getPhysicsState().position.y).toBeGreaterThanOrEqual(0.05);
 
-    // 4. MANUAL TAKEOFF: Run more steps so throttle exceeds 15% and the drone starts climbing
+    // 4. CLIMB: Run more steps so the drone climbs
     for (let i = 0; i < 20; i++) {
       orchestrator.update(dt);
     }

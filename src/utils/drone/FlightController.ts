@@ -329,7 +329,7 @@ export class FlightController {
     this.lastMixedThrottle = mixedThrottle;
 
     if (hasTakenOff) {
-      console.log(`[FC roll] rollAngleErr=${rollAngleErr.toFixed(4)}, targetRollRate=${targetRollRate.toFixed(4)}, gyroZ=${sensorData.gyro.z.toFixed(4)}, rateErrorZ=${rateError.z.toFixed(4)}, P=${P_torque.z.toFixed(4)}, I=${this.rateState.integral.z.toFixed(4)}, D=${D_torque.z.toFixed(4)}, total=${torqueCor.z.toFixed(4)}`);
+      // console.log(`[FC roll] rollAngleErr=${rollAngleErr.toFixed(4)}, targetRollRate=${targetRollRate.toFixed(4)}, gyroZ=${sensorData.gyro.z.toFixed(4)}, rateErrorZ=${rateError.z.toFixed(4)}, P=${P_torque.z.toFixed(4)}, I=${this.rateState.integral.z.toFixed(4)}, D=${D_torque.z.toFixed(4)}, total=${torqueCor.z.toFixed(4)}`);
     }
       
     // 4. Motor Mixer (X Config)

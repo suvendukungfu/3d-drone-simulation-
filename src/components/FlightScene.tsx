@@ -240,13 +240,32 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
       const targetCamPos = dronePos.clone()
         .addScaledVector(rotatedBackVec, 1.4)
         .addScaledVector(rotatedUpVec, 0.42);
+
+      // Prevent camera from going out of environment bounds (Senior-level collision avoidance)
+      const bounds = orchestrator.physics.environmentBounds;
+      const margin = 0.25; // 25cm safety offset from walls/ceilings/floor
+      
+      const minX = bounds.minX + margin;
+      const maxX = bounds.maxX - margin;
+      const minY = bounds.minY + margin;
+      const maxY = bounds.maxY - margin;
+      const minZ = bounds.minZ + margin;
+      const maxZ = bounds.maxZ - margin;
+
+      targetCamPos.x = THREE.MathUtils.clamp(targetCamPos.x, minX, maxX);
+      targetCamPos.y = THREE.MathUtils.clamp(targetCamPos.y, minY, maxY);
+      targetCamPos.z = THREE.MathUtils.clamp(targetCamPos.z, minZ, maxZ);
         
       if (!cameraInitialized.current) {
         camera.position.copy(targetCamPos);
         camera.lookAt(dronePos.clone().addScaledVector(up, 0.1));
         cameraInitialized.current = true;
       } else {
-        camera.position.lerp(targetCamPos, 1.0 - Math.exp(-6.5 * delta));
+        // Tightened follow factor (from 6.5 to 15.0) to eliminate perceived lag
+        camera.position.lerp(targetCamPos, 1.0 - Math.exp(-15.0 * delta));
+        camera.position.x = THREE.MathUtils.clamp(camera.position.x, minX, maxX);
+        camera.position.y = THREE.MathUtils.clamp(camera.position.y, minY, maxY);
+        camera.position.z = THREE.MathUtils.clamp(camera.position.z, minZ, maxZ);
         camera.lookAt(dronePos.clone().addScaledVector(up, 0.1));
       }
     } 
@@ -255,15 +274,20 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
       const offsetQuat = new THREE.Quaternion().setFromEuler(
         new THREE.Euler(mouseOffset.current.pitch, mouseOffset.current.yaw, 0, 'YXZ')
       );
-      const rotatedForward = forward.clone().applyQuaternion(offsetQuat);
 
+      // Position the camera at the front canopy nose to avoid clipping internal circuitry/battery
       const targetCamPos = dronePos.clone()
-        .addScaledVector(forward, 0.12)
-        .addScaledVector(up, 0.025);
+        .addScaledVector(forward, 0.155)
+        .addScaledVector(up, 0.045);
       camera.position.copy(targetCamPos);
       
-      const targetLook = targetCamPos.clone().add(rotatedForward);
-      camera.lookAt(targetLook);
+      // In real FPV drones, the camera is fixed to the frame facing forward (no gimbal).
+      // Three.js cameras look down their local negative Z axis by default, while the drone 
+      // faces positive Z. Therefore, we must apply a base 180-degree yaw rotation (Euler 0, PI, 0)
+      // to point the camera forward relative to the drone body.
+      const baseCamRot = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0));
+      const cameraQuat = droneQuat.clone().multiply(baseCamRot).multiply(offsetQuat);
+      camera.quaternion.copy(cameraQuat);
       cameraInitialized.current = true;
     } 
     else if (flightCameraView === 'orbit') {

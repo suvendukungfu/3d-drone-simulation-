@@ -1,17 +1,19 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
-import { Scene } from './components/Scene';
-import { FlightScene } from './components/FlightScene';
+import { useRef, useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { TelemetryDashboard } from './components/UI/TelemetryDashboard';
 import { ClosedSimMobileMenu } from './components/UI/ClosedSimMobileMenu';
 import { TrainingMissionSystem } from './components/UI/TrainingMissionSystem';
 import { useDroneStore } from './store/useDroneStore';
 import { IntroOverlay } from './components/UI/IntroOverlay';
 import VirtualJoysticks from './components/UI/VirtualJoysticks';
-import { ARSimulator } from './components/UI/ARSimulator';
 import { LearningWorkflow } from './components/UI/LearningWorkflow';
 import { droneComponents } from './data/droneComponents';
 import { SimulatorOrchestrator } from './utils/drone/SimulatorOrchestrator';
 import { Checkpoint } from './utils/drone/types';
+
+// Lazy loaded 3D viewports and overlay simulations for phase 2-4 performance optimizations
+const Scene = lazy(() => import('./components/Scene').then(m => ({ default: m.Scene })));
+const FlightScene = lazy(() => import('./components/FlightScene').then(m => ({ default: m.FlightScene })));
+const ARSimulator = lazy(() => import('./components/UI/ARSimulator').then(m => ({ default: m.ARSimulator })));
 import { 
   Layers, Info, ShieldAlert, Wrench, Activity, ChevronRight, ChevronDown, ChevronUp,
   Eye, Cpu, Power, CheckCircle, RefreshCcw, Gamepad2, ScanLine, Menu, X
@@ -81,6 +83,7 @@ function App() {
   const motorRPMs = useDroneStore((state) => state.motorRPMs);
   const showRotationDirections = useDroneStore((state) => state.showRotationDirections);
   const isAcademyMode = useDroneStore((state) => state.isAcademyMode);
+  const isARActive = useDroneStore((state) => state.isARActive);
 
   const hoverComponent = useDroneStore((state) => state.hoverComponent);
   const selectComponent = useDroneStore((state) => state.selectComponent);
@@ -112,16 +115,27 @@ function App() {
   useEffect(() => {
     const checkOrientation = () => {
       const isTouchOrMobile = (window.innerWidth <= 1024 || 'ontouchstart' in window || navigator.maxTouchPoints > 0);
-      const isPortrait = window.innerHeight > window.innerWidth;
+      let isPortrait = false;
+      if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.type) {
+        isPortrait = screen.orientation.type.includes('portrait');
+      } else {
+        isPortrait = window.innerHeight > window.innerWidth;
+      }
       setIsPortraitMobile(isTouchOrMobile && isPortrait);
     };
 
     checkOrientation();
     window.addEventListener('resize', checkOrientation);
     window.addEventListener('orientationchange', checkOrientation);
+    if (typeof screen !== 'undefined' && screen.orientation) {
+      screen.orientation.addEventListener('change', checkOrientation);
+    }
     return () => {
       window.removeEventListener('resize', checkOrientation);
       window.removeEventListener('orientationchange', checkOrientation);
+      if (typeof screen !== 'undefined' && screen.orientation) {
+        screen.orientation.removeEventListener('change', checkOrientation);
+      }
     };
   }, []);
 
@@ -310,8 +324,12 @@ function App() {
   };
 
   return (
-    <div className="w-full h-full relative overflow-hidden bg-[#F8FAFC] dark:bg-[#070a13] font-sans antialiased text-slate-800 dark:text-white select-none flex">
-      <ARSimulator />
+    <div className="w-full h-full relative overflow-hidden bg-[#F8FAFC] dark:bg-[#070a13] font-sans antialiased text-slate-800 dark:text-white select-none flex app-shell" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}>
+      {isARActive && (
+        <Suspense fallback={null}>
+          <ARSimulator />
+        </Suspense>
+      )}
       <LearningWorkflow />
       
       {/* 1. IMMERSIVE GLB LOADING PROGRESS BAR */}
@@ -320,11 +338,11 @@ function App() {
           <motion.div
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-[#F8FAFC] dark:bg-[#070a13] z-50 flex flex-col items-center justify-center p-6 select-none"
+            className="absolute inset-0 bg-[#F8FAFC] dark:bg-[#070a13] z-50 flex flex-col items-center justify-center p-6 select-none app-shell"
           >
-            <div className="flex flex-col items-center text-center space-y-6 max-w-md w-full">
+            <div className="flex flex-col items-center text-center space-y-6 max-w-md w-full px-4">
               {/* Floating Robot Drone */}
-              <div className="relative w-48 h-48 flex items-center justify-center animate-float-drone">
+              <div className="relative w-40 h-40 sm:w-48 sm:h-48 flex items-center justify-center animate-float-drone">
                 {/* Drone Arms & Motors */}
                 <svg viewBox="0 0 200 200" className="w-full h-full absolute top-0 left-0 text-slate-300 dark:text-slate-700 pointer-events-none">
                   {/* Arms */}
@@ -767,29 +785,36 @@ function App() {
 
       {/* 3. CENTER: 3D Scene Viewport (Conditional between Lab inspection vs Pilot simulator) */}
       <div className={`flex-1 h-full relative z-0 flex ${isDark ? 'bg-[#070a13]' : 'bg-[#F8FAFC]'}`}>
-        {currentMode === 'home' ? (
-          null
-        ) : currentMode === 'flight' ? (
-          // PILOT SIMULATOR FLIGHT VIEWPORT
-          <FlightScene 
-            orchestrator={orchestratorRef.current!} 
-            activeCheckpoints={activeCheckpoints}
-          />
-        ) : (
-          // CORE AVIONICS EXPLORER VIEWPORT (including split-screen VR SBS)
-          vrMode ? (
-            <>
-              <div className="w-1/2 h-full relative border-r border-slate-950">
-                <Scene controlsRef={leftControlsRef} vrEye="left" />
-              </div>
-              <div className="w-1/2 h-full relative">
-                <Scene controlsRef={rightControlsRef} vrEye="right" />
-              </div>
-            </>
+        <Suspense fallback={
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#070a13] font-mono text-xs text-slate-450 gap-4 w-full h-full">
+            <div className="w-8 h-8 border-2 border-slate-700 border-t-violet-500 rounded-full animate-spin" />
+            <span>CONNECTING TELEMETRY LINK...</span>
+          </div>
+        }>
+          {currentMode === 'home' ? (
+            null
+          ) : currentMode === 'flight' ? (
+            // PILOT SIMULATOR FLIGHT VIEWPORT
+            <FlightScene 
+              orchestrator={orchestratorRef.current!} 
+              activeCheckpoints={activeCheckpoints}
+            />
           ) : (
-            <Scene controlsRef={controlsRef} />
-          )
-        )}
+            // CORE AVIONICS EXPLORER VIEWPORT (including split-screen VR SBS)
+            vrMode ? (
+              <>
+                <div className="w-1/2 h-full relative border-r border-slate-950">
+                  <Scene controlsRef={leftControlsRef} vrEye="left" />
+                </div>
+                <div className="w-1/2 h-full relative">
+                  <Scene controlsRef={rightControlsRef} vrEye="right" />
+                </div>
+              </>
+            ) : (
+              <Scene controlsRef={controlsRef} />
+            )
+          )}
+        </Suspense>
 
         {/* BOTTOM CONTROLS: Anatomy Exploded and isolate view controls (Only visible in explorer mode) */}
         <AnimatePresence>
@@ -799,12 +824,12 @@ function App() {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 50, opacity: 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 120 }}
-              className="absolute bottom-6 left-6 pointer-events-auto z-10 flex gap-3"
+              className="absolute bottom-6 left-6 pointer-events-auto z-10 flex gap-3 max-md:bottom-[max(1.5rem,var(--sab,1.5rem))] max-md:left-[max(1rem,var(--sal,1rem))] max-md:right-[max(1rem,var(--sar,1rem))] max-md:flex-col max-md:items-stretch"
             >
               {/* ── ANATOMY EXPLODED button ─────────────────────────── */}
               <button
                 onClick={toggleAnatomyExploded}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border shadow-sm relative overflow-hidden ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border shadow-sm relative overflow-hidden max-md:justify-center max-md:py-3 ${
                   showAnatomyExploded
                     ? 'bg-violet-50 border-violet-500 text-violet-700 shadow-[0_0_18px_rgba(139,92,246,0.25)] dark:bg-violet-950/40 dark:border-violet-500 dark:text-violet-300'
                     : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-violet-700 hover:border-violet-300 dark:bg-slate-950/80 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:border-violet-700'
@@ -818,13 +843,13 @@ function App() {
                   </span>
                 )}
                 <ScanLine className="w-4 h-4" />
-                <span>Anatomy Exploded</span>
+                <span className="max-md:hidden">Anatomy Exploded</span>
               </button>
 
               <button
                 onClick={toggleIsolation}
                 disabled={!selectedComponent}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border shadow-sm ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border shadow-sm max-md:justify-center max-md:py-3 ${
                   !selectedComponent
                     ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-600'
                     : isolationMode
@@ -833,7 +858,7 @@ function App() {
                 }`}
               >
                 <ShieldAlert className="w-4 h-4" />
-                <span>Isolate Component</span>
+                <span className="max-md:hidden">Isolate Component</span>
               </button>
             </motion.div>
           )}
@@ -879,11 +904,11 @@ function App() {
               transition={{ type: 'spring', damping: 25, stiffness: 120 }}
               style={isMobile ? undefined : { overflow: 'hidden' }}
               className={isMobile 
-                ? "fixed right-0 top-0 h-full w-full max-w-[380px] bg-white/95 dark:bg-slate-950/95 pt-16 border-l border-slate-200 dark:border-slate-800 z-50 flex flex-col justify-between shadow-2xl pointer-events-auto" 
+                ? "fixed right-0 top-0 h-full w-full max-w-[92vw] sm:max-w-[380px] bg-white/95 dark:bg-slate-950/95 pt-16 border-l border-slate-200 dark:border-slate-800 z-50 flex flex-col justify-between shadow-2xl pointer-events-auto" 
                 : "h-full pt-16 bg-white/95 dark:bg-slate-950/90 backdrop-blur-md border-l border-slate-200 dark:border-slate-800 z-10 flex flex-col justify-between shrink-0 shadow-[-10px_0_30px_rgba(0,0,0,0.02)]"
               }
             >
-              <div className="w-full sm:w-[380px] p-6 h-full flex flex-col justify-between overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+              <div className="w-full sm:w-[380px] p-4 sm:p-6 h-full flex flex-col justify-between overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
               <div className="flex-1 overflow-y-auto pr-1 space-y-6 scrollbar-thin scrollbar-thumb-slate-200">
                 
                 {/* Header */}

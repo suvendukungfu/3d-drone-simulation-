@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { sound } from '../../utils/soundController';
-import { Environment, OrbitControls } from '@react-three/drei';
+import { Environment, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { useDroneStore } from '../../store/useDroneStore';
 import { PlutoXModel } from '../PlutoXModel';
@@ -286,7 +286,7 @@ function VirtualJoystick({ label, value, subLabels, onChange }: JoystickProps) {
         ref={containerRef}
         onMouseDown={handleStart}
         onTouchStart={handleStart}
-        className={`w-32 h-32 rounded-full border-2 relative flex items-center justify-center cursor-crosshair transition-colors backdrop-blur-sm ${
+        className={`ar-joystick-pad w-32 h-32 rounded-full border-2 relative flex items-center justify-center cursor-crosshair transition-colors backdrop-blur-sm ${
           isDark 
             ? 'border-slate-700/60 bg-slate-950/60 shadow-[inset_0_0_15px_rgba(0,163,255,0.05)] active:border-cyan-500/40' 
             : 'border-slate-300 bg-white/60 shadow-[inset_0_0_15px_rgba(0,163,255,0.02)] active:border-cyan-600/40'
@@ -2151,3 +2151,5 @@ export function ARSimulator() {
     </div>
   );
 }
+
+useGLTF.preload('/PlutoX [Primus X2 v1].glb');

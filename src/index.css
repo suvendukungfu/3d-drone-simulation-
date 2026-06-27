@@ -5,6 +5,9 @@
 /* Premium Inter font */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
+/* =============================================================
+   Global Reset & Base
+   ============================================================= */
 html, body, #root {
   width: 100%;
   height: 100%;
@@ -14,12 +17,79 @@ html, body, #root {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
+  overflow-x: hidden;
   transition: background-color 0.3s ease;
 }
 
 html.dark, html.dark body, html.dark #root {
   background-color: #08090f;
 }
+
+/* Dynamic viewport units with safe fallbacks for mobile browsers */
+@supports (height: 100dvh) {
+  :root {
+    --app-height: 100dvh;
+    --app-height-svh: 100svh;
+    --app-height-lvh: 100lvh;
+  }
+}
+
+@supports not (height: 100dvh) {
+  :root {
+    --app-height: 100vh;
+    --app-height-svh: 100vh;
+    --app-height-lvh: 100vh;
+  }
+}
+
+/* Safe area inset utilities for notch/island devices */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+}
+
+/* Prevent pull-to-refresh on app containers */
+.app-shell {
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+}
+
+/* Hide scrollbar for clean mobile UI */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Smooth momentum scrolling on iOS */
+.ios-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent accidental text selection on UI controls */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* GPU-accelerated transforms for animations */
+.gpu-accelerated {
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* =============================================================
+   Existing animations preserved
+   ============================================================= */
 
 @keyframes scan-laser {
   0% { top: 0%; opacity: 0; }
@@ -37,18 +107,45 @@ html.dark, html.dark body, html.dark #root {
    ============================================================= */
 .virtual-joysticks {
   position: absolute;
-  bottom: 20px;
-  left: 20px;
-  right: 20px;
+  bottom: max(16px, var(--sab, 16px));
+  left: max(16px, var(--sal, 16px));
+  right: max(16px, var(--sar, 16px));
   display: none;
   justify-content: space-between;
+  align-items: flex-end;
   z-index: 55;
   pointer-events: none;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-@media (max-width: 768px) {
+/* joystick container responsive size - targets the circular touch area */
+.virtual-joysticks .joystick-container {
+  width: clamp(90px, 22vw, 128px) !important;
+  height: clamp(90px, 22vw, 128px) !important;
+}
+
+.virtual-joysticks .joystick-left button,
+.virtual-joysticks .joystick-right button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (pointer: coarse) and (orientation: landscape) {
   .virtual-joysticks {
     display: flex;
+  }
+  .hide-on-touch-landscape {
+    display: none !important;
+  }
+}
+
+/* Fallback for narrow screens that might not reliably report pointer: coarse */
+@media (max-width: 768px) and (orientation: landscape) {
+  .virtual-joysticks {
+    display: flex;
+  }
+  .hide-on-touch-landscape {
+    display: none !important;
   }
 }
 
@@ -230,8 +327,8 @@ body.mobile-menu-open .virtual-joysticks {
   /* ─── Floating Action Button ────────────────────────────────── */
   .anatomy-fab {
     position: fixed;
-    bottom: 20px;
-    left: 20px;
+    bottom: max(16px, var(--sab, 16px));
+    left: max(16px, var(--sal, 16px));
     z-index: 45;
     display: flex;
     flex-direction: column;
@@ -275,6 +372,7 @@ body.mobile-menu-open .virtual-joysticks {
     right: 0;
     z-index: 50;
     max-height: 65vh;
+    max-height: min(65vh, var(--app-height));
     display: flex;
     flex-direction: column;
     background: rgba(255, 255, 255, 0.97);
@@ -296,6 +394,8 @@ body.mobile-menu-open .virtual-joysticks {
   /* ─── Sheet Drag Handle & Header ───────────────────────────── */
   .anatomy-sheet-header {
     padding-top: 10px;
+    padding-left: max(16px, var(--sal, 16px));
+    padding-right: max(16px, var(--sar, 16px));
     flex-shrink: 0;
   }
   .anatomy-sheet-handle {
@@ -398,4 +498,103 @@ body.mobile-menu-open .virtual-joysticks {
 .animate-device-rotate {
   animation: device-rotate 2.5s ease-in-out infinite;
 }
+
+/* =============================================================
+   Foldable / Dual-Screen Device Support
+   ============================================================= */
+
+/* CSS environment variables for foldable hinges (supported in Chromium/Blink) */
+@supports (env(fold-top)) {
+  :root {
+    --fold-top: env(fold-top);
+    --fold-right: env(fold-right);
+    --fold-bottom: env(fold-bottom);
+    --fold-left: env(fold-left);
+  }
+}
+
+/* Spanning media queries for foldable devices */
+@media (horizontal-viewport-segments: 2) {
+  .app-shell {
+    margin-left: env(fold-left, 0px);
+    margin-right: env(fold-right, 0px);
+  }
+}
+
+@media (vertical-viewport-segments: 2) {
+  .app-shell {
+    margin-top: env(fold-top, 0px);
+    margin-bottom: env(fold-bottom, 0px);
+  }
+}
+
+/* =============================================================
+   Anatomy Label Card (3D HTML Overlay) Responsive
+   ============================================================= */
+.anatomy-label-card {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.anatomy-label-card:active {
+  transform: scale(0.97);
+}
+
+@media (max-width: 768px) {
+  .anatomy-label-card {
+    min-width: 150px !important;
+    max-width: 220px !important;
+    font-size: 10px;
+  }
+  .anatomy-label-card > div:first-child {
+    padding: 3px 8px !important;
+  }
+  .anatomy-label-card > div:first-child > span {
+    font-size: 8px !important;
+    letter-spacing: 0.1em !important;
+  }
+  .anatomy-label-card > div:nth-child(2) {
+    padding: 6px 8px 8px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .anatomy-label-card {
+    min-width: 130px !important;
+    max-width: 180px !important;
+  }
+}
+
+/* AR Simulator internal joystick responsive sizing */
+.ar-joystick-pad {
+  width: clamp(100px, 28vw, 128px) !important;
+  height: clamp(100px, 28vw, 128px) !important;
+}
+
+/* Ultra-narrow landscape safeguard (< 360px) */
+@media (max-width: 360px) {
+  .virtual-joysticks {
+    bottom: max(8px, var(--sab, 8px));
+    left: max(8px, var(--sal, 8px));
+    right: max(8px, var(--sar, 8px));
+  }
+  .anatomy-fab {
+    bottom: max(8px, var(--sab, 8px));
+    left: max(8px, var(--sal, 8px));
+    width: 48px;
+    height: 48px;
+  }
+  .joystick-container {
+    width: clamp(80px, 24vw, 110px) !important;
+    height: clamp(80px, 24vw, 110px) !important;
+  }
+  .ar-joystick-pad {
+    width: clamp(80px, 24vw, 110px) !important;
+    height: clamp(80px, 24vw, 110px) !important;
+  }
+}
+
 

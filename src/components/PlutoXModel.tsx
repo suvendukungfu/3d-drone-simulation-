@@ -503,4 +503,3 @@ if (typeof document !== 'undefined') {
 // Enable Draco decoding CDN globally for Phase 2-4 performance optimizations
 useGLTF.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
 useGLTF.preload('/models/plutox.glb');
-useGLTF.preload('/PlutoX [Primus X2 v1].glb');

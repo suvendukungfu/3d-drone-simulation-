@@ -87,7 +87,7 @@ const Joystick = ({ side, onChange, label, disabled }: JoystickProps) => {
       </span>
       <div
         ref={containerRef}
-        className={`w-28 h-28 bg-slate-900/70 dark:bg-slate-950/80 border-2 border-slate-700/60 rounded-full relative flex items-center justify-center backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.5)] touch-none transition-opacity ${disabled ? 'opacity-40 select-none' : ''}`}
+        className={`joystick-container w-28 h-28 bg-slate-900/70 dark:bg-slate-950/80 border-2 border-slate-700/60 rounded-full relative flex items-center justify-center backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.5)] touch-none transition-opacity ${disabled ? 'opacity-40 select-none' : ''}`}
         onMouseDown={handleMove}
         onMouseMove={(e) => e.buttons === 1 && handleMove(e)}
         onMouseUp={handleEnd}

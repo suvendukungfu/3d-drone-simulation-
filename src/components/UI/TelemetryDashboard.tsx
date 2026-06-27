@@ -234,7 +234,7 @@ export function TelemetryDashboard({
 
       {/* Floating Quest Checklist Overlay (visible when sidebar is closed) */}
       {activeMissionIndex >= 0 && !isAcademyOpen && showChecklist && (
-        <div className="flex absolute top-20 md:top-16 left-4 bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-3 rounded-xl w-52 sm:w-60 shadow-[0_8px_25px_rgba(0,0,0,0.03)] pointer-events-auto z-20 flex-col gap-2">
+        <div className="flex absolute top-[max(5rem,calc(3.5rem+env(safe-area-inset-top,0px)))] md:top-16 left-[max(1rem,calc(0.875rem+env(safe-area-inset-left,0px)))] bg-white/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 p-3 rounded-xl w-52 sm:w-60 shadow-[0_8px_25px_rgba(0,0,0,0.03)] pointer-events-auto z-20 flex-col gap-2 max-h-[40vh] overflow-y-auto scrollbar-hide">
           <div className="flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800/80 pb-1.5">
             <Award className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider truncate">
@@ -261,9 +261,9 @@ export function TelemetryDashboard({
 
       {/* Mobile Compact Telemetry Strip */}
       {showTelemetry && (
-        <div className="md:hidden absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 dark:bg-slate-950/90 backdrop-blur-md border border-slate-800/80 px-4 py-2 rounded-full shadow-lg flex items-center gap-4 text-[10px] font-mono tracking-wider text-slate-300 pointer-events-auto z-20">
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+        <div className="md:hidden absolute top-[max(4rem,calc(3.5rem+var(--sat,0px))] left-1/2 -translate-x-1/2 bg-slate-900/90 dark:bg-slate-950/90 backdrop-blur-md border border-slate-800/80 px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2 text-[9px] sm:text-[10px] font-mono tracking-wider text-slate-300 pointer-events-auto z-20 max-w-[90vw] overflow-x-auto scrollbar-hide whitespace-nowrap">
+          <div className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
             <span>ALT: <strong className="text-white">{telemetry.altitude.toFixed(2)}m</strong></span>
           </div>
           <span className="text-slate-850 font-light">|</span>
@@ -272,7 +272,7 @@ export function TelemetryDashboard({
           </div>
           <span className="text-slate-850 font-light">|</span>
           <div className="flex items-center gap-1">
-            <Battery className="w-3.5 h-3.5 text-orange-500" />
+            <Battery className="w-3 h-3 text-orange-500 shrink-0" />
             <span>{getVoltage(telemetry.battery)}V</span>
           </div>
           <span className="text-slate-850 font-light">|</span>
@@ -608,7 +608,7 @@ export function TelemetryDashboard({
       )}
 
       {/* 3. BOTTOM PILOT CONTROLS HUD */}
-      <div className="hidden md:flex w-full justify-between items-end pointer-events-auto gap-4">
+      <div className="hidden md:flex hide-on-touch-landscape w-full justify-between items-end pointer-events-auto gap-4">
                 {/* Left Side: Flight Mode Controller panel & HUD Toggles */}
         <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-2xl w-[280px] shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex flex-col gap-3">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
@@ -774,7 +774,7 @@ export function TelemetryDashboard({
 
         {/* Center: Live Transmitter Virtual Stick Visualizer */}
         {showControlsOverlay ? (
-          <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex gap-6 items-center">
+          <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex gap-6 items-center hide-on-touch-landscape">
             
             {/* Left Stick: Throttle (Y) and Yaw (X) */}
             <div className="flex flex-col items-center">

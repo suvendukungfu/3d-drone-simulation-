@@ -1,12 +1,27 @@
 import { FlightControlStick } from './types';
 import { useDroneStore } from '../../store/useDroneStore';
 
+/**
+ * InputSystem.ts
+ * ──────────────
+ * Translates raw keyboard / analog joystick / gyroscope inputs into
+ * a normalized FlightControlStick (-1…1 for pitch/roll/yaw, 0…1 for throttle).
+ *
+ * Design goals (matched to real PlutoX controller feel):
+ *   • Fast ramp-up on key press  (τ ≈ 60 ms)  — feels instant, no perceptible lag.
+ *   • Smooth self-centering       (τ ≈ 80 ms)  — prevents jitter / oscillation on release.
+ *   • Continuous throttle curve   (τ ≈ 100 ms) — no sudden jumps, realistic spool feel.
+ *   • Progressive expo curve      (30 %)       — fine control near center, full authority at edges.
+ *   • Light 20 Hz LPF on analog  — removes touch pointer jitter, stays ahead of FC's 10 Hz stick filter.
+ *   • All axes independent        — simultaneous Throttle + Pitch + Roll + Yaw works correctly.
+ *   • Frame-rate independent      — uses 1 - e^(-dt/τ) instead of dt*k, stable at any FPS.
+ */
 export class InputSystem {
   private keys: Record<string, boolean> = {};
   
   // Virtual Stick Values
   private stick: FlightControlStick = {
-    throttle: 0.0, // starts at zero
+    throttle: 0.0,
     yaw: 0.0,
     pitch: 0.0,
     roll: 0.0
@@ -25,9 +40,18 @@ export class InputSystem {
   private gyroRoll = 0;
   private lastGyroPilotState = false;
 
-  // Rates of change
-  private springReturnSpeed = 6.0; // speed at which sticks return to center
-  private stickSlewRate = 5.0; // speed of stick movement towards target
+  // ── Tuning Constants ──────────────────────────────────────────────
+  // Time constants (seconds) — lower = faster response
+  private readonly KBD_RAMP_TAU   = 0.06;  // key-press ramp-up speed
+  private readonly KBD_CENTER_TAU = 0.08;  // self-center speed on key release
+  private readonly KBD_THROT_TAU  = 0.10;  // throttle ramp speed (slightly slower = realistic spool)
+  private readonly ANALOG_LPF_HZ  = 20.0;  // analog stick low-pass filter cutoff
+  private readonly KBD_EXPO       = 0.30;  // expo curve strength for keyboard
+
+  // HeadFree mode state
+  private prevArmed = false;
+  private lockedHeading = 0;
+  private prevHeadFree = false;
   
   // Callbacks
   private onArmToggle: (() => void) | null = null;
@@ -136,17 +160,36 @@ export class InputSystem {
     this.analogRight = { x: 0, y: 0 };
   }
 
+  // ── Frame-rate-independent exponential smoothing ──────────────────
+  // Returns α for `current += α * (target - current)` matching `1 - e^(-dt/τ)`.
+  private expAlpha(dt: number, tau: number): number {
+    if (tau <= 0) return 1.0;
+    return Math.min(1.0, 1.0 - Math.exp(-dt / tau));
+  }
+
+  // ── LPF alpha from cutoff frequency ───────────────────────────────
+  private lpfAlpha(dt: number, cutoffHz: number): number {
+    const rc = 1.0 / (2.0 * Math.PI * cutoffHz);
+    return dt / (dt + rc);
+  }
+
+  // ── Deadzone + expo curve (analog sticks) ─────────────────────────
   private applyDeadzoneAndExpo(value: number, deadzone: number = 0.05, expo: number = 0.4): number {
     const absVal = Math.abs(value);
     if (absVal < deadzone) return 0;
     
-    // Smooth transition from deadzone boundary to 1
     const normalized = (absVal - deadzone) / (1 - deadzone);
     const sign = Math.sign(value);
     
-    // Cubic expo curve: (1-expo)*x + expo*x^3
+    // Cubic expo: (1-expo)*x + expo*x³
     const expoVal = (1 - expo) * normalized + expo * Math.pow(normalized, 3);
     return sign * expoVal;
+  }
+
+  // ── Keyboard expo (lighter curve for digital input) ───────────────
+  private applyKeyboardExpo(value: number): number {
+    const e = this.KBD_EXPO;
+    return Math.sign(value) * ((1 - e) * Math.abs(value) + e * Math.pow(Math.abs(value), 3));
   }
   
   private handleKeyDown(e: KeyboardEvent): void {
@@ -156,19 +199,17 @@ export class InputSystem {
 
     const key = e.key.toLowerCase();
     
-    // Check if key was already pressed (prevents repeats)
+    // Prevent key repeats
     const wasPressed = this.keys[key];
     this.keys[key] = true;
     
     if (!wasPressed) {
-      // Toggle Spawn Debug Mode on 'g' keypress (avoid 'd' which is yaw-right)
       if (key === 'g') {
         useDroneStore.getState().toggleSpawnDebugMode();
       }
 
       const droneInitFailed = useDroneStore.getState().droneInitFailed;
       
-      // System controls: always available regardless of droneInitFailed
       if (key === ' ') {
         e.preventDefault();
         if (!droneInitFailed && this.onArmToggle) this.onArmToggle();
@@ -210,6 +251,9 @@ export class InputSystem {
       if (key === '3') {
         if (this.onCameraChange) this.onCameraChange(3);
       }
+      if (key === 'j') {
+        useDroneStore.getState().toggleHeadFree();
+      }
     }
     
     // Prevent default scroll behaviors for arrow keys
@@ -223,7 +267,9 @@ export class InputSystem {
     this.keys[key] = false;
   }
   
-  // Updates the virtual stick inputs
+  // ══════════════════════════════════════════════════════════════════
+  //  UPDATE — called every simulation frame
+  // ══════════════════════════════════════════════════════════════════
   public update(dt: number, isArmed: boolean): FlightControlStick {
     const droneInitFailed = useDroneStore.getState().droneInitFailed;
     if (droneInitFailed || !isArmed) {
@@ -240,7 +286,7 @@ export class InputSystem {
     const currentGyroPilot = storeState.gyroPilot;
     const gyroSensitivity = storeState.gyroSensitivity || 1.2;
 
-    // Detect toggle-on to calibrate neutral orientation
+    // ── Gyroscope processing ────────────────────────────────────────
     if (currentGyroPilot && !this.lastGyroPilotState) {
       this.calibrateGyroNeutral();
     }
@@ -255,8 +301,8 @@ export class InputSystem {
       const screenAngle = window.orientation !== undefined ? Number(window.orientation) : 90;
       const isLandscapeSecondary = screenAngle === -90 || screenAngle === 270;
 
-      let rawPitch = this.latestOrientation.gamma; // long axis tilt
-      let rawRoll = this.latestOrientation.beta;   // short axis tilt
+      let rawPitch = this.latestOrientation.gamma;
+      let rawRoll = this.latestOrientation.beta;
 
       if (isLandscapeSecondary) {
         rawPitch = -rawPitch;
@@ -280,29 +326,31 @@ export class InputSystem {
       targetPitchInput = Math.max(-1.0, Math.min(1.0, targetPitchInput));
       targetRollInput = Math.max(-1.0, Math.min(1.0, targetRollInput));
 
-      // Apply smooth low-pass filter (15% per frame)
+      // Smooth low-pass filter (15% per frame)
       this.gyroPitch = this.gyroPitch + (targetPitchInput - this.gyroPitch) * 0.15;
       this.gyroRoll = this.gyroRoll + (targetRollInput - this.gyroRoll) * 0.15;
     }
 
+    // ── Input source: Analog virtual joysticks (mobile) ─────────────
     if (this.hasAnalogInput) {
-      // 1. Throttle:
-      let throttleInput = this.analogLeft.y; // -1 to 1 from joystick
+      const aLpf = this.lpfAlpha(dt, this.ANALOG_LPF_HZ);
+
+      // 1. Throttle
+      const throttleInput = this.analogLeft.y;
       const telemetry = useDroneStore.getState().telemetry;
       const hasTakenOff = telemetry && telemetry.altitude > 0.08;
 
-      let targetThrottle;
+      let targetThrottle: number;
       if (Math.abs(throttleInput) < 0.08) {
-        targetThrottle = hasTakenOff ? 0.50 : 0.0; // default hover center in air, zero on ground
+        targetThrottle = hasTakenOff ? 0.50 : 0.0;
       } else {
-        // Map smoothly to [0, 1] range: center (0) is 0.5 hover throttle
         targetThrottle = 0.5 + throttleInput * 0.5;
       }
-      this.stick.throttle += (targetThrottle - this.stick.throttle) * 8.0 * dt; // smooth slew to target
+      this.stick.throttle += aLpf * (targetThrottle - this.stick.throttle);
       
-      // 2. Yaw:
+      // 2. Yaw
       const targetYaw = this.applyDeadzoneAndExpo(this.analogLeft.x, 0.05, 0.4);
-      this.stick.yaw += (targetYaw - this.stick.yaw) * 12.0 * dt;
+      this.stick.yaw += aLpf * (targetYaw - this.stick.yaw);
       
       // 3. Pitch
       let targetPitch = 0;
@@ -311,78 +359,99 @@ export class InputSystem {
       } else {
         targetPitch = this.applyDeadzoneAndExpo(-this.analogRight.y, 0.05, 0.4);
       }
-      this.stick.pitch += (targetPitch - this.stick.pitch) * 12.0 * dt;
+      this.stick.pitch += aLpf * (targetPitch - this.stick.pitch);
       
-      // 4. Roll:
+      // 4. Roll
       let targetRoll = 0;
       if (currentGyroPilot && this.latestOrientation) {
         targetRoll = this.gyroRoll;
       } else {
         targetRoll = this.applyDeadzoneAndExpo(this.analogRight.x, 0.05, 0.4);
       }
-      this.stick.roll += (targetRoll - this.stick.roll) * 12.0 * dt;
+      this.stick.roll += aLpf * (targetRoll - this.stick.roll);
+
+    // ── Input source: Keyboard (desktop) ────────────────────────────
     } else {
-      // Keyboard input fallback (Desktop)
-      // 1. Throttle: auto-centering for keyboard flight comfort
       const telemetry = useDroneStore.getState().telemetry;
       const hasTakenOff = telemetry && telemetry.altitude > 0.08;
-      
-      let targetThrottle = hasTakenOff ? 0.50 : 0.0; // default hover center in air, zero on ground
+
+      // 1. Throttle — continuous ramping, never snaps
+      let targetThrottle = hasTakenOff ? 0.50 : 0.0;
       if (this.keys['w']) {
-        targetThrottle = 0.80; // commanded climb throttle
+        targetThrottle = 0.85;
       } else if (this.keys['s']) {
-        targetThrottle = 0.15; // commanded descent throttle
+        targetThrottle = 0.15;
       }
+      const tAlpha = this.expAlpha(dt, this.KBD_THROT_TAU);
+      this.stick.throttle += tAlpha * (targetThrottle - this.stick.throttle);
       
-      this.stick.throttle += (targetThrottle - this.stick.throttle) * 4.5 * dt;
+      // 2. Yaw (A / D)
+      let rawYaw = 0.0;
+      if (this.keys['a']) rawYaw -= 1.0;
+      if (this.keys['d']) rawYaw += 1.0;
+      const targetYaw = this.applyKeyboardExpo(rawYaw);
+      const yAlpha = this.expAlpha(dt, rawYaw !== 0 ? this.KBD_RAMP_TAU : this.KBD_CENTER_TAU);
+      this.stick.yaw += yAlpha * (targetYaw - this.stick.yaw);
       
-      // 2. Yaw (A / D) - springs back to 0
-      let targetYaw = 0.0;
-      if (this.keys['a']) targetYaw = -1.0;
-      if (this.keys['d']) targetYaw = 1.0;
-      
-      if (targetYaw !== 0) {
-        this.stick.yaw += (targetYaw - this.stick.yaw) * this.stickSlewRate * dt;
-      } else {
-        this.stick.yaw -= this.stick.yaw * this.springReturnSpeed * dt;
-      }
-      
-      // 3. Pitch
+      // 3. Pitch (ArrowUp / ArrowDown)
       if (currentGyroPilot && this.latestOrientation) {
         this.stick.pitch = this.gyroPitch;
       } else {
-        let targetPitch = 0.0;
-        if (this.keys['arrowup']) targetPitch = -1.0;
-        if (this.keys['arrowdown']) targetPitch = 1.0;
-        
-        if (targetPitch !== 0) {
-          this.stick.pitch += (targetPitch - this.stick.pitch) * this.stickSlewRate * dt;
-        } else {
-          this.stick.pitch -= this.stick.pitch * this.springReturnSpeed * dt;
-        }
+        let rawPitch = 0.0;
+        if (this.keys['arrowup'])   rawPitch -= 1.0;
+        if (this.keys['arrowdown']) rawPitch += 1.0;
+        const targetPitch = this.applyKeyboardExpo(rawPitch);
+        const pAlpha = this.expAlpha(dt, rawPitch !== 0 ? this.KBD_RAMP_TAU : this.KBD_CENTER_TAU);
+        this.stick.pitch += pAlpha * (targetPitch - this.stick.pitch);
       }
       
-      // 4. Roll
+      // 4. Roll (ArrowLeft / ArrowRight)
       if (currentGyroPilot && this.latestOrientation) {
         this.stick.roll = this.gyroRoll;
       } else {
-        let targetRoll = 0.0;
-        if (this.keys['arrowleft']) targetRoll = -1.0;
-        if (this.keys['arrowright']) targetRoll = 1.0;
-        
-        if (targetRoll !== 0) {
-          this.stick.roll += (targetRoll - this.stick.roll) * this.stickSlewRate * dt;
-        } else {
-          this.stick.roll -= this.stick.roll * this.springReturnSpeed * dt;
-        }
+        let rawRoll = 0.0;
+        if (this.keys['arrowleft'])  rawRoll -= 1.0;
+        if (this.keys['arrowright']) rawRoll += 1.0;
+        const targetRoll = this.applyKeyboardExpo(rawRoll);
+        const rAlpha = this.expAlpha(dt, rawRoll !== 0 ? this.KBD_RAMP_TAU : this.KBD_CENTER_TAU);
+        this.stick.roll += rAlpha * (targetRoll - this.stick.roll);
       }
     }
     
-    // Clamp values for safety
+    // ── Clamp values for safety ─────────────────────────────────────
     this.stick.throttle = Math.max(0.0, Math.min(1.0, this.stick.throttle));
     this.stick.yaw = Math.max(-1.0, Math.min(1.0, this.stick.yaw));
     this.stick.pitch = Math.max(-1.0, Math.min(1.0, this.stick.pitch));
     this.stick.roll = Math.max(-1.0, Math.min(1.0, this.stick.roll));
+
+    // ── HeadFree heading hold ───────────────────────────────────────
+    const headFree = useDroneStore.getState().headFree;
+    const isArmedNow = isArmed;
+
+    if (isArmedNow) {
+      if (!this.prevArmed || (headFree && !this.prevHeadFree)) {
+        const h = useDroneStore.getState().telemetry?.heading;
+        if (typeof h === 'number' && !isNaN(h)) {
+          this.lockedHeading = h;
+        }
+      }
+    }
+
+    this.prevArmed = isArmedNow;
+    this.prevHeadFree = headFree;
+
+    if (headFree && isArmedNow) {
+      const currentHeading = useDroneStore.getState().telemetry?.heading;
+      if (typeof currentHeading === 'number' && !isNaN(currentHeading)) {
+        let error = this.lockedHeading - currentHeading;
+        while (error > 180) error -= 360;
+        while (error < -180) error += 360;
+        if (Math.abs(this.stick.yaw) < 0.15) {
+          const correction = error * 0.35;
+          this.stick.yaw = Math.max(-1.0, Math.min(1.0, this.stick.yaw + correction));
+        }
+      }
+    }
     
     return this.stick;
   }

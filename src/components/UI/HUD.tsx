@@ -15,55 +15,58 @@ export function HUD() {
   const startLearning = useDroneStore((state) => state.startLearning);
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10 select-none font-sans">
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-3 sm:p-6 z-10 select-none font-sans app-shell">
       
       {/* Top HUD Bar */}
       <motion.header 
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6 }}
-        className="w-full flex justify-between items-start pointer-events-auto"
+        className="w-full flex flex-col sm:flex-row justify-between items-start gap-3 pointer-events-auto"
       >
         {/* Branding & Status */}
-        <div className="flex items-center gap-4 bg-slate-950/80 backdrop-blur-md px-5 py-3 rounded-xl border border-blue-500/20 shadow-[0_0_15px_rgba(0,163,255,0.1)]">
-          <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/30 text-pluto-accent">
-            <Cpu className="w-6 h-6 animate-pulse" />
+        <div className="flex items-center gap-3 sm:gap-4 bg-slate-950/80 backdrop-blur-md px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl border border-blue-500/20 shadow-[0_0_15px_rgba(0,163,255,0.1)]">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/30 text-pluto-accent">
+            <Cpu className="w-5 h-5 sm:w-6 sm:h-6 animate-pulse" />
           </div>
           <div>
-            <h1 className="text-lg font-bold uppercase tracking-wider text-white">
-              Pluto X <span className="text-pluto-accent">Diagnostics</span>
+            <h1 className="text-base sm:text-lg font-bold uppercase tracking-wider text-white">
+              Pluto X <span className="text-pluto-accent hidden sm:inline">Diagnostics</span>
             </h1>
-            <p className="text-[10px] text-slate-400 font-mono tracking-widest flex items-center gap-1.5 uppercase">
+            <p className="text-[9px] sm:text-[10px] text-slate-400 font-mono tracking-widest flex items-center gap-1.5 uppercase">
               <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-ping"></span>
-              Core System: Online
+              <span className="hidden sm:inline">Core System: Online</span>
+              <span className="sm:hidden">Online</span>
             </p>
           </div>
         </div>
 
         {/* Mode Selector Dashboard */}
-        <div className="flex gap-2 bg-slate-950/80 backdrop-blur-md p-1.5 rounded-xl border border-blue-500/20">
+        <div className="flex gap-2 bg-slate-950/80 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border border-blue-500/20">
           <button
             onClick={() => setMode('explore')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${
+            className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 ${
               currentMode === 'explore'
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
             }`}
           >
             <Compass className="w-4 h-4" />
-            <span>Interactive Explorer</span>
+            <span className="hidden sm:inline">Interactive Explorer</span>
+            <span className="sm:hidden">Explore</span>
           </button>
           
           <button
             onClick={startLearning}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${
+            className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 ${
               currentMode === 'learning'
                 ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
             }`}
           >
             <Play className="w-4 h-4" />
-            <span>Flight Training Lab</span>
+            <span className="hidden sm:inline">Flight Training Lab</span>
+            <span className="sm:hidden">Training</span>
           </button>
         </div>
       </motion.header>
@@ -73,7 +76,7 @@ export function HUD() {
         initial={{ x: -50, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.2 }}
-        className="self-start pointer-events-auto flex flex-col gap-4 mt-20"
+        className="self-start pointer-events-auto flex flex-col gap-4 mt-16 sm:mt-20 max-md:hidden"
       >
         <div className="bg-slate-950/80 backdrop-blur-md p-4 rounded-xl border border-blue-500/20 w-64 shadow-2xl">
           <div className="flex items-center gap-2 text-xs font-mono font-bold text-pluto-accent uppercase mb-3 pb-2 border-b border-slate-800">
@@ -106,7 +109,7 @@ export function HUD() {
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.3 }}
-        className="w-full flex justify-between items-end pointer-events-auto mt-auto"
+        className="w-full flex flex-col sm:flex-row justify-between items-end gap-3 pointer-events-auto mt-auto"
       >
         {/* Reset Selection Button */}
         <div>
@@ -123,23 +126,24 @@ export function HUD() {
 
         {/* 3D Visual Modes */}
         {currentMode !== 'learning' && (
-          <div className="flex gap-3 bg-slate-950/80 backdrop-blur-md p-2 rounded-xl border border-blue-500/20 shadow-2xl">
+          <div className="flex gap-2 sm:gap-3 bg-slate-950/80 backdrop-blur-md p-1.5 sm:p-2 rounded-xl border border-blue-500/20 shadow-2xl">
             <button
               onClick={toggleExploded}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
                 isExploded
                   ? 'bg-blue-600/25 border border-blue-500 text-pluto-accent shadow-[0_0_15px_rgba(0,163,255,0.15)]'
                   : 'bg-slate-900/50 border border-transparent text-slate-400 hover:text-white hover:bg-slate-800/80'
               }`}
             >
               <Layers className="w-4 h-4" />
-              Exploded View
+              <span className="hidden sm:inline">Exploded View</span>
+              <span className="sm:hidden">Explode</span>
             </button>
 
             <button
               onClick={toggleIsolation}
               disabled={!selectedComponent}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
                 !selectedComponent 
                   ? 'opacity-40 cursor-not-allowed text-slate-600'
                   : isolationMode
@@ -148,7 +152,8 @@ export function HUD() {
               }`}
             >
               <ShieldAlert className="w-4 h-4" />
-              Isolate Component
+              <span className="hidden sm:inline">Isolate Component</span>
+              <span className="sm:hidden">Isolate</span>
             </button>
           </div>
         )}

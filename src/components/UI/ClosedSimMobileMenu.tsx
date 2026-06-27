@@ -260,6 +260,7 @@ export function ClosedSimMobileMenu({
   const toggleControlsOverlay = useDroneStore((s) => s.toggleControlsOverlay);
   const showChecklist = useDroneStore((s) => s.showChecklist);
   const toggleChecklist = useDroneStore((s) => s.toggleChecklist);
+  const headFree = useDroneStore((s) => s.headFree);
   const isAcademyMode = useDroneStore((s) => s.isAcademyMode);
   const modelLoadStatus = useDroneStore((s) => s.modelLoadStatus);
   const droneSpawnDiagnostics = useDroneStore((s) => s.droneSpawnDiagnostics);
@@ -274,7 +275,7 @@ export function ClosedSimMobileMenu({
   const closedEnvs = ['room', 'lab', 'classroom', 'warehouse'] as const;
   const isClosedSim = closedEnvs.includes(flightEnvironment as any);
 
-  // Only show on mobile in closed simulation
+  // Show on both mobile and desktop in closed simulation
   if (!isClosedSim) return null;
 
   const getVoltage = (pct: number) => {
@@ -286,8 +287,8 @@ export function ClosedSimMobileMenu({
     pct < 20 ? 'text-red-400' : pct < 40 ? 'text-amber-400' : 'text-emerald-400';
 
   const handleToggleHeadFree = () => {
-    // HeadFree is controlled via flight mode; not a direct toggle but triggerable via key
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'j', bubbles: true }));
   };
 
   const handleGoHome = () => {
@@ -307,7 +308,7 @@ export function ClosedSimMobileMenu({
       <button
         id="closed-sim-menu-btn"
         onClick={() => setIsOpen(true)}
-        className="lg:hidden fixed top-3.5 left-3.5 z-[60] w-12 h-12 rounded-full bg-slate-950/85 backdrop-blur-md border border-white/10 flex items-center justify-center text-white shadow-lg hover:border-blue-500/50 hover:bg-slate-900 active:scale-90 transition-all duration-300 touch-manipulation group animate-pulse-cyan"
+        className="flex fixed top-[max(0.875rem,var(--sat,0.875rem))] left-[max(0.875rem,var(--sal,0.875rem))] z-[60] w-12 h-12 rounded-full bg-slate-950/85 backdrop-blur-md border border-white/10 items-center justify-center text-white shadow-lg hover:border-blue-500/50 hover:bg-slate-900 active:scale-90 transition-all duration-300 touch-manipulation group animate-pulse-cyan"
         aria-label="Open menu"
       >
         <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-500/10 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -323,18 +324,18 @@ export function ClosedSimMobileMenu({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="lg:hidden fixed inset-0 z-[65] bg-black/60 backdrop-blur-[3px]"
+              className="block fixed inset-0 z-[65] bg-black/60 backdrop-blur-[3px]"
               onClick={close}
             />
 
-            {/* ── Drawer ── */}
+              {/* ── Drawer ── */}
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="lg:hidden fixed top-0 left-0 bottom-0 z-[70] w-80 max-w-[85vw] flex flex-col bg-[#050814]/92 backdrop-blur-3xl border-r border-white/10 shadow-[8px_0_40px_rgba(0,0,0,0.6)]"
-              style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+              className="flex fixed top-0 left-0 bottom-0 z-[70] w-[85vw] max-w-[320px] min-w-[260px] flex-col bg-[#050814]/92 backdrop-blur-3xl border-r border-white/10 shadow-[8px_0_40px_rgba(0,0,0,0.6)]"
+              style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingTop: 'env(safe-area-inset-top, 0px)' }}
             >
               {/* Header */}
               <div className="flex items-center justify-between px-4 pt-5 pb-3.5 border-b border-white/5 shrink-0">
@@ -624,7 +625,7 @@ export function ClosedSimMobileMenu({
                     />
                     <ModePill
                       label="HeadFree"
-                      active={false}
+                      active={headFree}
                       onClick={() => { handleToggleHeadFree(); close(); }}
                     />
                     <ModePill

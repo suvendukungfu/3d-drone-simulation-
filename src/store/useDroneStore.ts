@@ -280,6 +280,8 @@ interface DroneState {
   setGyroPilot: (val: boolean) => void;
   gyroSensitivity: number;
   setGyroSensitivity: (val: number) => void;
+  headFree: boolean;
+  toggleHeadFree: () => void;
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
@@ -342,6 +344,7 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   notifications: [],
   gyroPilot: false,
   gyroSensitivity: 1.2,
+  headFree: true,
 
   // --- SPAWN & DIAGNOSTIC INITIAL STATE ---
   modelLoadStatus: 'loading',
@@ -657,6 +660,10 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       window.localStorage.setItem('showChecklist', String(nextVal));
     }
     set({ showChecklist: nextVal });
+  },
+
+  toggleHeadFree: () => {
+    set((state) => ({ headFree: !state.headFree }));
   },
 
   addNotification: (text, type = 'info') => {

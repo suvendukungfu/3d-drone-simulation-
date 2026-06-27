@@ -568,7 +568,7 @@ export function TrainingMissionSystem({
   const firstUncompletedIdx = objectives.findIndex(completed => !completed);
 
   return (
-    <div className={`absolute md:top-0 md:bottom-0 left-0 top-auto bottom-0 w-full md:w-[320px] landscape:w-[280px] h-[40vh] md:h-full landscape:h-full border-t md:border-t-0 landscape:border-t-0 md:border-r landscape:border-r border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md flex flex-col justify-between p-4 md:p-5 z-20 transition-transform duration-300 ease-in-out pointer-events-auto shadow-[0_-10px_30px_rgba(0,0,0,0.03)] md:shadow-[10px_0_30px_rgba(0,0,0,0.03)] ${
+    <div className={`absolute md:top-0 md:bottom-0 left-0 top-auto bottom-0 w-full md:w-[320px] landscape:w-[280px] max-md:h-[45dvh] md:h-full landscape:h-full border-t md:border-t-0 landscape:border-t-0 md:border-r landscape:border-r border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md flex flex-col justify-between p-4 md:p-5 z-20 transition-transform duration-300 ease-in-out pointer-events-auto shadow-[0_-10px_30px_rgba(0,0,0,0.03)] md:shadow-[10px_0_30px_rgba(0,0,0,0.03)] ${
       isAcademyOpen 
         ? 'translate-x-0 translate-y-0' 
         : 'translate-x-0 md:-translate-x-full landscape:-translate-x-full portrait:max-md:translate-y-full md:translate-y-0'
