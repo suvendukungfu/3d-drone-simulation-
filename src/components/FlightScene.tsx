@@ -268,6 +268,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
       targetCamPos.x = THREE.MathUtils.clamp(targetCamPos.x, minX, maxX);
       targetCamPos.y = THREE.MathUtils.clamp(targetCamPos.y, minY, maxY);
       targetCamPos.z = THREE.MathUtils.clamp(targetCamPos.z, minZ, maxZ);
+
       // Focus point is offset slightly above the drone's position along the stable world vertical
       const lookAtTarget = dronePos.clone().addScaledVector(levelUp, 0.1);
 
