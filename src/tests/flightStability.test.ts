@@ -68,8 +68,11 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     orchestrator.arm();
     expect(orchestrator.getIsArmed()).toBe(true);
 
-    // Run one update step to propagate the arm state to motor commands
+    // Trigger throttle down to start the motors
+    (orchestrator.input as any).hasAnalogInput = true;
+    (orchestrator.input as any).analogLeft = { x: 0, y: -1.0 };
     orchestrator.update(dt);
+    (orchestrator.input as any).clearAnalogInput();
 
     // Propellers should spin at idle speed (0.08 once calibration is complete), drone stays flat on the pad
     const motorCommandsIdle = orchestrator.getMotorCommands();
@@ -383,10 +386,14 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     // 2. ARMED + MOTOR IDLE: Arm the drone
     orchestrator.arm();
     expect(orchestrator.getIsArmed()).toBe(true);
-    expect((orchestrator as any).motorsStarted).toBe(true);
+    expect((orchestrator as any).motorsStarted).toBe(false);
 
-    // Run one simulation step
+    // Trigger throttle down to start the motors
+    (orchestrator.input as any).hasAnalogInput = true;
+    (orchestrator.input as any).analogLeft = { x: 0, y: -1.0 };
     orchestrator.update(dt);
+    (orchestrator.input as any).clearAnalogInput();
+    expect((orchestrator as any).motorsStarted).toBe(true);
 
     // Motor commands must immediately spin at idle (0.08) on the ground when throttle is 0
     expect(orchestrator.getMotorCommands()[0]).toBeCloseTo(0.08, 2);

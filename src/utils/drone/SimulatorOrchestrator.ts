@@ -251,7 +251,7 @@ export class SimulatorOrchestrator {
     this.crashDetected = false;
     this.hardLanding = false;
     this.hasTakenOff = false;
-    this.motorsStarted = true;
+    this.motorsStarted = false;
     this.isAutoTakeoffActive = false;
     this.isLandingActive = false;
     this.recoveryTimer = 0.0;
@@ -357,6 +357,7 @@ export class SimulatorOrchestrator {
     this.isAutoTakeoffActive = true;
     this.isLandingActive = false;
     this.hasTakenOff = false;
+    this.motorsStarted = true;
     this.controller.isLandingActive = false;
     this.controller.isAltHoldActive = true;
     this.controller.setAltitudeLock(0.18);
@@ -505,6 +506,16 @@ export class SimulatorOrchestrator {
     
     // 2. Poll user keyboard input
     let stick = this.input.update(dt, this.isArmed);
+    
+    if (this.isArmed && !this.motorsStarted) {
+      if (this.input.isThrottleDownTriggered() || this.isAutoTakeoffActive) {
+        this.motorsStarted = true;
+        const store = useDroneStore.getState() as any;
+        if (store.addNotification) {
+          store.addNotification('MOTORS STARTED - SPIN UP', 'success');
+        }
+      }
+    }
     
     if (this.isArmed) {
       if (this.isLandingActive) {
@@ -664,7 +675,9 @@ export class SimulatorOrchestrator {
     
     // 5. Compute motor outputs via flight controller
     if (this.isArmed) {
-      if (this.isCalibrating) {
+      if (!this.motorsStarted) {
+        this.motorCommands = [0, 0, 0, 0];
+      } else if (this.isCalibrating) {
         // Spin motors at visual idle speed during calibration
         this.motorCommands = [0.08, 0.08, 0.08, 0.08];
       } else if (this.isFailsafeActive) {
@@ -761,7 +774,7 @@ export class SimulatorOrchestrator {
       }
     } else if (!this.hasTakenOff) {
       // If we are in auto takeoff climb or manual takeoff climb (safety checks pass)
-      const isClimbing = this.isAutoTakeoffActive || (stick.throttle > 0.15 && this.checkSafetyForTakeoff(false));
+      const isClimbing = this.motorsStarted && (this.isAutoTakeoffActive || (stick.throttle > 0.15 && this.checkSafetyForTakeoff(false)));
       
       this.state.position.x = this.armPosition.x;
       this.state.position.z = this.armPosition.z;
@@ -951,6 +964,14 @@ export class SimulatorOrchestrator {
 
   public getIsLandingActive(): boolean {
     return this.isLandingActive;
+  }
+
+  public getIsAutoTakeoffActive(): boolean {
+    return this.isAutoTakeoffActive;
+  }
+
+  public getIsCrashed(): boolean {
+    return this.crashDetected;
   }
 
   public getIsFlipArmed(): boolean {

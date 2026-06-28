@@ -160,6 +160,10 @@ export class InputSystem {
     this.analogRight = { x: 0, y: 0 };
   }
 
+  public isThrottleDownTriggered(): boolean {
+    return this.keys['s'] || (this.hasAnalogInput && this.analogLeft.y < -0.8);
+  }
+
   // ── Frame-rate-independent exponential smoothing ──────────────────
   // Returns α for `current += α * (target - current)` matching `1 - e^(-dt/τ)`.
   private expAlpha(dt: number, tau: number): number {

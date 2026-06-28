@@ -1219,6 +1219,7 @@ function App() {
           onTakeoff={() => orchestratorRef.current?.triggerAutoTakeoff()}
           onLand={() => orchestratorRef.current?.triggerLanding()}
           onFlip={() => orchestratorRef.current?.toggleFlipArmed()}
+          orchestrator={orchestratorRef.current!}
         />
       )}
 

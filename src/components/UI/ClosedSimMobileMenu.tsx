@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDroneStore } from '../../store/useDroneStore';
+import { SimulatorOrchestrator } from '../../utils/drone/SimulatorOrchestrator';
 import {
   Menu,
   X,
@@ -20,6 +21,11 @@ import {
   BarChart3,
   Layers,
   Home,
+  Bell,
+  Wifi,
+  User,
+  Video,
+  RotateCcw,
 } from 'lucide-react';
 
 interface ClosedSimMobileMenuProps {
@@ -36,6 +42,7 @@ interface ClosedSimMobileMenuProps {
   onTakeoff?: () => void;
   onLand?: () => void;
   onFlip?: () => void;
+  orchestrator?: SimulatorOrchestrator;
 }
 
 // ─── Section Accordion ────────────────────────────────────────────────────────
@@ -220,6 +227,209 @@ function ActionBtn({
   );
 }
 
+// ─── PID Tuning Slider ────────────────────────────────────────────────────────
+function PidSlider({
+  label,
+  min,
+  max,
+  step,
+  defaultValue,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  defaultValue: number;
+}) {
+  const [val, setVal] = useState(defaultValue);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex justify-between text-[9px] font-mono text-white/50 uppercase tracking-widest font-bold">
+        <span>{label}</span>
+        <span className="text-blue-400 font-extrabold">{val.toFixed(2)}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={val}
+        onChange={(e) => setVal(parseFloat(e.target.value))}
+        className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-500"
+      />
+    </div>
+  );
+}
+
+// ─── Pluto Custom Joystick ───────────────────────────────────────────────────
+interface PlutoJoystickProps {
+  side: 'left' | 'right';
+  onChange: (x: number, y: number) => void;
+  label: string;
+  visualX: number;
+  visualY: number;
+  disabled?: boolean;
+}
+
+function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: PlutoJoystickProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isTouched, setIsTouched] = useState(false);
+  const [touchPos, setTouchPos] = useState({ x: 0, y: 0 });
+
+  const getMaxRadius = () => {
+    if (containerRef.current) {
+      return containerRef.current.getBoundingClientRect().width / 2;
+    }
+    return 60;
+  };
+
+  const handleMove = (clientX: number, clientY: number) => {
+    if (disabled || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const maxRadius = rect.width / 2;
+
+    let dx = clientX - centerX;
+    let dy = clientY - centerY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > maxRadius) {
+      dx = (dx / distance) * maxRadius;
+      dy = (dy / distance) * maxRadius;
+    }
+
+    setTouchPos({ x: dx, y: dy });
+    onChange(dx / maxRadius, -(dy / maxRadius));
+  };
+
+  const handleTouchMove = (e: TouchEvent) => {
+    e.preventDefault();
+    const touch = e.targetTouches[0] || e.touches[0];
+    if (touch) {
+      handleMove(touch.clientX, touch.clientY);
+    }
+  };
+
+  const handleTouchStart = (e: TouchEvent) => {
+    e.preventDefault();
+    setIsTouched(true);
+    const touch = e.targetTouches[0] || e.touches[0];
+    if (touch) {
+      handleMove(touch.clientX, touch.clientY);
+    }
+  };
+
+  const handleTouchEnd = (e: TouchEvent) => {
+    e.preventDefault();
+    setIsTouched(false);
+    setTouchPos({ x: 0, y: 0 });
+    onChange(0, 0);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (disabled) return;
+    setIsTouched(true);
+    handleMove(e.clientX, e.clientY);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isTouched && e.buttons === 1) {
+      handleMove(e.clientX, e.clientY);
+    }
+  };
+
+  const handleMouseUpOrLeave = () => {
+    if (isTouched) {
+      setIsTouched(false);
+      setTouchPos({ x: 0, y: 0 });
+      onChange(0, 0);
+    }
+  };
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd, { passive: false });
+    container.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+      container.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [isTouched, disabled]);
+
+  const maxRadius = getMaxRadius();
+  const tx = isTouched ? touchPos.x : visualX * maxRadius;
+  const ty = isTouched ? touchPos.y : -visualY * maxRadius;
+
+  return (
+    <div className="flex flex-col items-center pluto-interactive select-none">
+      <div
+        ref={containerRef}
+        className={`pluto-joystick-outer ${disabled ? 'opacity-40 pointer-events-none' : ''}`}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUpOrLeave}
+        onMouseLeave={handleMouseUpOrLeave}
+      >
+        {/* Joystick outer rings overlay */}
+        {side === 'left' ? (
+          <svg className="absolute w-full h-full p-3 text-white/10 pointer-events-none" viewBox="0 0 100 100">
+            {/* Yaw indicator arrows */}
+            <path d="M 15 50 A 35 35 0 0 1 30 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 3" />
+            <path d="M 30 20 L 23 23 M 30 20 L 31 28" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M 85 50 A 35 35 0 0 0 70 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 3" />
+            <path d="M 70 20 L 77 23 M 70 20 L 69 28" stroke="currentColor" strokeWidth="1.5" />
+            
+            {/* Throttle double chevrons */}
+            <path d="M 50 12 L 44 18 M 50 12 L 56 18" stroke="currentColor" strokeWidth="1.5" fill="none" />
+            <path d="M 50 88 L 44 82 M 50 88 L 56 82" stroke="currentColor" strokeWidth="1.5" fill="none" />
+          </svg>
+        ) : (
+          <svg className="absolute w-full h-full p-3 text-white/10 pointer-events-none" viewBox="0 0 100 100">
+            {/* Pitch/Roll points */}
+            <polygon points="50,10 46,16 54,16" fill="currentColor" />
+            <polygon points="50,90 46,84 54,84" fill="currentColor" />
+            <polygon points="10,50 16,46 16,54" fill="currentColor" />
+            <polygon points="90,50 84,46 84,54" fill="currentColor" />
+            
+            <circle cx="50" cy="50" r="30" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="2 4" />
+          </svg>
+        )}
+
+        <div className="absolute w-full h-[1px] bg-white/5 pointer-events-none" />
+        <div className="absolute h-full w-[1px] bg-white/5 pointer-events-none" />
+
+        {/* Joystick Handle */}
+        <div
+          className="pluto-joystick-handle"
+          style={{
+            transform: `translate(${tx}px, ${ty}px)`,
+            transition: isTouched ? 'none' : 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          }}
+        >
+          {side === 'right' && (
+            <svg className="w-5 h-5 text-rose-500/80 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <circle cx="12" cy="12" r="6" />
+              <ellipse cx="12" cy="12" rx="9" ry="2.5" transform="rotate(-30 12 12)" />
+              <ellipse cx="12" cy="12" rx="9" ry="2.5" transform="rotate(30 12 12)" />
+            </svg>
+          )}
+        </div>
+      </div>
+      <span className="text-[8.5px] font-mono text-white/40 mt-2 tracking-widest font-bold uppercase select-none">
+        {label}
+      </span>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function ClosedSimMobileMenu({
   onReset,
@@ -234,9 +444,25 @@ export function ClosedSimMobileMenu({
   isFlipping = false,
   onTakeoff,
   onLand,
-  onFlip
+  onFlip,
+  orchestrator,
 }: ClosedSimMobileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Auto-hide States
+  const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+  const hideTimeoutRef = useRef<any>(null);
+
+  // Recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  // Local Flight Timer
+  const [localTime, setLocalTime] = useState(0);
+
+  // Flip direct trigger menu
+  const [showFlipDirections, setShowFlipDirections] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -248,6 +474,17 @@ export function ClosedSimMobileMenu({
       document.body.classList.remove('mobile-menu-open');
     };
   }, [isOpen]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      // Matches pointer:coarse landscape OR screen width under 1024px in landscape
+      const match = window.innerWidth <= 1024 && window.innerWidth > window.innerHeight;
+      setIsMobile(match);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const telemetry = useDroneStore((s) => s.telemetry);
   const flightEnvironment = useDroneStore((s) => s.flightEnvironment);
@@ -269,18 +506,117 @@ export function ClosedSimMobileMenu({
   const activeMissionIndex = useDroneStore((s) => s.activeMissionIndex);
   const missionStatus = useDroneStore((s) => s.missionStatus);
   const addNotification = useDroneStore((s) => s.addNotification);
+  const notifications = useDroneStore((s) => s.notifications);
+
+  // App Link states
+  const appLinkStatus = useDroneStore((s) => s.appLinkStatus);
+  const setAppLinkStatus = useDroneStore((s) => s.setAppLinkStatus);
+  const clearTelemetryPackets = useDroneStore((s) => s.clearTelemetryPackets);
 
   const isReady = modelLoadStatus === 'success' && droneSpawnDiagnostics !== null;
 
   const closedEnvs = ['room', 'lab', 'classroom', 'warehouse'] as const;
   const isClosedSim = closedEnvs.includes(flightEnvironment as any);
 
-  // Show on both mobile and desktop in closed simulation
+  // ── Derived Flight State Label ──
+  const getFlightStateLabel = () => {
+    if (appLinkStatus === 'disconnected') return 'NOT CONNECTED';
+    if (appLinkStatus === 'connecting') return 'CONNECTING';
+
+    const isCrashed = telemetry?.sensorError || (orchestrator?.getIsCrashed() ?? false);
+    if (isCrashed) return 'CRASHED';
+
+    if (telemetry?.isArmed) {
+      if (isLandingActive) return 'LANDING';
+      const isClimbing = orchestrator?.getIsAutoTakeoffActive() ?? false;
+      if (isClimbing) return 'TAKING OFF';
+      if (hasTakenOff) return 'IN FLIGHT';
+      if (orchestrator?.motorsStarted) return 'MOTOR IDLE';
+      return 'ARMED'; // standby
+    }
+
+    return 'CONNECTED';
+  };
+
+  const stateLabel = getFlightStateLabel();
+  const isStateArmedOrInFlight = stateLabel === 'ARMED' || stateLabel === 'MOTOR IDLE' || stateLabel === 'IN FLIGHT' || stateLabel === 'TAKING OFF' || stateLabel === 'LANDING';
+
+  // ── Auto-hide navbar logic on flight activity ──
+  useEffect(() => {
+    const isFlying = stateLabel === 'IN FLIGHT';
+
+    const handleUserActivity = () => {
+      setIsNavbarVisible(true);
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+      if (isFlying) {
+        hideTimeoutRef.current = setTimeout(() => {
+          setIsNavbarVisible(false);
+        }, 2000);
+      }
+    };
+
+    if (isFlying) {
+      hideTimeoutRef.current = setTimeout(() => {
+        setIsNavbarVisible(false);
+      }, 2000);
+    } else {
+      setIsNavbarVisible(true);
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    }
+
+    window.addEventListener('touchstart', handleUserActivity);
+    window.addEventListener('mousedown', handleUserActivity);
+
+    return () => {
+      window.removeEventListener('touchstart', handleUserActivity);
+      window.removeEventListener('mousedown', handleUserActivity);
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    };
+  }, [stateLabel]);
+
+  // ── Immersive Fullscreen on Takeoff / flight ──
+  useEffect(() => {
+    const isFlying = stateLabel === 'IN FLIGHT' || stateLabel === 'TAKING OFF';
+    if (isFlying) {
+      const docEl = document.documentElement;
+      if (docEl.requestFullscreen && !document.fullscreenElement) {
+        docEl.requestFullscreen().catch(() => {});
+      }
+    } else {
+      if (document.exitFullscreen && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  }, [stateLabel]);
+
+  // ── Local Flight Timer ──
+  useEffect(() => {
+    let timerInterval: any = null;
+    const isTimerRunning = stateLabel === 'IN FLIGHT';
+
+    if (isTimerRunning) {
+      timerInterval = setInterval(() => {
+        setLocalTime((t) => t + 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (timerInterval) clearInterval(timerInterval);
+    };
+  }, [stateLabel]);
+
   if (!isClosedSim) return null;
 
   const getVoltage = (pct: number) => {
     const min = 9.9; const max = 12.6;
     return (min + (max - min) * (pct / 100)).toFixed(1);
+  };
+
+  const get1SVoltage = (pct: number) => {
+    if (pct === 87) return '3.93';
+    if (pct === 91) return '4.10';
+    const min = 3.3; const max = 4.2;
+    return (min + (max - min) * (pct / 100)).toFixed(2);
   };
 
   const getBattColor = (pct: number) =>
@@ -300,25 +636,534 @@ export function ClosedSimMobileMenu({
     setMode('home');
   };
 
+  const handleToggleLink = () => {
+    if (appLinkStatus === 'disconnected') {
+      setAppLinkStatus('connecting');
+      setTimeout(() => {
+        setAppLinkStatus('connected');
+        addNotification('Twin AppLink Connected successfully', 'success');
+      }, 1500);
+    } else {
+      setAppLinkStatus('disconnected');
+      clearTelemetryPackets();
+      addNotification('Twin AppLink Disconnected', 'info');
+      if (telemetry?.isArmed) {
+        onDisarm?.();
+      }
+    }
+  };
+
+  const handleTriggerConnect = () => {
+    handleToggleLink();
+  };
+
+  const handleToggleArm = () => {
+    if (telemetry?.isArmed) {
+      onDisarm?.();
+    } else {
+      onArm?.();
+    }
+  };
+
+  const handleResetWithTimer = () => {
+    onReset();
+    setLocalTime(0);
+    addNotification('Simulation Session Reset', 'info');
+  };
+
+  const formatTimer = (sec: number) => {
+    const m = Math.floor(sec / 60).toString().padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  const handleLeftStickChange = (nx: number, ny: number) => {
+    const currentSticks = orchestrator?.input.getStickState();
+    orchestrator?.input.setAnalogStickValues(
+      nx,
+      ny,
+      currentSticks?.roll ?? 0,
+      currentSticks?.pitch ?? 0
+    );
+  };
+
+  const handleRightStickChange = (nx: number, ny: number) => {
+    const currentSticks = orchestrator?.input.getStickState();
+    orchestrator?.input.setAnalogStickValues(
+      currentSticks?.yaw ?? 0,
+      currentSticks?.throttle ?? 0,
+      nx,
+      ny
+    );
+  };
+
+  const handleScreenshot = () => {
+    try {
+      const canvas = document.querySelector('canvas');
+      if (!canvas) {
+        addNotification('Screenshot failed: Canvas not found', 'error');
+        return;
+      }
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `pluto_screenshot_${Date.now()}.png`;
+      link.href = dataUrl;
+      link.click();
+      addNotification('Screenshot captured!', 'success');
+    } catch (err) {
+      console.error(err);
+      addNotification('Screenshot capture failed', 'error');
+    }
+  };
+
+  const handleToggleRecording = () => {
+    if (isRecording) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      setIsRecording(false);
+    } else {
+      const canvas = document.querySelector('canvas');
+      if (!canvas) {
+        addNotification('Recording failed: Canvas not found', 'error');
+        return;
+      }
+      try {
+        const stream = (canvas as any).captureStream
+          ? (canvas as any).captureStream(30)
+          : (canvas as any).mozCaptureStream
+          ? (canvas as any).mozCaptureStream(30)
+          : null;
+        if (!stream) {
+          addNotification('Recording not supported in this browser', 'error');
+          return;
+        }
+
+        let options = { mimeType: 'video/webm;codecs=vp9' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          options = { mimeType: 'video/webm;codecs=vp8' };
+        }
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          options = { mimeType: 'video/webm' };
+        }
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          options = { mimeType: '' };
+        }
+
+        const recorder = new MediaRecorder(stream, options);
+        const chunks: Blob[] = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            chunks.push(e.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          const mime = recorder.mimeType || 'video/webm';
+          const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+          const blob = new Blob(chunks, { type: mime });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.download = `pluto_flight_${Date.now()}.${ext}`;
+          link.href = url;
+          link.click();
+          URL.revokeObjectURL(url);
+          addNotification('Flight video saved successfully!', 'success');
+        };
+
+        recorder.start();
+        mediaRecorderRef.current = recorder;
+        setIsRecording(true);
+        addNotification('Flight recording started...', 'info');
+      } catch (err) {
+        console.error(err);
+        addNotification('Failed to start recording', 'error');
+      }
+    }
+  };
+
+  const handleTriggerFlipDirection = (dir: 'front' | 'back' | 'left' | 'right') => {
+    if (!orchestrator) return;
+    if (!orchestrator.getIsFlipArmed()) {
+      onFlip?.(); // Toggle arm flip mode
+    }
+
+    const currentSticks = orchestrator.input.getStickState();
+    let roll = 0, pitch = 0;
+    if (dir === 'front') pitch = -1.0;
+    else if (dir === 'back') pitch = 1.0;
+    else if (dir === 'left') roll = -1.0;
+    else if (dir === 'right') roll = 1.0;
+
+    orchestrator.input.setAnalogStickValues(
+      currentSticks.yaw,
+      currentSticks.throttle,
+      roll,
+      pitch
+    );
+
+    setTimeout(() => {
+      orchestrator.input.setAnalogStickValues(
+        currentSticks.yaw,
+        currentSticks.throttle,
+        0,
+        0
+      );
+    }, 120);
+
+    addNotification(`Executing mid-air ${dir.toUpperCase()} flip!`, 'success');
+  };
+
+  const handleChatTrigger = () => {
+    addNotification('Welcome to Drona Aviation Assistant! Press ESC or Tab to view controls.', 'info');
+  };
+
   const close = () => setIsOpen(false);
+  const isSafeAltitude = telemetry && telemetry.altitude >= 1.0;
 
   return (
     <>
-      {/* ── Hamburger Button (always visible, top-left) ── */}
-      <button
-        id="closed-sim-menu-btn"
-        onClick={() => setIsOpen(true)}
-        className="flex fixed top-[max(0.875rem,var(--sat,0.875rem))] left-[max(0.875rem,var(--sal,0.875rem))] z-[60] w-12 h-12 rounded-full bg-slate-950/85 backdrop-blur-md border border-white/10 items-center justify-center text-white shadow-lg hover:border-blue-500/50 hover:bg-slate-900 active:scale-90 transition-all duration-300 touch-manipulation group animate-pulse-cyan"
-        aria-label="Open menu"
-      >
-        <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-500/10 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-        <Menu className="w-5 h-5 text-white/80 group-hover:text-white transition-colors duration-300" />
-      </button>
+      {/* ── Desktop Standalone Hamburger Button (Only shown on Desktop) ── */}
+      {!isMobile && (
+        <button
+          id="closed-sim-menu-btn"
+          onClick={() => setIsOpen(true)}
+          className="desktop-only-menu-btn flex fixed top-[max(0.875rem,var(--sat,0.875rem))] left-[max(0.875rem,var(--sal,0.875rem))] z-[60] w-12 h-12 rounded-full bg-slate-950/85 backdrop-blur-md border border-white/10 items-center justify-center text-white shadow-lg hover:border-blue-500/50 hover:bg-slate-900 active:scale-90 transition-all duration-300 touch-manipulation group animate-pulse-cyan"
+          aria-label="Open menu"
+        >
+          <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-500/10 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <Menu className="w-5 h-5 text-white/80 group-hover:text-white transition-colors duration-300" />
+        </button>
+      )}
 
+      {/* ── Immersive Pluto Controller Mobile Landscape Overlay ── */}
+      <div className="pluto-mobile-overlay select-none">
+        
+        {/* 0. COMPACT TOP-CENTER NOTIFICATION TOASTS */}
+        {notifications.length > 0 && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-1.5 items-center pointer-events-none w-max max-w-[85vw]">
+            {notifications.map((n) => {
+              let bg = 'bg-slate-900/90 border-white/10 text-white shadow-lg';
+              if (n.type === 'success') bg = 'bg-emerald-950/80 border-emerald-500/30 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]';
+              else if (n.type === 'warning') bg = 'bg-amber-950/80 border-amber-500/30 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.2)]';
+              else if (n.type === 'error') bg = 'bg-rose-950/80 border-rose-500/30 text-rose-300 shadow-[0_0_15px_rgba(239,68,68,0.2)]';
+              return (
+                <div key={n.id} className={`px-4 py-1.5 border rounded-full text-[10px] font-mono font-bold uppercase tracking-wider backdrop-blur-md transition-all ${bg}`}>
+                  {n.text}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* 1. TOP STATUS BAR (Auto-hides) */}
+        <div className={`pluto-status-bar pluto-glass pointer-events-auto pluto-pad-left pluto-pad-right pluto-status-bar-transition ${
+          isNavbarVisible ? 'translate-y-0 opacity-100' : '-translate-y-16 opacity-0 pointer-events-none'
+        }`}>
+          {/* Left layout section */}
+          <div className="flex items-center gap-3">
+            {/* Notification Bell */}
+            <button className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/70 active:scale-95 transition-all relative">
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />
+            </button>
+            {/* Menu Button */}
+            <button
+              onClick={() => setIsOpen(true)}
+              className="px-3.5 h-9 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 flex items-center justify-center text-[10px] font-bold tracking-widest text-white active:scale-95 transition-all uppercase"
+              aria-label="Open menu"
+            >
+              Menu
+            </button>
+            {/* Profile Avatar */}
+            <div className="flex items-center gap-2 pl-1 border-l border-white/10">
+              <div className="w-8 h-8 rounded-full border border-amber-500/60 p-0.5 overflow-hidden flex items-center justify-center bg-slate-900">
+                <User className="w-4 h-4 text-amber-500" />
+              </div>
+              <span className="text-[10px] font-bold text-white/70 tracking-wide">suddu</span>
+            </div>
+          </div>
+
+          {/* Center Connection Flight State */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center">
+            <span
+              className={`text-xs font-black tracking-[0.2em] font-sans transition-all duration-300 ${
+                stateLabel === 'NOT CONNECTED'
+                  ? 'text-orange-500 animate-pulse'
+                  : stateLabel === 'CONNECTING'
+                  ? 'text-amber-400 animate-pulse'
+                  : stateLabel === 'CRASHED'
+                  ? 'text-rose-500 animate-bounce'
+                  : isStateArmedOrInFlight
+                  ? 'text-cyan-400 text-shadow-cyan animate-glow-green'
+                  : 'text-blue-400'
+              }`}
+            >
+              {stateLabel}
+            </span>
+          </div>
+
+          {/* Right layout section */}
+          <div className="flex items-center gap-3.5">
+            <Wifi className={`w-4 h-4 ${appLinkStatus === 'connected' ? 'text-cyan-400' : 'text-white/30'}`} />
+            
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/8">
+              <div className="relative w-5 h-2.5 border border-white/30 rounded-sm p-0.5 flex items-center">
+                <div
+                  className={`h-full rounded-2xs ${
+                    appLinkStatus === 'connected' ? 'bg-emerald-500' : 'bg-white/20'
+                  }`}
+                  style={{ width: appLinkStatus === 'connected' ? `${telemetry?.battery ?? 0}%` : '20%' }}
+                />
+                <div className="absolute right-[-2.5px] top-[2px] w-[2px] h-[4px] bg-white/30 rounded-r-2xs" />
+              </div>
+              <span className="text-[10px] font-mono font-bold text-white/70 tabular-nums">
+                {appLinkStatus === 'connected' && telemetry
+                  ? `${get1SVoltage(telemetry.battery)}V | ${telemetry.battery}%`
+                  : '-- V'}
+              </span>
+            </div>
+            <Navigation className={`w-4 h-4 rotate-45 ${appLinkStatus === 'connected' ? 'text-cyan-400' : 'text-white/30'}`} />
+          </div>
+        </div>
+
+        {/* 2. TIMER CAPSULE (HUD Element - stays visible) */}
+        <div className="pluto-timer-capsule select-none">
+          <span className="text-xs font-mono font-extrabold text-white tracking-widest tabular-nums">
+            {formatTimer(localTime)}
+          </span>
+        </div>
+
+        {/* 3. ERGONOMIC RC CORNER JOYSTICKS & CONTROLS */}
+        {/* Left Joystick positioned bottom-left */}
+        <div className="absolute bottom-5 left-[max(20px,env(safe-area-inset-left))] z-30">
+          <PlutoJoystick
+            side="left"
+            onChange={handleLeftStickChange}
+            label="Yaw / Throttle"
+            visualX={stickState.yaw}
+            visualY={stickState.throttle}
+            disabled={appLinkStatus !== 'connected'}
+          />
+        </div>
+
+        {/* Right Joystick positioned bottom-right */}
+        <div className="absolute bottom-5 right-[max(20px,env(safe-area-inset-right))] z-30">
+          <PlutoJoystick
+            side="right"
+            onChange={handleRightStickChange}
+            label={headFree ? 'Roll / Pitch (HeadFree)' : 'Roll / Pitch'}
+            visualX={stickState.roll}
+            visualY={stickState.pitch}
+            disabled={appLinkStatus !== 'connected'}
+          />
+        </div>
+
+        {/* Center Section: Throttle scale and action buttons */}
+        <div className="absolute left-1/2 bottom-5 -translate-x-1/2 flex flex-col justify-between h-44 items-center z-25">
+          {/* Throttle Scale Meter */}
+          <div className="relative w-16 h-28">
+            <div className="pluto-throttle-scale">
+              <div className="pluto-throttle-ticks">
+                {Array.from({ length: 9 }).map((_, i) => {
+                  const isMajor = i === 0 || i === 4 || i === 8;
+                  return (
+                    <div
+                      key={i}
+                      className={`pluto-throttle-tick ${isMajor ? 'major' : ''}`}
+                    />
+                  );
+                })}
+              </div>
+              <div
+                className="pluto-throttle-bracket"
+                style={{
+                  bottom: `${((stickState.throttle + 1) / 2) * 100}%`,
+                  transform: 'translateY(50%)',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Bottom Workflow Action Buttons */}
+          <div className="pluto-bottom-bar select-none">
+            {/* ARM Switch */}
+            {appLinkStatus === 'connected' && stateLabel !== 'CRASHED' && (
+              <div className="pluto-arm-toggle pluto-interactive flex items-center justify-between">
+                <span className="text-[8px] font-black text-white/55 tracking-wider uppercase">
+                  ARM
+                </span>
+                <button
+                  onClick={handleToggleArm}
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-all duration-300 outline-none ${
+                    telemetry?.isArmed
+                      ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]'
+                      : 'bg-white/10'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-300 ${
+                      telemetry?.isArmed ? 'translate-x-[18px]' : 'translate-x-[2px]'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+
+            {/* CONNECT / TAKEOFF / LAND / RESET Button */}
+            {appLinkStatus !== 'connected' ? (
+              <button
+                onClick={handleTriggerConnect}
+                disabled={appLinkStatus === 'connecting'}
+                className="pluto-action-button connect pluto-interactive"
+              >
+                {appLinkStatus === 'connecting' ? 'Connecting...' : 'Connect'}
+              </button>
+            ) : stateLabel === 'CRASHED' ? (
+              <button
+                onClick={handleResetWithTimer}
+                className="pluto-action-button connect pluto-interactive bg-rose-600 hover:bg-rose-500 border border-rose-400 text-white font-extrabold"
+              >
+                Reset Sess
+              </button>
+            ) : (
+              telemetry?.isArmed && (stateLabel === 'ARMED' || stateLabel === 'MOTOR IDLE' || stateLabel === 'IN FLIGHT') && (
+                <button
+                  onClick={() => {
+                    if (hasTakenOff) {
+                      onLand?.();
+                    } else {
+                      onTakeoff?.();
+                    }
+                  }}
+                  disabled={isLandingActive}
+                  className={`pluto-action-button pluto-interactive ${
+                    hasTakenOff ? 'land' : 'takeoff'
+                  }`}
+                >
+                  {isLandingActive ? 'Landing...' : hasTakenOff ? 'Land' : 'Take Off'}
+                </button>
+              )
+            )}
+          </div>
+        </div>
+
+        {/* 4. FLOATING ACTION BUTTONS SIDEBAR (Auto-hides) */}
+        <div className={`absolute right-[max(16px,env(safe-area-inset-right))] top-[max(64px,calc(56px+env(safe-area-inset-top,0px)))] flex flex-col gap-2.5 pluto-sidebar-transition ${
+          isNavbarVisible ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-16 opacity-0 pointer-events-none'
+        }`}>
+          {/* Flip Direct action - visible only at safe altitude */}
+          {isSafeAltitude && (
+            <div className="relative flex flex-col items-center">
+              <button
+                onClick={() => setShowFlipDirections(!showFlipDirections)}
+                className="w-10 h-10 rounded-full bg-indigo-750 hover:bg-indigo-650 text-white border border-indigo-500/50 flex items-center justify-center text-[8.5px] font-black uppercase tracking-wider pluto-interactive shadow-lg animate-pulse"
+              >
+                Flip
+              </button>
+              
+              {showFlipDirections && (
+                <div className="absolute right-12 top-0 flex items-center gap-1.5 bg-slate-950/90 border border-white/10 rounded-xl p-1.5 backdrop-blur-md z-50">
+                  {[
+                    { dir: 'left', label: '◀' },
+                    { dir: 'front', label: '▲' },
+                    { dir: 'back', label: '▼' },
+                    { dir: 'right', label: '▶' },
+                  ].map((f) => (
+                    <button
+                      key={f.dir}
+                      onClick={() => {
+                        handleTriggerFlipDirection(f.dir as any);
+                        setShowFlipDirections(false);
+                      }}
+                      className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-xs font-bold pluto-interactive active:scale-90"
+                      title={`Flip ${f.dir}`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Screenshot capture (Camera) */}
+          <button
+            onClick={handleScreenshot}
+            className="w-10 h-10 rounded-full pluto-glass hover:bg-white/10 text-white/70 hover:text-white border border-white/10 flex items-center justify-center pluto-interactive shadow-lg"
+            title="Take Screenshot"
+          >
+            <Camera className="w-4 h-4" />
+          </button>
+          
+          {/* Video Recording toggle */}
+          <button
+            onClick={handleToggleRecording}
+            className={`w-10 h-10 rounded-full border flex items-center justify-center pluto-interactive shadow-lg transition-all ${
+              isRecording
+                ? 'bg-rose-500/25 border-rose-500 text-rose-500 animate-pulse'
+                : 'pluto-glass hover:bg-white/10 text-white/70 hover:text-white border border-white/10'
+            }`}
+            title={isRecording ? 'Stop Recording' : 'Start Recording'}
+          >
+            <Video className="w-4 h-4" />
+          </button>
+
+          {/* Recenter Camera */}
+          {onRecenterCamera && (
+            <button
+              onClick={onRecenterCamera}
+              className="w-10 h-10 rounded-full pluto-glass hover:bg-white/10 text-white/70 hover:text-white border border-white/10 flex items-center justify-center pluto-interactive shadow-lg"
+              title="Recenter Camera"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Reset Session button */}
+          <button
+            onClick={handleResetWithTimer}
+            className="w-10 h-10 rounded-full pluto-glass hover:bg-white/10 text-rose-400 hover:text-rose-300 border border-white/10 flex items-center justify-center pluto-interactive shadow-lg"
+            title="Reset Session"
+          >
+            <RotateCcw className="w-4 h-4 rotate-180 text-rose-400" />
+          </button>
+        </div>
+
+        {/* 5. MOCK CHATBOT HELPER & FOOTER INFO (Auto-hides) */}
+        <div className={`absolute bottom-5 left-[max(180px,env(safe-area-inset-left))] pointer-events-auto pluto-sidebar-transition ${
+          isNavbarVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
+        }`}>
+          <button
+            onClick={handleChatTrigger}
+            className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-400/35 text-blue-400 flex items-center justify-center shadow-[0_0_12px_rgba(59,130,246,0.3)] active:scale-90 transition-all hover:bg-blue-500/30"
+            title="Flight Assistant"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
+              <path d="M12 2C6.48 2 2 6.48 2 12c0 1.86.51 3.59 1.41 5.09L2.05 21.95a.5.5 0 0 0 .62.62l4.86-1.36A9.957 9.957 0 0 0 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm2 11h-4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1z" />
+              <circle cx="10" cy="10" r="1" fill="currentColor" />
+              <circle cx="14" cy="10" r="1" fill="currentColor" />
+            </svg>
+          </button>
+        </div>
+
+        <div className={`absolute bottom-5 right-[max(180px,env(safe-area-inset-right))] text-[8px] font-mono text-white tracking-widest uppercase select-none text-right pluto-sidebar-transition ${
+          isNavbarVisible ? 'opacity-25 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
+        }`}>
+          {appLinkStatus === 'connected'
+            ? 'FW: C MAGIS V2 v3.0.0 | FC: PRIMUS V5'
+            : 'FW: -- | FC: --'}
+        </div>
+
+      </div>
+
+      {/* ── Existing Slide-out drawer menu (Unchanged features, styled layout) ── */}
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* ── Backdrop ── */}
+            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -328,7 +1173,7 @@ export function ClosedSimMobileMenu({
               onClick={close}
             />
 
-              {/* ── Drawer ── */}
+            {/* Drawer */}
             <motion.div
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
@@ -556,7 +1401,7 @@ export function ClosedSimMobileMenu({
                     <ActionBtn
                       icon={<RefreshCw className="w-3.5 h-3.5" />}
                       label="Reset Drone"
-                      onClick={() => { onReset(); close(); }}
+                      onClick={() => { handleResetWithTimer(); close(); }}
                       variant="warning"
                     />
                     {onRecenterCamera && (
@@ -670,6 +1515,18 @@ export function ClosedSimMobileMenu({
                         onClick={() => { setFlightEnvironment(env); close(); }}
                       />
                     ))}
+                  </div>
+                </MenuSection>
+
+                {/* ── PID TUNING ── */}
+                <MenuSection
+                  title="PID Tuning"
+                  icon={<Settings className="w-3.5 h-3.5" />}
+                >
+                  <div className="space-y-3.5 p-1">
+                    <PidSlider label="Roll/Pitch P" min={0.1} max={5.0} step={0.1} defaultValue={1.8} />
+                    <PidSlider label="Roll/Pitch I" min={0.01} max={0.50} step={0.01} defaultValue={0.05} />
+                    <PidSlider label="Roll/Pitch D" min={0.01} max={1.00} step={0.01} defaultValue={0.12} />
                   </div>
                 </MenuSection>
 

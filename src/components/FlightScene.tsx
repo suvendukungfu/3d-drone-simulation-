@@ -173,7 +173,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
     const warnings = orchestrator.getWarnings();
 
     // 2. Play/Adjust motor sounds based on state
-    if (telemetry.isArmed && !telemetry.calibrationActive) {
+    if (telemetry.isArmed && !telemetry.calibrationActive && orchestrator.motorsStarted) {
       motorCmds.forEach((cmd, idx) => {
         const motorKey = `motor${idx + 1}` as any;
         sound.startMotorSound(motorKey);
@@ -192,7 +192,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
     // 4. Spin propeller meshes in real-time
     if (propellersRef.current.length > 0) {
       propellersRef.current.forEach((mesh, index) => {
-        if (mesh && telemetry.isArmed) {
+        if (mesh && telemetry.isArmed && orchestrator.motorsStarted) {
           const direction = (index === 0 || index === 3) ? -1 : 1;
           const speed = 15000 + motorCmds[index] * 33000;
           const angleDelta = (speed / 60) * Math.PI * 2 * delta * 0.012;
