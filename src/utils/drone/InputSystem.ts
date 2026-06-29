@@ -345,21 +345,27 @@ export class InputSystem {
       const aLpf = this.lpfAlpha(dt, this.ANALOG_LPF_HZ);
 
       // 1. Throttle — mapped around 0.55 hover center
-      let targetThrottle = 0.0;
       if (hasTakenOff) {
         const rawY = this.analogLeft.y; // -1 to 1
         if (rawY > 0.01) {
-          targetThrottle = 0.55 + rawY * 0.40; // climb: 0.55 to 0.95
+          const targetThrottle = 0.55 + rawY * 0.40; // climb: 0.55 to 0.95
+          this.stick.throttle += aLpf * (targetThrottle - this.stick.throttle);
         } else if (rawY < -0.01) {
-          targetThrottle = 0.55 + rawY * 0.55; // descend: 0.0 to 0.55
+          const targetThrottle = 0.55 + rawY * 0.55; // descend: 0.0 to 0.55
+          this.stick.throttle += aLpf * (targetThrottle - this.stick.throttle);
         } else {
-          targetThrottle = 0.55; // hover hold
+          // Centered: bypass filter to instantly lock altitude and snap joystick knob
+          this.stick.throttle = 0.55;
         }
       } else {
         const rawY = this.analogLeft.y;
-        targetThrottle = Math.max(0.0, 0.5 + rawY * 0.5);
+        if (Math.abs(rawY) > 0.01) {
+          const targetThrottle = Math.max(0.0, 0.5 + rawY * 0.5);
+          this.stick.throttle += aLpf * (targetThrottle - this.stick.throttle);
+        } else {
+          this.stick.throttle = 0.0;
+        }
       }
-      this.stick.throttle += aLpf * (targetThrottle - this.stick.throttle);
 
       // 2. Yaw
       const targetYaw = this.applyDeadzoneAndExpo(this.analogLeft.x, 0.05, 0.4);
@@ -386,24 +392,28 @@ export class InputSystem {
     // ── Input source: Keyboard (desktop) ────────────────────────────
     } else {
       // 1. Throttle — keyboard mapped around 0.55 hover center
-      let targetThrottle = 0.0;
       if (hasTakenOff) {
         if (this.keys['w']) {
-          targetThrottle = 0.85; // climb
+          const targetThrottle = 0.85; // climb
+          const tAlpha = this.expAlpha(dt, this.KBD_RAMP_TAU);
+          this.stick.throttle += tAlpha * (targetThrottle - this.stick.throttle);
         } else if (this.keys['s']) {
-          targetThrottle = 0.15; // descend
+          const targetThrottle = 0.15; // descend
+          const tAlpha = this.expAlpha(dt, this.KBD_RAMP_TAU);
+          this.stick.throttle += tAlpha * (targetThrottle - this.stick.throttle);
         } else {
-          targetThrottle = 0.55; // hover hold
+          // Instantly lock at hover when keys are released
+          this.stick.throttle = 0.55;
         }
       } else {
         if (this.keys['w']) {
-          targetThrottle = 0.65;
+          const targetThrottle = 0.65;
+          const tAlpha = this.expAlpha(dt, this.KBD_RAMP_TAU);
+          this.stick.throttle += tAlpha * (targetThrottle - this.stick.throttle);
         } else {
-          targetThrottle = 0.0;
+          this.stick.throttle = 0.0;
         }
       }
-      const tAlpha = this.expAlpha(dt, this.KBD_RAMP_TAU);
-      this.stick.throttle += tAlpha * (targetThrottle - this.stick.throttle);
       
       // 2. Yaw (A / D)
       let rawYaw = 0.0;
