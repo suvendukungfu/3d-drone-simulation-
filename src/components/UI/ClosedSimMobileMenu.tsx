@@ -1053,8 +1053,12 @@ export function ClosedSimMobileMenu({
             side="left"
             onChange={handleLeftStickChange}
             label="Yaw / Throttle"
-            visualX={0}
-            visualY={0}
+            visualX={stickState.yaw}
+            visualY={
+              stickState.throttle >= 0.55
+                ? (stickState.throttle - 0.55) / 0.45
+                : (stickState.throttle - 0.55) / 0.55
+            }
             disabled={appLinkStatus !== 'connected'}
           />
         </div>

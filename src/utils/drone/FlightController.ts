@@ -67,6 +67,7 @@ export class FlightController {
   private smoothedRoll = 0.0;
   private smoothedPitch = 0.0;
   private smoothedYaw = 0.0;
+  private hoverTime = 0.0; // Track time for natural oscillations
   
   // Base hover throttle feedforward (corresponds to mass * gravity / maxTotalThrust)
   // mass = 0.055, gravity = 9.81, maxTotalThrust = 1.20 -> hover throttle ~ 0.55 (tuned per spec)
@@ -113,6 +114,7 @@ export class FlightController {
     this.hoverPosActiveZ = false;
     this.hoverPosIntX = 0.0;
     this.hoverPosIntZ = 0.0;
+    this.hoverTime = 0.0;
   }
   
   // Apply PID calculations to compute motor outputs [m1, m2, m3, m4]
@@ -124,6 +126,8 @@ export class FlightController {
     dt: number,
     hasTakenOff: boolean = true
   ): number[] {
+    this.hoverTime += dt;
+
     // Apply Low-pass filtering to barometer altitude
     if (!this.isAltInitialized) {
       this.filteredAltitude = sensorData.baroAltitude;
@@ -175,8 +179,9 @@ export class FlightController {
           const isThrottleNeutral = stick.throttle >= 0.50 && stick.throttle <= 0.60;
           
           if (isThrottleNeutral) {
-            // Hold locked altitude using filtered altitude error
-            const altError = this.lockedAltitude - this.filteredAltitude;
+            // Hold locked altitude using filtered altitude error plus natural tiny oscillations (5-10cm)
+            const oscillation = Math.sin(this.hoverTime * 1.8) * 0.06; // ±6 cm natural wave
+            const altError = (this.lockedAltitude + oscillation) - this.filteredAltitude;
             targetClimbRate = THREE.MathUtils.clamp(altError * this.altitudeGains.kp, -1.0, 1.0);
           } else if (stick.throttle > 0.60) {
             // Climb Zone (60% to 100%) - continuous
