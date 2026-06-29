@@ -367,59 +367,132 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
   const maxRadius = getMaxRadius();
   const tx = isTouched ? touchPos.x : visualX * maxRadius;
   const ty = isTouched ? touchPos.y : -visualY * maxRadius;
+  const vx = isTouched ? touchPos.x / (maxRadius || 60) : visualX;
+  const vy = isTouched ? -touchPos.y / (maxRadius || 60) : visualY;
+  const txLine = 50 + vx * 50;
+  const tyLine = 50 - vy * 50;
 
   return (
     <div className="flex flex-col items-center pluto-interactive select-none">
       <div
         ref={containerRef}
-        className={`pluto-joystick-outer ${disabled ? 'opacity-40 pointer-events-none' : ''}`}
+        className={`pluto-joystick-outer transition-all duration-300 ${
+          isTouched 
+            ? 'border-cyan-500/50 shadow-[0_0_25px_rgba(6,182,212,0.25),inset_0_2px_8px_rgba(0,0,0,0.8)]' 
+            : ''
+        } ${disabled ? 'opacity-40 pointer-events-none' : ''}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUpOrLeave}
         onMouseLeave={handleMouseUpOrLeave}
       >
-        {/* Joystick outer rings overlay */}
-        {side === 'left' ? (
-          <svg className="absolute w-full h-full p-3 text-white/10 pointer-events-none" viewBox="0 0 100 100">
-            {/* Yaw indicator arrows */}
-            <path d="M 15 50 A 35 35 0 0 1 30 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 3" />
-            <path d="M 30 20 L 23 23 M 30 20 L 31 28" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M 85 50 A 35 35 0 0 0 70 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 3" />
-            <path d="M 70 20 L 77 23 M 70 20 L 69 28" stroke="currentColor" strokeWidth="1.5" />
-            
-            {/* Throttle double chevrons */}
-            <path d="M 50 12 L 44 18 M 50 12 L 56 18" stroke="currentColor" strokeWidth="1.5" fill="none" />
-            <path d="M 50 88 L 44 82 M 50 88 L 56 82" stroke="currentColor" strokeWidth="1.5" fill="none" />
-          </svg>
-        ) : (
-          <svg className="absolute w-full h-full p-3 text-white/10 pointer-events-none" viewBox="0 0 100 100">
-            {/* Pitch/Roll points */}
-            <polygon points="50,10 46,16 54,16" fill="currentColor" />
-            <polygon points="50,90 46,84 54,84" fill="currentColor" />
-            <polygon points="10,50 16,46 16,54" fill="currentColor" />
-            <polygon points="90,50 84,46 84,54" fill="currentColor" />
-            
-            <circle cx="50" cy="50" r="30" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="2 4" />
-          </svg>
-        )}
+        {/* Vector Trail and Inner Rings SVG */}
+        <svg className="absolute w-full h-full p-3 pointer-events-none" viewBox="0 0 100 100">
+          <defs>
+            <radialGradient id={`gimbal-glow-${side}`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#22d3ee" stopOpacity={isTouched ? "0.18" : "0"} />
+              <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+            </radialGradient>
+            <linearGradient id={`vector-trail-${side}`} x1="50%" y1="50%" x2={`${txLine}%`} y2={`${tyLine}%`}>
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.85" />
+            </linearGradient>
+          </defs>
 
-        <div className="absolute w-full h-[1px] bg-white/5 pointer-events-none" />
-        <div className="absolute h-full w-[1px] bg-white/5 pointer-events-none" />
+          {/* Central Radial Glow */}
+          <circle cx="50" cy="50" r="45" fill={`url(#gimbal-glow-${side})`} />
+
+          {/* Inner 50% dotted guideline */}
+          <circle 
+            cx="50" 
+            cy="50" 
+            r="25" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="0.75" 
+            strokeDasharray="2 3" 
+            className={`transition-colors duration-300 ${isTouched ? 'text-cyan-400/30' : 'text-white/5'}`} 
+          />
+
+          {/* Axis Crosshairs */}
+          <line x1="5" y1="50" x2="95" y2="50" stroke="currentColor" strokeWidth="0.75" className={`transition-colors duration-300 ${isTouched ? 'text-cyan-500/25' : 'text-white/5'}`} />
+          <line x1="50" y1="5" x2="50" y2="95" stroke="currentColor" strokeWidth="0.75" className={`transition-colors duration-300 ${isTouched ? 'text-cyan-500/25' : 'text-white/5'}`} />
+
+          {/* Dynamic Vector Trail */}
+          {(vx !== 0 || vy !== 0) && (
+            <line
+              x1="50"
+              y1="50"
+              x2={txLine}
+              y2={tyLine}
+              stroke={`url(#vector-trail-${side})`}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+          )}
+
+          {/* Specific Side Decorations */}
+          {side === 'left' ? (
+            <>
+              {/* Yaw indicator arrows */}
+              <path d="M 18 50 A 32 32 0 0 1 32 22" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="3 3" className={isTouched ? 'text-cyan-400/20' : 'text-white/10'} />
+              <path d="M 32 22 L 26 24 M 32 22 L 32 29" stroke="currentColor" strokeWidth="1" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
+              <path d="M 82 50 A 32 32 0 0 0 68 22" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="3 3" className={isTouched ? 'text-cyan-400/20' : 'text-white/10'} />
+              <path d="M 68 22 L 74 24 M 68 22 L 68 29" stroke="currentColor" strokeWidth="1" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
+              
+              {/* Throttle double chevrons */}
+              <path d="M 50 14 L 46 19 M 50 14 L 54 19" stroke="currentColor" strokeWidth="1" fill="none" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
+              <path d="M 50 86 L 46 81 M 50 86 L 54 81" stroke="currentColor" strokeWidth="1" fill="none" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
+            </>
+          ) : (
+            <>
+              {/* Pitch/Roll points */}
+              <polygon points="50,14 47,19 53,19" fill="currentColor" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
+              <polygon points="50,86 47,81 53,81" fill="currentColor" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
+              <polygon points="14,50 19,47 19,53" fill="currentColor" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
+              <polygon points="86,50 81,47 81,53" fill="currentColor" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
+            </>
+          )}
+        </svg>
 
         {/* Joystick Handle */}
         <div
-          className="pluto-joystick-handle"
+          className={`pluto-joystick-handle transition-all duration-200 ${
+            isTouched 
+              ? 'shadow-[0_0_20px_rgba(6,182,212,0.6)] border-cyan-400 scale-[1.08]' 
+              : 'border-white/15 scale-100 hover:scale-[1.03]'
+          }`}
           style={{
             transform: `translate(${tx}px, ${ty}px)`,
-            transition: isTouched ? 'none' : 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+            transition: isTouched ? 'none' : 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94), scale 0.2s ease, border-color 0.2s ease',
+            background: 'radial-gradient(circle at 35% 35%, #1e293b 0%, #0b0f19 70%, #030712 100%)',
+            boxShadow: isTouched 
+              ? '0 6px 20px rgba(0, 0, 0, 0.6), inset 0 2px 3px rgba(255,255,255,0.1), 0 0 15px rgba(34,211,238,0.4)' 
+              : '0 4px 12px rgba(0, 0, 0, 0.5), inset 0 2px 2px rgba(255,255,255,0.06)',
+            cursor: isTouched ? 'grabbing' : 'grab',
           }}
         >
+          {/* Metallic Knurling concentric rings */}
+          <div className="absolute inset-1 rounded-full border border-white/5 bg-transparent pointer-events-none" />
+          <div className="absolute inset-2.5 rounded-full border border-white/5 bg-transparent pointer-events-none" />
+          <div className="absolute inset-4 rounded-full border border-white/5 bg-transparent pointer-events-none" />
+          
+          {/* Center Glowing Dot Core */}
+          <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
+            isTouched 
+              ? 'bg-cyan-400 shadow-[0_0_10px_#22d3ee]' 
+              : 'bg-white/20'
+          }`} />
+
+          {/* Right Joystick Gyro decoration */}
           {side === 'right' && (
-            <svg className="w-5 h-5 text-rose-500/80 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <circle cx="12" cy="12" r="6" />
-              <ellipse cx="12" cy="12" rx="9" ry="2.5" transform="rotate(-30 12 12)" />
-              <ellipse cx="12" cy="12" rx="9" ry="2.5" transform="rotate(30 12 12)" />
-            </svg>
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+              <svg className="w-6 h-6 text-cyan-400 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="6" />
+                <ellipse cx="12" cy="12" rx="9" ry="2.5" transform="rotate(-30 12 12)" />
+                <ellipse cx="12" cy="12" rx="9" ry="2.5" transform="rotate(30 12 12)" />
+              </svg>
+            </div>
           )}
         </div>
       </div>

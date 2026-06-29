@@ -508,7 +508,7 @@ export class SimulatorOrchestrator {
     let stick = this.input.update(dt, this.isArmed);
     
     if (this.isArmed && !this.motorsStarted) {
-      if (this.input.isThrottleDownTriggered() || this.isAutoTakeoffActive) {
+      if (this.input.isThrottleDownTriggered() || this.isAutoTakeoffActive || this.hasTakenOff) {
         this.motorsStarted = true;
         const store = useDroneStore.getState() as any;
         if (store.addNotification) {
