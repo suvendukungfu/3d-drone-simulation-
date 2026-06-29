@@ -260,6 +260,10 @@ export class SimulatorOrchestrator {
     this.controller.isLandingActive = false;
     this.controller.isAltHoldActive = true; // start in Alt Hold mode
     
+    // Level the drone frame upon arming
+    this.state.quaternion.set(0, 0, 0, 1);
+    this.state.angularVelocity.set(0, 0, 0);
+    
     // Set altitude lock to current barometer altitude
     const sensorData = this.sensors.update(this.state, this.linearAcceleration, 0);
     this.controller.setAltitudeLock(sensorData.baroAltitude);
@@ -811,24 +815,21 @@ export class SimulatorOrchestrator {
     
     const store = useDroneStore.getState() as any;
     
-    // A. Orientation crash check: if drone tilts past 78 degrees close to boundaries or floor
+    // A. Orientation crash check: if drone tilts past 78 degrees in flight (excluding active flips)
     const euler = new THREE.Euler().setFromQuaternion(this.state.quaternion, 'YXZ');
     const rollAngle = Math.abs(euler.z);
     const pitchAngle = Math.abs(euler.x);
     
-    if (rollAngle > 1.36 || pitchAngle > 1.36) { // ~78 degrees
-      // If we are inverted/tilted near the floor (altitude < 0.15m), trigger immediate crash disarm
-      if (this.state.position.y < 0.15) {
-        this.crashDetected = true;
-        if (store.addNotification) {
-          store.addNotification('CRASH DETECTED', 'error');
-          store.addNotification('MOTORS DISARMED', 'info');
-          store.addNotification('RESET SIM', 'warning');
-          store.addNotification('RE-ARM DRONE', 'warning');
-        }
-        this.disarm();
-        return;
+    if (!this.isFlipping && (rollAngle > 1.36 || pitchAngle > 1.36)) {
+      this.crashDetected = true;
+      if (store.addNotification) {
+        store.addNotification('CRASH DETECTED', 'error');
+        store.addNotification('MOTORS DISARMED', 'info');
+        store.addNotification('RESET SIM', 'warning');
+        store.addNotification('RE-ARM DRONE', 'warning');
       }
+      this.disarm();
+      return;
     }
 
     // Check for collisions registered in this physics step

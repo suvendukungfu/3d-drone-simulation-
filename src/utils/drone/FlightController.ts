@@ -69,8 +69,16 @@ export class FlightController {
   private smoothedYaw = 0.0;
   
   // Base hover throttle feedforward (corresponds to mass * gravity / maxTotalThrust)
-  // mass = 0.055, gravity = 9.81, maxTotalThrust = 1.20 -> hover throttle ~ 0.45
-  private hoverThrottleFeedforward = 0.45;
+  // mass = 0.055, gravity = 9.81, maxTotalThrust = 1.20 -> hover throttle ~ 0.55 (tuned per spec)
+  private hoverThrottleFeedforward = 0.55;
+
+  // Position Hold PID states for active hover stabilization
+  private hoverPosX = 0.0;
+  private hoverPosZ = 0.0;
+  private hoverPosActiveX = false;
+  private hoverPosActiveZ = false;
+  private hoverPosIntX = 0.0;
+  private hoverPosIntZ = 0.0;
   
   constructor() {}
   
@@ -98,6 +106,13 @@ export class FlightController {
     this.smoothedRoll = 0.0;
     this.smoothedPitch = 0.0;
     this.smoothedYaw = 0.0;
+
+    this.hoverPosX = 0.0;
+    this.hoverPosZ = 0.0;
+    this.hoverPosActiveX = false;
+    this.hoverPosActiveZ = false;
+    this.hoverPosIntX = 0.0;
+    this.hoverPosIntZ = 0.0;
   }
   
   // Apply PID calculations to compute motor outputs [m1, m2, m3, m4]
@@ -157,19 +172,19 @@ export class FlightController {
         if (this.isLandingActive) {
           targetClimbRate = -0.35; // smooth controlled descent rate
         } else {
-          const isThrottleNeutral = stick.throttle >= 0.45 && stick.throttle <= 0.55;
+          const isThrottleNeutral = stick.throttle >= 0.50 && stick.throttle <= 0.60;
           
           if (isThrottleNeutral) {
             // Hold locked altitude using filtered altitude error
             const altError = this.lockedAltitude - this.filteredAltitude;
             targetClimbRate = THREE.MathUtils.clamp(altError * this.altitudeGains.kp, -1.0, 1.0);
-          } else if (stick.throttle > 0.55) {
-            // Climb Zone (55% to 100%) - continuous
-            targetClimbRate = ((stick.throttle - 0.55) / 0.45) * 2.2;
+          } else if (stick.throttle > 0.60) {
+            // Climb Zone (60% to 100%) - continuous
+            targetClimbRate = ((stick.throttle - 0.60) / 0.40) * 2.2;
             this.lockedAltitude = this.filteredAltitude;
-          } else if (stick.throttle >= 0.10 && stick.throttle < 0.45) {
-            // Descent Zone (10% to 45%) - continuous
-            targetClimbRate = ((stick.throttle - 0.45) / 0.35) * 1.5;
+          } else if (stick.throttle >= 0.10 && stick.throttle < 0.50) {
+            // Descent Zone (10% to 50%) - continuous
+            targetClimbRate = ((stick.throttle - 0.50) / 0.40) * 1.5;
             this.lockedAltitude = this.filteredAltitude;
           } else {
             // Landing / Idle Zone (0% to 10%)
@@ -226,26 +241,48 @@ export class FlightController {
     let targetRoll = this.isLandingActive ? 0.0 : this.smoothedRoll * maxTiltAngle;
     let targetPitch = this.isLandingActive ? 0.0 : -this.smoothedPitch * maxTiltAngle;
     
-    // Hover stabilization (active braking/drift damping) when sticks are neutral in flight
+    // Hover stabilization (active position hold / drift damping) when sticks are neutral in flight
     if (hasTakenOff && !this.isLandingActive) {
       const isRollStickNeutral = Math.abs(this.smoothedRoll) < 0.05;
       const isPitchStickNeutral = Math.abs(this.smoothedPitch) < 0.05;
       
-      if (isRollStickNeutral || isPitchStickNeutral) {
-        // Rotate world velocities into body-frame coordinates using quaternion from Euler attitude
-        const q = new THREE.Quaternion().setFromEuler(estAttitude);
-        const bodyVel = estVelocity.clone().applyQuaternion(q.invert());
-        
-        if (isRollStickNeutral) {
-          // If roll stick is centered, tilt roll to damp local X velocity
-          const rollBrake = -bodyVel.x * 0.15; // tilt roll proportional to speed
-          targetRoll = THREE.MathUtils.clamp(rollBrake, -0.20, 0.20); // limit max brake angle
+      const q = new THREE.Quaternion().setFromEuler(estAttitude);
+      const bodyVel = estVelocity.clone().applyQuaternion(q.invert());
+      
+      if (isRollStickNeutral) {
+        if (!this.hoverPosActiveX) {
+          this.hoverPosX = 0.0;
+          this.hoverPosIntX = 0.0;
+          this.hoverPosActiveX = true;
         }
-        if (isPitchStickNeutral) {
-          // If pitch stick is centered, tilt pitch to damp local Z velocity
-          const pitchBrake = bodyVel.z * 0.15; // tilt pitch opposite to forward speed
-          targetPitch = THREE.MathUtils.clamp(pitchBrake, -0.20, 0.20);
+        // Integrate lateral displacement
+        this.hoverPosX += bodyVel.x * dt;
+        const pTerm = -this.hoverPosX * 0.12;
+        const dTerm = -bodyVel.x * 0.18;
+        this.hoverPosIntX = THREE.MathUtils.clamp(this.hoverPosIntX - this.hoverPosX * dt * 0.05, -0.02, 0.02);
+        targetRoll = THREE.MathUtils.clamp(pTerm + dTerm + this.hoverPosIntX, -0.22, 0.22);
+      } else {
+        this.hoverPosActiveX = false;
+        this.hoverPosX = 0.0;
+        this.hoverPosIntX = 0.0;
+      }
+      
+      if (isPitchStickNeutral) {
+        if (!this.hoverPosActiveZ) {
+          this.hoverPosZ = 0.0;
+          this.hoverPosIntZ = 0.0;
+          this.hoverPosActiveZ = true;
         }
+        // Integrate longitudinal displacement
+        this.hoverPosZ += bodyVel.z * dt;
+        const pTerm = this.hoverPosZ * 0.12;
+        const dTerm = bodyVel.z * 0.18;
+        this.hoverPosIntZ = THREE.MathUtils.clamp(this.hoverPosIntZ + this.hoverPosZ * dt * 0.05, -0.02, 0.02);
+        targetPitch = THREE.MathUtils.clamp(pTerm + dTerm + this.hoverPosIntZ, -0.22, 0.22);
+      } else {
+        this.hoverPosActiveZ = false;
+        this.hoverPosZ = 0.0;
+        this.hoverPosIntZ = 0.0;
       }
     }
     

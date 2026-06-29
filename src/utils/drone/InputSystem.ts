@@ -339,17 +339,8 @@ export class InputSystem {
     if (this.hasAnalogInput) {
       const aLpf = this.lpfAlpha(dt, this.ANALOG_LPF_HZ);
 
-      // 1. Throttle
       const throttleInput = this.analogLeft.y;
-      const telemetry = useDroneStore.getState().telemetry;
-      const hasTakenOff = telemetry && telemetry.altitude > 0.08;
-
-      let targetThrottle: number;
-      if (Math.abs(throttleInput) < 0.08) {
-        targetThrottle = hasTakenOff ? 0.50 : 0.0;
-      } else {
-        targetThrottle = 0.5 + throttleInput * 0.5;
-      }
+      const targetThrottle = 0.5 + throttleInput * 0.5;
       this.stick.throttle += aLpf * (targetThrottle - this.stick.throttle);
       
       // 2. Yaw
@@ -381,13 +372,21 @@ export class InputSystem {
 
       // 1. Throttle — continuous ramping, never snaps
       let targetThrottle = hasTakenOff ? 0.50 : 0.0;
+      let tau = this.KBD_THROT_TAU;
       if (this.keys['w']) {
         targetThrottle = 0.85;
       } else if (this.keys['s']) {
         targetThrottle = 0.15;
+      } else {
+        // Instant keyup reset to hover/idle target
+        tau = 0.0;
       }
-      const tAlpha = this.expAlpha(dt, this.KBD_THROT_TAU);
-      this.stick.throttle += tAlpha * (targetThrottle - this.stick.throttle);
+      if (tau === 0.0) {
+        this.stick.throttle = targetThrottle;
+      } else {
+        const tAlpha = this.expAlpha(dt, tau);
+        this.stick.throttle += tAlpha * (targetThrottle - this.stick.throttle);
+      }
       
       // 2. Yaw (A / D)
       let rawYaw = 0.0;
@@ -451,7 +450,8 @@ export class InputSystem {
         while (error > 180) error -= 360;
         while (error < -180) error += 360;
         if (Math.abs(this.stick.yaw) < 0.15) {
-          const correction = error * 0.35;
+          const rawCorrection = error * 0.006;
+          const correction = Math.max(-0.4, Math.min(0.4, rawCorrection));
           this.stick.yaw = Math.max(-1.0, Math.min(1.0, this.stick.yaw + correction));
         } else {
           this.lockedHeading = currentHeading;

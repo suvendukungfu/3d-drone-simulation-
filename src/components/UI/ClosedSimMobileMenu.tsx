@@ -276,6 +276,13 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
   const [isTouched, setIsTouched] = useState(false);
   const [touchPos, setTouchPos] = useState({ x: 0, y: 0 });
 
+  // Refs to avoid stale closures in listeners
+  const latestVisualY = useRef(visualY);
+  latestVisualY.current = visualY;
+
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
+
   const getMaxRadius = () => {
     if (containerRef.current) {
       return containerRef.current.getBoundingClientRect().width / 2;
@@ -284,7 +291,7 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
   };
 
   const handleMove = (clientX: number, clientY: number) => {
-    if (disabled || !containerRef.current) return;
+    if (disabledRef.current || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
@@ -324,45 +331,87 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
     e.preventDefault();
     setIsTouched(false);
     setTouchPos({ x: 0, y: 0 });
-    onChange(0, 0);
-  };
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (disabled) return;
-    setIsTouched(true);
-    handleMove(e.clientX, e.clientY);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isTouched && e.buttons === 1) {
-      handleMove(e.clientX, e.clientY);
-    }
-  };
-
-  const handleMouseUpOrLeave = () => {
-    if (isTouched) {
-      setIsTouched(false);
-      setTouchPos({ x: 0, y: 0 });
+    if (side === 'left') {
+      onChange(0, latestVisualY.current);
+    } else {
       onChange(0, 0);
     }
   };
+
+  const isMouseActive = useRef(false);
+  const mouseMoveHandler = useRef<((e: MouseEvent) => void) | null>(null);
+  const mouseUpHandler = useRef<(() => void) | null>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (disabledRef.current) return;
+    e.preventDefault();
+    setIsTouched(true);
+    isMouseActive.current = true;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (isMouseActive.current) {
+        handleMove(moveEvent.clientX, moveEvent.clientY);
+      }
+    };
+
+    const onMouseUp = () => {
+      isMouseActive.current = false;
+      setIsTouched(false);
+      setTouchPos({ x: 0, y: 0 });
+      if (side === 'left') {
+        onChange(0, latestVisualY.current);
+      } else {
+        onChange(0, 0);
+      }
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    mouseMoveHandler.current = onMouseMove;
+    mouseUpHandler.current = onMouseUp;
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    handleMove(e.clientX, e.clientY);
+  };
+
+  // Keep event handler refs up-to-date for stable touch listener bindings
+  const touchStartRef = useRef(handleTouchStart);
+  touchStartRef.current = handleTouchStart;
+  const touchMoveRef = useRef(handleTouchMove);
+  touchMoveRef.current = handleTouchMove;
+  const touchEndRef = useRef(handleTouchEnd);
+  touchEndRef.current = handleTouchEnd;
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    container.addEventListener('touchstart', handleTouchStart, { passive: false });
-    container.addEventListener('touchmove', handleTouchMove, { passive: false });
-    container.addEventListener('touchend', handleTouchEnd, { passive: false });
-    container.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    const onTouchStart = (e: TouchEvent) => touchStartRef.current(e);
+    const onTouchMove = (e: TouchEvent) => touchMoveRef.current(e);
+    const onTouchEnd = (e: TouchEvent) => touchEndRef.current(e);
+
+    container.addEventListener('touchstart', onTouchStart, { passive: false });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: false });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: false });
 
     return () => {
-      container.removeEventListener('touchstart', handleTouchStart);
-      container.removeEventListener('touchmove', handleTouchMove);
-      container.removeEventListener('touchend', handleTouchEnd);
-      container.removeEventListener('touchcancel', handleTouchEnd);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+
+      // Cleanup mouse listeners if unmounted mid-drag
+      if (mouseMoveHandler.current) {
+        window.removeEventListener('mousemove', mouseMoveHandler.current);
+      }
+      if (mouseUpHandler.current) {
+        window.removeEventListener('mouseup', mouseUpHandler.current);
+      }
     };
-  }, [isTouched, disabled]);
+  }, []);
 
   const maxRadius = getMaxRadius();
   const tx = isTouched ? touchPos.x : visualX * maxRadius;
@@ -382,9 +431,6 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
             : ''
         } ${disabled ? 'opacity-40 pointer-events-none' : ''}`}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUpOrLeave}
-        onMouseLeave={handleMouseUpOrLeave}
       >
         {/* Vector Trail and Inner Rings SVG */}
         <svg className="absolute w-full h-full p-3 pointer-events-none" viewBox="0 0 100 100">
@@ -531,11 +577,14 @@ export function ClosedSimMobileMenu({
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
-  // Local Flight Timer
-  const [localTime, setLocalTime] = useState(0);
+
 
   // Flip direct trigger menu
   const [showFlipDirections, setShowFlipDirections] = useState(false);
+
+  // Ergonomic stick state tracking refs
+  const leftStickVal = useRef({ x: 0, y: -1.0 });
+  const rightStickVal = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     if (isOpen) {
@@ -585,6 +634,20 @@ export function ClosedSimMobileMenu({
   const appLinkStatus = useDroneStore((s) => s.appLinkStatus);
   const setAppLinkStatus = useDroneStore((s) => s.setAppLinkStatus);
   const clearTelemetryPackets = useDroneStore((s) => s.clearTelemetryPackets);
+
+  // Reset stick tracking refs when disarmed, app link disconnected, landing, or not taken off
+  useEffect(() => {
+    if (!telemetry || !telemetry.isArmed || isLandingActive || !hasTakenOff) {
+      leftStickVal.current = { x: 0, y: -1.0 };
+      rightStickVal.current = { x: 0, y: 0 };
+      orchestrator?.input.setAnalogStickValues(
+        0,
+        -1.0,
+        rightStickVal.current.x,
+        rightStickVal.current.y
+      );
+    }
+  }, [telemetry?.isArmed, isLandingActive, hasTakenOff, orchestrator]);
 
   const isReady = modelLoadStatus === 'success' && droneSpawnDiagnostics !== null;
 
@@ -662,21 +725,7 @@ export function ClosedSimMobileMenu({
     }
   }, [stateLabel]);
 
-  // ── Local Flight Timer ──
-  useEffect(() => {
-    let timerInterval: any = null;
-    const isTimerRunning = stateLabel === 'IN FLIGHT';
 
-    if (isTimerRunning) {
-      timerInterval = setInterval(() => {
-        setLocalTime((t) => t + 1);
-      }, 1000);
-    }
-
-    return () => {
-      if (timerInterval) clearInterval(timerInterval);
-    };
-  }, [stateLabel]);
 
   if (!isClosedSim) return null;
 
@@ -740,7 +789,6 @@ export function ClosedSimMobileMenu({
 
   const handleResetWithTimer = () => {
     onReset();
-    setLocalTime(0);
     addNotification('Simulation Session Reset', 'info');
   };
 
@@ -751,20 +799,20 @@ export function ClosedSimMobileMenu({
   };
 
   const handleLeftStickChange = (nx: number, ny: number) => {
-    const currentSticks = orchestrator?.input.getStickState();
+    leftStickVal.current = { x: nx, y: ny };
     orchestrator?.input.setAnalogStickValues(
       nx,
       ny,
-      currentSticks?.roll ?? 0,
-      currentSticks?.pitch ?? 0
+      rightStickVal.current.x,
+      rightStickVal.current.y
     );
   };
 
   const handleRightStickChange = (nx: number, ny: number) => {
-    const currentSticks = orchestrator?.input.getStickState();
+    rightStickVal.current = { x: nx, y: ny };
     orchestrator?.input.setAnalogStickValues(
-      currentSticks?.yaw ?? 0,
-      currentSticks?.throttle ?? 0,
+      leftStickVal.current.x,
+      leftStickVal.current.y,
       nx,
       ny
     );
@@ -893,7 +941,6 @@ export function ClosedSimMobileMenu({
   };
 
   const close = () => setIsOpen(false);
-  const isSafeAltitude = telemetry && telemetry.altitude >= 1.0;
 
   return (
     <>
@@ -1005,7 +1052,7 @@ export function ClosedSimMobileMenu({
         {/* 2. TIMER CAPSULE (HUD Element - stays visible) */}
         <div className="pluto-timer-capsule select-none">
           <span className="text-xs font-mono font-extrabold text-white tracking-widest tabular-nums">
-            {formatTimer(localTime)}
+            {formatTimer(telemetry?.flightTime ?? 0)}
           </span>
         </div>
 
@@ -1017,7 +1064,7 @@ export function ClosedSimMobileMenu({
             onChange={handleLeftStickChange}
             label="Yaw / Throttle"
             visualX={stickState.yaw}
-            visualY={stickState.throttle}
+            visualY={(stickState.throttle - 0.5) * 2}
             disabled={appLinkStatus !== 'connected'}
           />
         </div>
@@ -1053,7 +1100,7 @@ export function ClosedSimMobileMenu({
               <div
                 className="pluto-throttle-bracket"
                 style={{
-                  bottom: `${((stickState.throttle + 1) / 2) * 100}%`,
+                  bottom: `${stickState.throttle * 100}%`,
                   transform: 'translateY(50%)',
                 }}
               />
@@ -1127,11 +1174,17 @@ export function ClosedSimMobileMenu({
         <div className={`absolute right-[max(16px,env(safe-area-inset-right))] top-[max(64px,calc(56px+env(safe-area-inset-top,0px)))] flex flex-col gap-2.5 pluto-sidebar-transition ${
           isNavbarVisible ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-16 opacity-0 pointer-events-none'
         }`}>
-          {/* Flip Direct action - visible only at safe altitude */}
-          {isSafeAltitude && (
+          {/* Flip Direct action */}
+          {hasTakenOff && (
             <div className="relative flex flex-col items-center">
               <button
-                onClick={() => setShowFlipDirections(!showFlipDirections)}
+                onClick={() => {
+                  if (!telemetry || telemetry.altitude < 1.0) {
+                    addNotification('FLIP DENIED: ALTITUDE TOO LOW (Must be >= 1.0m)', 'warning');
+                    return;
+                  }
+                  setShowFlipDirections(!showFlipDirections);
+                }}
                 className="w-10 h-10 rounded-full bg-indigo-750 hover:bg-indigo-650 text-white border border-indigo-500/50 flex items-center justify-center text-[8.5px] font-black uppercase tracking-wider pluto-interactive shadow-lg animate-pulse"
               >
                 Flip

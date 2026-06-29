@@ -47,9 +47,12 @@ export class TelemetryEngine {
     flightMode: 'stabilize' | 'althold' | 'failsafe' | 'disarmed' | 'armed_idle',
     dt: number
   ): TelemetryData {
-    // 1. Flight time increments when armed
-    if (isArmed && !calibrationActive) {
+    // 1. Flight time increments only in flight (after takeoff, before landing/failsafe, not idle/disarmed)
+    if (isArmed && !calibrationActive && (flightMode === 'althold' || flightMode === 'stabilize')) {
       this.flightTime += dt;
+    }
+    if (!isArmed || sensorError) {
+      this.flightTime = 0.0;
     }
 
     // 2. Physics-accurate battery drain via LiPo OCV/SoC model

@@ -243,6 +243,19 @@ function App() {
     }
   }, [currentMode]);
 
+  // Fullscreen immersive mode (hide navbar) during flight, restore after landing/disarm
+  useEffect(() => {
+    if (currentMode === 'flight') {
+      const isFlying = orchestratorState.hasTakenOff;
+      const store = useDroneStore.getState();
+      if (isFlying && !store.immersiveMode) {
+        store.setImmersiveMode(true);
+      } else if (!isFlying && store.immersiveMode) {
+        store.setImmersiveMode(false);
+      }
+    }
+  }, [currentMode, orchestratorState.hasTakenOff]);
+
   // Synchronize App Mode & Environment with Active Training Module
   useEffect(() => {
     if (activeMissionIndex >= 0) {
