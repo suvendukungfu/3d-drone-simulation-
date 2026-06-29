@@ -7,7 +7,7 @@ import { TelemetryEngine } from './TelemetryEngine';
 import { FlightLogger } from './FlightLogger';
 import { WindSimulation } from './WindSimulation';
 import { FlightPerformanceAnalyzer } from './FlightPerformanceAnalyzer';
-import { RigidBodyState, TelemetryData } from './types';
+import { RawRcInput, RigidBodyState, TelemetryData } from './types';
 import { useDroneStore } from '../../store/useDroneStore';
 
 export class SimulatorOrchestrator {
@@ -421,6 +421,15 @@ export class SimulatorOrchestrator {
       store.addNotification('CALIBRATION SUCCESSFUL', 'success');
     }
   }
+
+  public applyExternalRcInput(input: RawRcInput): void {
+    this.input.setExternalRcInput(input);
+    this.syncExternalRcArmState();
+  }
+
+  public clearExternalRcInput(): void {
+    this.input.clearExternalRcInput();
+  }
   
   // Updates simulation based on actual frame rendering time
   public update(frameTimeSeconds: number): TelemetryData {
@@ -507,6 +516,8 @@ export class SimulatorOrchestrator {
         this.isCalibrating = false;
       }
     }
+
+    this.syncExternalRcArmState();
     
     // 2. Poll user keyboard input
     let stick = this.input.update(dt, this.isArmed);
@@ -807,6 +818,19 @@ export class SimulatorOrchestrator {
     
     // 7. Safety Audits (Crashes and landing collisions)
     this.auditSafety(oldVelocity, dt);
+  }
+
+  private syncExternalRcArmState(): void {
+    if (!this.input.hasFreshExternalRcInput()) {
+      return;
+    }
+
+    const shouldArm = this.input.isExternalArmRequested();
+    if (shouldArm && !this.isArmed) {
+      this.arm();
+    } else if (!shouldArm && this.isArmed) {
+      this.disarm();
+    }
   }
   
   // Check for crash scenarios

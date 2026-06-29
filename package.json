@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "bridge": "node bridge/bridge.js",
+    "bridge:fake": "node bridge/fake-app.js",
     "build": "tsc && vite build",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "test": "vitest run",
+    "test:bridge": "node --test bridge/*.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -20,6 +23,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "three": "^0.164.0",
+    "ws": "^8.21.0",
     "zustand": "^4.5.2"
   },
   "devDependencies": {

@@ -38,6 +38,17 @@ export interface FlightControlStick {
   roll: number;                 // -1 to 1, springs back to 0
 }
 
+export interface RawRcInput {
+  roll: number;
+  pitch: number;
+  throttle: number;
+  yaw: number;
+  aux1: number;
+  aux2: number;
+  aux3: number;
+  aux4: number;
+}
+
 export interface TelemetryData {
   isArmed: boolean;
   flightMode: 'stabilize' | 'althold' | 'failsafe' | 'disarmed' | 'armed_idle';

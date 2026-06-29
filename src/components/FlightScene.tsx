@@ -4,6 +4,7 @@ import { Environment, OrbitControls, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
 import { useDroneStore } from '../store/useDroneStore';
 import { SimulatorOrchestrator } from '../utils/drone/SimulatorOrchestrator';
+import { TelemetryData } from '../utils/drone/types';
 import { EnvironmentManager } from './EnvironmentManager';
 import { PlutoXModel } from './PlutoXModel';
 import { sound } from '../utils/soundController';
@@ -76,9 +77,10 @@ interface SimulationLoopProps {
   droneGroupRef: React.RefObject<THREE.Group>;
   propellersRef: React.MutableRefObject<THREE.Object3D[]>;
   shadowMeshRef: React.RefObject<THREE.Mesh>;
+  onTelemetryFrame?: (telemetry: TelemetryData) => void;
 }
 
-function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMeshRef }: SimulationLoopProps) {
+function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMeshRef, onTelemetryFrame }: SimulationLoopProps) {
   const { camera } = useThree();
   const flightCameraView = useDroneStore((state) => state.flightCameraView);
   const updateFlightTelemetry = useDroneStore((state) => state.updateFlightTelemetry);
@@ -167,6 +169,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
   useFrame((state, delta) => {
     // 1. Run simulator steps
     const telemetry = orchestrator.update(delta);
+    onTelemetryFrame?.(telemetry);
     const renderState = orchestrator.getRenderState();
     const physState = orchestrator.getPhysicsState();
     const motorCmds = orchestrator.getMotorCommands();
@@ -333,9 +336,10 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
 interface FlightSceneProps {
   orchestrator: SimulatorOrchestrator;
   activeCheckpoints: any[];
+  onTelemetryFrame?: (telemetry: TelemetryData) => void;
 }
 
-export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProps) {
+export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame }: FlightSceneProps) {
   const flightCameraView = useDroneStore((state) => state.flightCameraView);
   const modelLoadStatus = useDroneStore((state) => state.modelLoadStatus);
   const theme = useDroneStore((state) => state.theme);
@@ -657,6 +661,7 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
           droneGroupRef={droneGroupRef}
           propellersRef={propellersRef}
           shadowMeshRef={shadowMeshRef}
+          onTelemetryFrame={onTelemetryFrame}
         />
 
         {/* Orbit Controls (Only active in Orbit Camera view) */}
@@ -674,4 +679,3 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
     </div>
   );
 }
-

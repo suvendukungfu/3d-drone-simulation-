@@ -8,7 +8,8 @@ import VirtualJoysticks from './components/UI/VirtualJoysticks';
 import { LearningWorkflow } from './components/UI/LearningWorkflow';
 import { droneComponents } from './data/droneComponents';
 import { SimulatorOrchestrator } from './utils/drone/SimulatorOrchestrator';
-import { Checkpoint } from './utils/drone/types';
+import { PlutoBridgeClient } from './utils/drone/PlutoBridgeClient';
+import { Checkpoint, TelemetryData } from './utils/drone/types';
 
 // Lazy loaded 3D viewports and overlay simulations for phase 2-4 performance optimizations
 const Scene = lazy(() => import('./components/Scene').then(m => ({ default: m.Scene })));
@@ -47,12 +48,17 @@ function App() {
   if (!orchestratorRef.current) {
     orchestratorRef.current = new SimulatorOrchestrator();
   }
+  const bridgeClientRef = useRef<PlutoBridgeClient | null>(null);
 
   // Active checkpoints to render in the environment
   const [activeCheckpoints, setActiveCheckpoints] = useState<Checkpoint[]>([]);
 
   const handleCheckpointsUpdated = useCallback((cps: Checkpoint[]) => {
     setActiveCheckpoints(cps);
+  }, []);
+
+  const handleTelemetryFrame = useCallback((telemetry: TelemetryData) => {
+    bridgeClientRef.current?.sendTelemetry(telemetry);
   }, []);
 
   // State of keyboard sticks for UI visualizer
@@ -193,7 +199,7 @@ function App() {
         if (state.currentMode !== 'flight') state.setMode('flight');
         if (state.activeMissionIndex !== -1) state.selectMission(-1);
         state.setAcademyMode(true);
-      } else if (hash === '#/sandbox') {
+      } else if (hash === '#/sandbox' || hash === '#/sim' || hash === '#/sim/') {
         if (state.currentMode !== 'flight') state.setMode('flight');
         if (state.activeMissionIndex !== -1) state.selectMission(-1);
         state.setAcademyMode(false);
@@ -241,6 +247,22 @@ function App() {
         }
       };
     }
+  }, [currentMode]);
+
+  useEffect(() => {
+    if (currentMode !== 'flight' || !orchestratorRef.current) {
+      bridgeClientRef.current?.stop();
+      bridgeClientRef.current = null;
+      return;
+    }
+
+    bridgeClientRef.current = new PlutoBridgeClient(orchestratorRef.current);
+    bridgeClientRef.current.start();
+
+    return () => {
+      bridgeClientRef.current?.stop();
+      bridgeClientRef.current = null;
+    };
   }, [currentMode]);
 
   // Fullscreen immersive mode (hide navbar) during flight, restore after landing/disarm
@@ -811,6 +833,7 @@ function App() {
             <FlightScene 
               orchestrator={orchestratorRef.current!} 
               activeCheckpoints={activeCheckpoints}
+              onTelemetryFrame={handleTelemetryFrame}
             />
           ) : (
             // CORE AVIONICS EXPLORER VIEWPORT (including split-screen VR SBS)

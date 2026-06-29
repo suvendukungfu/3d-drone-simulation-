@@ -786,7 +786,6 @@ export const useDroneStore = create<DroneState>((set, get) => ({
 
   // --- DIGITAL TWIN ACTIONS ---
   setAppLinkStatus: (status) => {
-    sound.playClick();
     set({ appLinkStatus: status });
     if (status === 'disconnected') {
       set({ appTelemetryPackets: [] });

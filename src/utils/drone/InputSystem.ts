@@ -1,4 +1,4 @@
-import { FlightControlStick } from './types';
+import { FlightControlStick, RawRcInput } from './types';
 import { useDroneStore } from '../../store/useDroneStore';
 
 /**
@@ -31,6 +31,11 @@ export class InputSystem {
   private analogLeft = { x: 0, y: 0 };
   private analogRight = { x: 0, y: 0 };
   private hasAnalogInput = false;
+
+  // External PlutoController RC input, delivered through the Phase 2 WebSocket bridge.
+  private externalRcInput: RawRcInput | null = null;
+  private externalRcLastSeen = 0;
+  private readonly EXTERNAL_RC_TIMEOUT_MS = 500;
 
   // Gyroscope Pilot Control Properties
   private latestOrientation: { alpha: number; beta: number; gamma: number } | null = null;
@@ -119,6 +124,8 @@ export class InputSystem {
     this.analogLeft = { x: 0, y: 0 };
     this.analogRight = { x: 0, y: 0 };
     this.hasAnalogInput = false;
+    this.externalRcInput = null;
+    this.externalRcLastSeen = 0;
   }
   
   public setCallbacks(callbacks: {
@@ -159,8 +166,60 @@ export class InputSystem {
     this.analogRight = { x: 0, y: 0 };
   }
 
+  public setExternalRcInput(input: RawRcInput): void {
+    this.externalRcInput = {
+      roll: this.clampRc(input.roll, 900, 2100),
+      pitch: this.clampRc(input.pitch, 900, 2100),
+      throttle: this.clampRc(input.throttle, 900, 2100),
+      yaw: this.clampRc(input.yaw, 900, 2100),
+      aux1: this.clampRc(input.aux1, 900, 2100),
+      aux2: this.clampRc(input.aux2, 900, 2100),
+      aux3: this.clampRc(input.aux3, 900, 2100),
+      aux4: this.clampRc(input.aux4, 900, 2100)
+    };
+    this.externalRcLastSeen = Date.now();
+  }
+
+  public clearExternalRcInput(): void {
+    this.externalRcInput = null;
+    this.externalRcLastSeen = 0;
+  }
+
+  public hasFreshExternalRcInput(): boolean {
+    return this.getFreshExternalRcInput() !== null;
+  }
+
+  public isExternalArmRequested(): boolean {
+    return (this.getFreshExternalRcInput()?.aux4 ?? 1200) >= 1400;
+  }
+
   public isThrottleDownTriggered(): boolean {
+    const external = this.getFreshExternalRcInput();
+    if (external) {
+      return external.throttle <= 1100;
+    }
     return this.keys['s'] || (this.hasAnalogInput && this.analogLeft.y < -0.8);
+  }
+
+  private getFreshExternalRcInput(): RawRcInput | null {
+    if (!this.externalRcInput) return null;
+    if (Date.now() - this.externalRcLastSeen > this.EXTERNAL_RC_TIMEOUT_MS) {
+      return null;
+    }
+    return this.externalRcInput;
+  }
+
+  private clampRc(value: number, min: number, max: number): number {
+    const next = Number.isFinite(value) ? Math.round(value) : min;
+    return Math.max(min, Math.min(max, next));
+  }
+
+  private normalizeCenteredRc(value: number): number {
+    return Math.max(-1.0, Math.min(1.0, (value - 1500) / 500));
+  }
+
+  private normalizeThrottleRc(value: number): number {
+    return Math.max(0.0, Math.min(1.0, (value - 1000) / 1000));
   }
 
   // ── Frame-rate-independent exponential smoothing ──────────────────
@@ -288,6 +347,17 @@ export class InputSystem {
     const storeState = useDroneStore.getState();
     const currentGyroPilot = storeState.gyroPilot;
     const gyroSensitivity = storeState.gyroSensitivity || 1.2;
+
+    const external = this.getFreshExternalRcInput();
+    if (external) {
+      this.stick = {
+        throttle: this.normalizeThrottleRc(external.throttle),
+        yaw: this.normalizeCenteredRc(external.yaw),
+        pitch: this.normalizeCenteredRc(external.pitch),
+        roll: this.normalizeCenteredRc(external.roll)
+      };
+      return { ...this.stick };
+    }
 
     // ── Gyroscope processing ────────────────────────────────────────
     if (currentGyroPilot && !this.lastGyroPilotState) {
