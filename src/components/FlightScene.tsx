@@ -10,7 +10,7 @@ import { sound } from '../utils/soundController';
 
 import { XCircle } from 'lucide-react';
 
-const isMobileDevice = typeof window !== 'undefined' && 
+const isMobileDevice = typeof window !== 'undefined' &&
   (window.innerWidth <= 1024 || 'ontouchstart' in window || navigator.maxTouchPoints > 0);
 
 // React Error Boundary for 3D model loading & rendering failures
@@ -83,7 +83,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
   const flightCameraView = useDroneStore((state) => state.flightCameraView);
   const updateFlightTelemetry = useDroneStore((state) => state.updateFlightTelemetry);
 
-  
+
   // Propeller angles tracker
   const propAngles = useRef([0, 0, 0, 0]);
   const throttleStoreUpdate = useRef(0);
@@ -196,7 +196,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
           const direction = (index === 0 || index === 3) ? -1 : 1;
           const speed = 15000 + motorCmds[index] * 33000;
           const angleDelta = (speed / 60) * Math.PI * 2 * delta * 0.012;
-          
+
           propAngles.current[index] += direction * angleDelta;
           mesh.rotation.z = propAngles.current[index];
         }
@@ -209,10 +209,10 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
       const height = Math.max(0, renderState.position.y - 0.05);
       const maxShadowHeight = 4.0;
       const t = Math.min(1.0, height / maxShadowHeight);
-      
+
       const opacity = THREE.MathUtils.lerp(0.65, 0.0, t);
       const scale = THREE.MathUtils.lerp(0.35, 1.2, t);
-      
+
       shadowMeshRef.current.scale.setScalar(scale);
       const mat = shadowMeshRef.current.material as THREE.MeshBasicMaterial;
       if (mat) {
@@ -223,19 +223,29 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
     // 5. Update Camera System
     const dronePos = renderState.position;
     const droneQuat = renderState.quaternion;
-    
+
     // Compute directional vectors from quaternion
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(droneQuat).normalize();
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(droneQuat).normalize();
-    
+
     if (flightCameraView === 'chase') {
+      // Project drone's forward direction onto the horizontal (XZ) plane to isolate yaw from pitch/roll
+      const levelForward = new THREE.Vector3(forward.x, 0, forward.z);
+      if (levelForward.lengthSq() < 0.0001) {
+        // Fallback in case drone is oriented vertically
+        levelForward.set(0, 0, 1);
+      } else {
+        levelForward.normalize();
+      }
+      const levelUp = new THREE.Vector3(0, 1, 0); // Stabilized world up vector
+
       // Behind and slightly above drone, rotated by mouse offset
-      const backVec = forward.clone().negate();
+      const backVec = levelForward.clone().negate();
       const offsetQuat = new THREE.Quaternion().setFromEuler(
         new THREE.Euler(mouseOffset.current.pitch, mouseOffset.current.yaw, 0, 'YXZ')
       );
       const rotatedBackVec = backVec.clone().applyQuaternion(offsetQuat);
-      const rotatedUpVec = up.clone().applyQuaternion(offsetQuat);
+      const rotatedUpVec = levelUp.clone().applyQuaternion(offsetQuat);
 
       const targetCamPos = dronePos.clone()
         .addScaledVector(rotatedBackVec, 1.4)
@@ -244,7 +254,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
       // Prevent camera from going out of environment bounds (Senior-level collision avoidance)
       const bounds = orchestrator.physics.environmentBounds;
       const margin = 0.25; // 25cm safety offset from walls/ceilings/floor
-      
+
       const minX = bounds.minX + margin;
       const maxX = bounds.maxX - margin;
       const minY = bounds.minY + margin;
@@ -255,20 +265,15 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
       targetCamPos.x = THREE.MathUtils.clamp(targetCamPos.x, minX, maxX);
       targetCamPos.y = THREE.MathUtils.clamp(targetCamPos.y, minY, maxY);
       targetCamPos.z = THREE.MathUtils.clamp(targetCamPos.z, minZ, maxZ);
-        
-      if (!cameraInitialized.current) {
-        camera.position.copy(targetCamPos);
-        camera.lookAt(dronePos.clone().addScaledVector(up, 0.1));
-        cameraInitialized.current = true;
-      } else {
-        // Tightened follow factor (from 6.5 to 15.0) to eliminate perceived lag
-        camera.position.lerp(targetCamPos, 1.0 - Math.exp(-15.0 * delta));
-        camera.position.x = THREE.MathUtils.clamp(camera.position.x, minX, maxX);
-        camera.position.y = THREE.MathUtils.clamp(camera.position.y, minY, maxY);
-        camera.position.z = THREE.MathUtils.clamp(camera.position.z, minZ, maxZ);
-        camera.lookAt(dronePos.clone().addScaledVector(up, 0.1));
-      }
-    } 
+
+      // Focus point is offset slightly above the drone's position along the stable world vertical
+      const lookAtTarget = dronePos.clone().addScaledVector(levelUp, 0.1);
+
+      // Rigid follow to eliminate all trailing lag
+      camera.position.copy(targetCamPos);
+      camera.lookAt(lookAtTarget);
+      cameraInitialized.current = true;
+    }
     else if (flightCameraView === 'fpv') {
       // Inside canopy looking forward, offset by mouse view look direction
       const offsetQuat = new THREE.Quaternion().setFromEuler(
@@ -280,7 +285,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
         .addScaledVector(forward, 0.155)
         .addScaledVector(up, 0.045);
       camera.position.copy(targetCamPos);
-      
+
       // In real FPV drones, the camera is fixed to the frame facing forward (no gimbal).
       // Three.js cameras look down their local negative Z axis by default, while the drone 
       // faces positive Z. Therefore, we must apply a base 180-degree yaw rotation (Euler 0, PI, 0)
@@ -289,7 +294,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
       const cameraQuat = droneQuat.clone().multiply(baseCamRot).multiply(offsetQuat);
       camera.quaternion.copy(cameraQuat);
       cameraInitialized.current = true;
-    } 
+    }
     else if (flightCameraView === 'orbit') {
       const controls = state.controls as any;
       if (controls) {
@@ -318,7 +323,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
         boxMinY: storeState.modelDiagnostics ? storeState.modelDiagnostics.boundingBoxMin[1] : 0,
         groundHeight: 0.05
       });
-      
+
 
     }
   });
@@ -357,7 +362,7 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
   const fogConfig = getFogConfig();
   const droneGroupRef = useRef<THREE.Group>(null);
   const shadowMeshRef = useRef<THREE.Mesh>(null);
-  
+
   // Cache reference meshes to props
   const propellersRef = useRef<THREE.Object3D[]>([]);
 
@@ -377,7 +382,7 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
       if (!scene) {
         throw new Error("Failed to load 3D model scene data.");
       }
-      
+
       let meshCount = 0;
       const uniqueMaterials = new Set<THREE.Material>();
       scene.traverse((child) => {
@@ -438,7 +443,7 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
         scale: targetScale,
         position: [offsetX, offsetY, offsetZ]
       });
-      
+
       // Mark model load status success in Zustand store
       store.setModelLoadStatus('success');
 
@@ -478,7 +483,7 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
           pList.push(child);
         }
       });
-      
+
       // Filter out descendant/child nodes so we only rotate top-level propeller groups
       const topPropellers = pList.filter((node) => {
         let parent = node.parent;
@@ -500,7 +505,7 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
       topPropellers.forEach((node) => {
         const pos = new THREE.Vector3();
         pos.setFromMatrixPosition(node.matrixWorld);
-        
+
         // Quadrants matching getCornerIndex from PlutoXModel:
         // FL (Front-Left): x <= 0 && z >= 0
         // FR (Front-Right): x > 0 && z > 0
@@ -518,7 +523,7 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
       });
 
       const props = [fl, fr, rl, rr].filter(Boolean) as THREE.Object3D[];
-      
+
       console.warn('[FlightScene] Resolved propellers by quadrant:', {
         totalFound: topPropellers.length,
         mappedCount: props.length,
@@ -581,19 +586,19 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
       >
         <color attach="background" args={[fogConfig.color]} />
         <fog attach="fog" args={[fogConfig.color, fogConfig.near, fogConfig.far]} />
-        
+
         {/* Environment HDRI sky map */}
         <Environment preset="city" />
 
         {/* Studio and Outdoor Lighting — boosted for drone visibility */}
         <ambientLight intensity={isDark ? 0.4 : 0.6} color={isDark ? '#e2e8f0' : '#ffffff'} />
-        
+
         <hemisphereLight
           color={isDark ? '#3b82f6' : '#ffffff'}
           groundColor={isDark ? '#070a13' : '#94a3b8'}
           intensity={isDark ? 0.6 : 0.8}
         />
-        
+
         <directionalLight
           position={[15, 30, 15]}
           intensity={2.8}
@@ -602,7 +607,7 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
           shadow-mapSize-height={512}
           shadow-bias={-0.0002}
         />
-        
+
         <directionalLight
           position={[-15, 15, -15]}
           intensity={0.7}
@@ -648,9 +653,9 @@ export function FlightScene({ orchestrator, activeCheckpoints }: FlightSceneProp
         </group>
 
         {/* Frame loop updater */}
-        <SimulationLoop 
-          orchestrator={orchestrator} 
-          droneGroupRef={droneGroupRef} 
+        <SimulationLoop
+          orchestrator={orchestrator}
+          droneGroupRef={droneGroupRef}
           propellersRef={propellersRef}
           shadowMeshRef={shadowMeshRef}
         />
