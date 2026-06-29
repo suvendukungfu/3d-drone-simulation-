@@ -32,6 +32,11 @@ export class InputSystem {
   private analogRight = { x: 0, y: 0 };
   private hasAnalogInput = false;
 
+  // Rate-based throttle accumulator (0..1) — holds last commanded throttle
+  // This is the core of real drone feel: stick deflection = throttle *rate*,
+  // not throttle *position*. Releasing the stick holds current throttle.
+  private throttleAccumulator = 0.0;
+
   // Gyroscope Pilot Control Properties
   private latestOrientation: { alpha: number; beta: number; gamma: number } | null = null;
   private neutralBeta: number | null = null;
@@ -44,9 +49,14 @@ export class InputSystem {
   // Time constants (seconds) — lower = faster response
   private readonly KBD_RAMP_TAU   = 0.06;  // key-press ramp-up speed
   private readonly KBD_CENTER_TAU = 0.08;  // self-center speed on key release
-  private readonly KBD_THROT_TAU  = 0.10;  // throttle ramp speed (slightly slower = realistic spool)
   private readonly ANALOG_LPF_HZ  = 20.0;  // analog stick low-pass filter cutoff
   private readonly KBD_EXPO       = 0.30;  // expo curve strength for keyboard
+
+  // Throttle rate constants — how fast throttle changes per second of full-stick deflection
+  private readonly THROT_RATE_UP   = 0.65;  // full stick up  → +0.65/s (reaches max in ~1.5s)
+  private readonly THROT_RATE_DOWN = 0.80;  // full stick down → -0.80/s (descend slightly faster)
+  private readonly THROT_SETTLE_TAU = 0.25; // time constant for settling to hover on release
+  private readonly HOVER_THROTTLE  = 0.55;  // target hover throttle (matches PlutoX feedforward)
 
   // HeadFree mode state
   private prevArmed = false;
@@ -120,6 +130,7 @@ export class InputSystem {
     this.analogLeft = { x: 0, y: 0 };
     this.analogRight = { x: 0, y: 0 };
     this.hasAnalogInput = false;
+    this.throttleAccumulator = 0.0;
   }
   
   public setCallbacks(callbacks: {
@@ -283,6 +294,7 @@ export class InputSystem {
         pitch: 0.0,
         roll: 0.0
       };
+      this.throttleAccumulator = 0.0;
       return this.stick;
     }
 
@@ -335,14 +347,34 @@ export class InputSystem {
       this.gyroRoll = this.gyroRoll + (targetRollInput - this.gyroRoll) * 0.15;
     }
 
+    // ── Shared throttle accumulator logic ─────────────────────────────
+    // Both analog and keyboard feed a rate-based throttle accumulator.
+    // Stick deflection controls *rate of change*, not absolute position.
+    // Release → smooth settle toward hover (airborne) or idle (grounded).
+    const telemetry = useDroneStore.getState().telemetry;
+    const hasTakenOff = telemetry && telemetry.altitude > 0.08;
+
     // ── Input source: Analog virtual joysticks (mobile) ─────────────
     if (this.hasAnalogInput) {
       const aLpf = this.lpfAlpha(dt, this.ANALOG_LPF_HZ);
 
-      const throttleInput = this.analogLeft.y;
-      const targetThrottle = 0.5 + throttleInput * 0.5;
-      this.stick.throttle += aLpf * (targetThrottle - this.stick.throttle);
-      
+      // 1. Throttle — rate-based accumulator
+      const rawThrottleY = this.analogLeft.y;
+      const throttleDeflection = this.applyDeadzoneAndExpo(rawThrottleY, 0.10, 0.3);
+
+      if (Math.abs(throttleDeflection) > 0.01) {
+        // Stick is deflected → change throttle at proportional rate
+        const rate = throttleDeflection > 0 ? this.THROT_RATE_UP : this.THROT_RATE_DOWN;
+        this.throttleAccumulator += throttleDeflection * rate * dt;
+      } else {
+        // Stick is centered → smoothly settle toward hover or idle
+        const settleTarget = hasTakenOff ? this.HOVER_THROTTLE : 0.0;
+        const alpha = this.expAlpha(dt, this.THROT_SETTLE_TAU);
+        this.throttleAccumulator += alpha * (settleTarget - this.throttleAccumulator);
+      }
+      this.throttleAccumulator = Math.max(0.0, Math.min(1.0, this.throttleAccumulator));
+      this.stick.throttle = this.throttleAccumulator;
+
       // 2. Yaw
       const targetYaw = this.applyDeadzoneAndExpo(this.analogLeft.x, 0.05, 0.4);
       this.stick.yaw += aLpf * (targetYaw - this.stick.yaw);
@@ -367,26 +399,23 @@ export class InputSystem {
 
     // ── Input source: Keyboard (desktop) ────────────────────────────
     } else {
-      const telemetry = useDroneStore.getState().telemetry;
-      const hasTakenOff = telemetry && telemetry.altitude > 0.08;
+      // 1. Throttle — rate-based accumulator (same model as analog)
+      let keyThrottleDeflection = 0.0;
+      if (this.keys['w']) keyThrottleDeflection = 1.0;
+      if (this.keys['s']) keyThrottleDeflection = -1.0;
 
-      // 1. Throttle — continuous ramping, never snaps
-      let targetThrottle = hasTakenOff ? 0.50 : 0.0;
-      let tau = this.KBD_THROT_TAU;
-      if (this.keys['w']) {
-        targetThrottle = 0.85;
-      } else if (this.keys['s']) {
-        targetThrottle = 0.15;
+      if (Math.abs(keyThrottleDeflection) > 0.01) {
+        // Key is held → ramp throttle at full rate
+        const rate = keyThrottleDeflection > 0 ? this.THROT_RATE_UP : this.THROT_RATE_DOWN;
+        this.throttleAccumulator += keyThrottleDeflection * rate * dt;
       } else {
-        // Instant keyup reset to hover/idle target
-        tau = 0.0;
+        // No key held → smooth settle toward hover or idle
+        const settleTarget = hasTakenOff ? this.HOVER_THROTTLE : 0.0;
+        const alpha = this.expAlpha(dt, this.THROT_SETTLE_TAU);
+        this.throttleAccumulator += alpha * (settleTarget - this.throttleAccumulator);
       }
-      if (tau === 0.0) {
-        this.stick.throttle = targetThrottle;
-      } else {
-        const tAlpha = this.expAlpha(dt, tau);
-        this.stick.throttle += tAlpha * (targetThrottle - this.stick.throttle);
-      }
+      this.throttleAccumulator = Math.max(0.0, Math.min(1.0, this.throttleAccumulator));
+      this.stick.throttle = this.throttleAccumulator;
       
       // 2. Yaw (A / D)
       let rawYaw = 0.0;

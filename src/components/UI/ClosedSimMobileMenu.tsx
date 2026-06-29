@@ -331,11 +331,9 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
     e.preventDefault();
     setIsTouched(false);
     setTouchPos({ x: 0, y: 0 });
-    if (side === 'left') {
-      onChange(0, latestVisualY.current);
-    } else {
-      onChange(0, 0);
-    }
+    // Both sides reset to center on release.
+    // For throttle: center (0,0) = hold current throttle (rate-based model).
+    onChange(0, 0);
   };
 
   const isMouseActive = useRef(false);
@@ -358,11 +356,8 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
       isMouseActive.current = false;
       setIsTouched(false);
       setTouchPos({ x: 0, y: 0 });
-      if (side === 'left') {
-        onChange(0, latestVisualY.current);
-      } else {
-        onChange(0, 0);
-      }
+      // Both sides reset to center on release (rate-based throttle: center = hold)
+      onChange(0, 0);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
@@ -583,7 +578,7 @@ export function ClosedSimMobileMenu({
   const [showFlipDirections, setShowFlipDirections] = useState(false);
 
   // Ergonomic stick state tracking refs
-  const leftStickVal = useRef({ x: 0, y: -1.0 });
+  const leftStickVal = useRef({ x: 0, y: 0 });
   const rightStickVal = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -638,14 +633,9 @@ export function ClosedSimMobileMenu({
   // Reset stick tracking refs when disarmed, app link disconnected, landing, or not taken off
   useEffect(() => {
     if (!telemetry || !telemetry.isArmed || isLandingActive || !hasTakenOff) {
-      leftStickVal.current = { x: 0, y: -1.0 };
+      leftStickVal.current = { x: 0, y: 0 };
       rightStickVal.current = { x: 0, y: 0 };
-      orchestrator?.input.setAnalogStickValues(
-        0,
-        -1.0,
-        rightStickVal.current.x,
-        rightStickVal.current.y
-      );
+      orchestrator?.input.setAnalogStickValues(0, 0, 0, 0);
     }
   }, [telemetry?.isArmed, isLandingActive, hasTakenOff, orchestrator]);
 
