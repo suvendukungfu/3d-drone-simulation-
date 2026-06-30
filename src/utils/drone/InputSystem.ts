@@ -446,7 +446,7 @@ export class InputSystem {
       if (currentGyroPilot && this.latestOrientation) {
         targetPitch = this.gyroPitch;
       } else {
-        targetPitch = this.applyDeadzoneAndExpo(-this.analogRight.y, 0.05, 0.4);
+        targetPitch = this.applyDeadzoneAndExpo(this.analogRight.y, 0.05, 0.4);
       }
       this.stick.pitch += aLpf * (targetPitch - this.stick.pitch);
       
@@ -498,8 +498,8 @@ export class InputSystem {
         this.stick.pitch = this.gyroPitch;
       } else {
         let rawPitch = 0.0;
-        if (this.keys['arrowup'])   rawPitch -= 1.0;
-        if (this.keys['arrowdown']) rawPitch += 1.0;
+        if (this.keys['arrowup'])   rawPitch += 1.0;
+        if (this.keys['arrowdown']) rawPitch -= 1.0;
         const targetPitch = this.applyKeyboardExpo(rawPitch);
         const pAlpha = this.expAlpha(dt, rawPitch !== 0 ? this.KBD_RAMP_TAU : this.KBD_CENTER_TAU);
         this.stick.pitch += pAlpha * (targetPitch - this.stick.pitch);

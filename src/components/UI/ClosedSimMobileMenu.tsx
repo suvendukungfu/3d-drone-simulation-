@@ -297,14 +297,12 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
     const centerY = rect.top + rect.height / 2;
     const maxRadius = rect.width / 2;
 
+    // Independent clamping for X and Y so yaw and throttle don't interfere
     let dx = clientX - centerX;
     let dy = clientY - centerY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
 
-    if (distance > maxRadius) {
-      dx = (dx / distance) * maxRadius;
-      dy = (dy / distance) * maxRadius;
-    }
+    dx = Math.max(-maxRadius, Math.min(maxRadius, dx));
+    dy = Math.max(-maxRadius, Math.min(maxRadius, dy));
 
     setTouchPos({ x: dx, y: dy });
     onChange(dx / maxRadius, -(dy / maxRadius));

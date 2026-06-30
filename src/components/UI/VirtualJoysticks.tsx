@@ -37,15 +37,12 @@ const Joystick = ({ side, onChange, label, disabled }: JoystickProps) => {
       clientY = (e as React.MouseEvent).clientY;
     }
 
+    // Independent clamping for X and Y so inputs don't interfere
     let dx = clientX - centerX;
     let dy = clientY - centerY;
 
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance > maxRadius) {
-      dx = (dx / distance) * maxRadius;
-      dy = (dy / distance) * maxRadius;
-    }
+    dx = Math.max(-maxRadius, Math.min(maxRadius, dx));
+    dy = Math.max(-maxRadius, Math.min(maxRadius, dy));
 
     stickRef.current.style.transform = `translate(${dx}px, ${dy}px)`;
 
