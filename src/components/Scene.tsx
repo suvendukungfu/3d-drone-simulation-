@@ -109,7 +109,7 @@ function CameraController({ controlsRef, vrEye, floorGroupRef }: CameraControlle
     // 2. Preset Orthogonal View Calculations
     switch (cameraView) {
       case 'top':
-        targetCamPos.current.set(0, 7.5, 0.01); // tiny Z offset to avoid Gimbal Lock in OrbitControls
+        targetCamPos.current.set(0, 7.5, -0.01); // negative Z offset to ensure nose (+Z) points UP
         targetLookAt.current.set(0, 0, 0);
         break;
       case 'bottom':
