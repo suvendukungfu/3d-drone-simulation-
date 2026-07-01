@@ -845,7 +845,7 @@ export function TelemetryDashboard({
 
             <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
               {telemetry.motorRPMs.map((rpm, idx) => {
-                const cornerNames = ['FL (CCW)', 'FR (CW)', 'RL (CW)', 'RR (CCW)'];
+                const cornerNames = ['MB (FL)', 'MA (FR)', 'MA (RL)', 'MB (RR)'];
                 return (
                   <div key={idx} className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1.5 rounded-lg flex flex-col">
                     <span className="text-slate-400 dark:text-slate-550 text-[8px]">{cornerNames[idx]}</span>

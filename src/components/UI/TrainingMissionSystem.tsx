@@ -769,8 +769,8 @@ export function TrainingMissionSystem({
                           : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
-                    <span className="text-[9px] font-bold">M1</span>
-                    <span className="text-[7px] font-mono uppercase">FL (CW)</span>
+                    <span className="text-[9px] font-bold">MB</span>
+                    <span className="text-[7px] font-mono uppercase">FL (CCW)</span>
                   </button>
 
                   <button
@@ -783,8 +783,8 @@ export function TrainingMissionSystem({
                           : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
-                    <span className="text-[9px] font-bold">M2</span>
-                    <span className="text-[7px] font-mono uppercase">FR (CCW)</span>
+                    <span className="text-[9px] font-bold">MA</span>
+                    <span className="text-[7px] font-mono uppercase">FR (CW)</span>
                   </button>
 
                   <button
@@ -797,8 +797,8 @@ export function TrainingMissionSystem({
                           : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
-                    <span className="text-[9px] font-bold">M3</span>
-                    <span className="text-[7px] font-mono uppercase">RL (CCW)</span>
+                    <span className="text-[9px] font-bold">MA</span>
+                    <span className="text-[7px] font-mono uppercase">RL (CW)</span>
                   </button>
 
                   <button
@@ -811,8 +811,8 @@ export function TrainingMissionSystem({
                           : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
-                    <span className="text-[9px] font-bold">M4</span>
-                    <span className="text-[7px] font-mono uppercase">RR (CW)</span>
+                    <span className="text-[9px] font-bold">MB</span>
+                    <span className="text-[7px] font-mono uppercase">RR (CCW)</span>
                   </button>
                 </div>
                 <p className="text-[8px] text-slate-404 dark:text-slate-500 leading-relaxed font-light text-center">
