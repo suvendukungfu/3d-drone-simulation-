@@ -660,8 +660,10 @@ export function PlutoAnatomyExploded() {
         targetEmissiveIntensity = 0.02;
       }
 
-      material.transparent = true;
-      material.depthWrite = targetOpacity > 0.5;
+      const targetDepthWrite = targetOpacity > 0.5;
+      if (material.transparent !== true) material.transparent = true;
+      if (material.depthWrite !== targetDepthWrite) material.depthWrite = targetDepthWrite;
+      
       material.opacity = THREE.MathUtils.lerp(material.opacity, targetOpacity, lerpSpeed);
       material.emissive.lerp(targetEmissiveColor, lerpSpeed);
       material.emissiveIntensity = THREE.MathUtils.lerp(

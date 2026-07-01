@@ -95,6 +95,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const mouseOffset = useRef({ yaw: 0, pitch: 0 });
+  const smoothYawRef = useRef<number | null>(null);
 
   // Sync physics bounds to match selected environment
   const envType = useDroneStore((state) => state.flightEnvironment);
@@ -240,6 +241,20 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
       } else {
         levelForward.normalize();
       }
+
+      // Smooth the chase camera yaw angle follow (5Hz LPF) to prevent dizzying rapid camera swings
+      let targetYawAngle = Math.atan2(levelForward.x, levelForward.z);
+      if (smoothYawRef.current === null) {
+        smoothYawRef.current = targetYawAngle;
+      } else {
+        let diff = targetYawAngle - smoothYawRef.current;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        const camAlpha = delta / (delta + 1.0 / (2.0 * Math.PI * 5.0));
+        smoothYawRef.current += camAlpha * diff;
+      }
+      levelForward.set(Math.sin(smoothYawRef.current), 0, Math.cos(smoothYawRef.current)).normalize();
+
       const levelUp = new THREE.Vector3(0, 1, 0); // Stabilized world up vector
 
       // Behind and slightly above drone, rotated by mouse offset

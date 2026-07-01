@@ -285,6 +285,15 @@ interface DroneState {
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
+
+  // --- INTERACTIVE TUTORIAL STATES & ACTIONS ---
+  isTutorialActive: boolean;
+  tutorialStep: number;
+  startTutorial: () => void;
+  stopTutorial: () => void;
+  nextTutorialStep: () => void;
+  prevTutorialStep: () => void;
+  setTutorialStep: (step: number) => void;
 }
 
 export const useDroneStore = create<DroneState>((set, get) => ({
@@ -300,6 +309,8 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   isFlightSimModalOpen: false,
   isARActive: false,
   theme: getSafeTheme(),
+  isTutorialActive: false,
+  tutorialStep: 0,
   
   cameraView: 'orbit',
   autoRotate: true,
@@ -844,7 +855,14 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   },
   toggleTheme: () => {
     // No-op to disable toggling to dark mode
-  }
+  },
+
+  // --- INTERACTIVE TUTORIAL ACTIONS ---
+  startTutorial: () => set({ isTutorialActive: true, tutorialStep: 1 }),
+  stopTutorial: () => set({ isTutorialActive: false, tutorialStep: 0 }),
+  nextTutorialStep: () => set((state) => ({ tutorialStep: state.tutorialStep + 1 })),
+  prevTutorialStep: () => set((state) => ({ tutorialStep: Math.max(1, state.tutorialStep - 1) })),
+  setTutorialStep: (step) => set({ tutorialStep: step })
 }));
 
 // Apply initial theme from localStorage on load

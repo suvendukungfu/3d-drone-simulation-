@@ -259,6 +259,7 @@ export class SimulatorOrchestrator {
     this.controller.reset();
     this.controller.isLandingActive = false;
     this.controller.isAltHoldActive = true; // start in Alt Hold mode
+    this.input.reset();
     
     // Level the drone frame upon arming
     this.state.quaternion.set(0, 0, 0, 1);
@@ -658,6 +659,24 @@ export class SimulatorOrchestrator {
         if (store.addNotification) {
           store.addNotification('Motors Armed', 'success');
           store.addNotification('Ready For Takeoff', 'info');
+        }
+      }
+    }
+
+    // Complete manual landing when resting on ground with low throttle
+    if (this.isArmed && this.hasTakenOff && !this.isLandingActive) {
+      const altitude = this.state.position.y - this.physics.environmentBounds.minY;
+      const onGround = altitude <= 0.04 || (this.physics.lastCollision && this.physics.lastCollision.collided && this.physics.lastCollision.obstacleName === 'Ground');
+      if (onGround && stick.throttle < 0.15) {
+        this.hasTakenOff = false;
+        this.state.position.y = this.physics.environmentBounds.minY;
+        this.state.velocity.set(0, 0, 0);
+        this.state.angularVelocity.set(0, 0, 0);
+        this.state.quaternion.set(0, 0, 0, 1);
+        
+        const store = useDroneStore.getState() as any;
+        if (store.addNotification) {
+          store.addNotification('Touchdown: Motors Idle', 'success');
         }
       }
     }

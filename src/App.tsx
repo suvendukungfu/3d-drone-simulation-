@@ -6,6 +6,7 @@ import { useDroneStore } from './store/useDroneStore';
 import { IntroOverlay } from './components/UI/IntroOverlay';
 import VirtualJoysticks from './components/UI/VirtualJoysticks';
 import { LearningWorkflow } from './components/UI/LearningWorkflow';
+import { InteractiveTutorial } from './components/UI/InteractiveTutorial';
 import { droneComponents } from './data/droneComponents';
 import { SimulatorOrchestrator } from './utils/drone/SimulatorOrchestrator';
 import { PlutoBridgeClient } from './utils/drone/PlutoBridgeClient';
@@ -90,6 +91,7 @@ function App() {
   const showRotationDirections = useDroneStore((state) => state.showRotationDirections);
   const isAcademyMode = useDroneStore((state) => state.isAcademyMode);
   const isARActive = useDroneStore((state) => state.isARActive);
+  const telemetry = useDroneStore((state) => state.telemetry);
 
   const hoverComponent = useDroneStore((state) => state.hoverComponent);
   const selectComponent = useDroneStore((state) => state.selectComponent);
@@ -730,7 +732,7 @@ function App() {
                       {(['motor1', 'motor2', 'motor3', 'motor4'] as const).map((id, index) => {
                         const active = activeMotors[id];
                         const rpm = motorRPMs[id];
-                        const cornerNames = ['FL (CW)', 'FR (CCW)', 'RL (CCW)', 'RR (CW)'];
+                        const cornerNames = ['FL (CCW)', 'FR (CW)', 'RR (CCW)', 'RL (CW)'];
                         
                         return (
                            <div key={id} className="anatomy-motor-row">
@@ -917,6 +919,9 @@ function App() {
             onLand={() => orchestratorRef.current?.triggerLanding()}
             onFlip={() => orchestratorRef.current?.toggleFlipArmed()}
           />
+        )}
+        {currentMode === 'flight' && (
+          <InteractiveTutorial telemetry={telemetry} stickState={stickState} />
         )}
       </div>      {/* 4. RIGHT SIDEBAR: Avionics Info Inspector (Only in Avionics Lab mode) */}
       <AnimatePresence>
@@ -1153,13 +1158,13 @@ function App() {
 
       {/* 6. MODE SELECTION HEADER BAR (Visible in normal panels) */}
       <AnimatePresence>
-        {!immersiveMode && currentMode !== 'home' && (
+        {!immersiveMode && currentMode !== 'home' && currentMode !== 'flight' && (
           <motion.header
             initial={{ y: -64, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -64, opacity: 0 }}
             className={`absolute top-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 flex items-center justify-between pointer-events-auto z-20 shadow-sm ${
-              currentMode === 'flight' ? 'hidden md:flex' : ''
+              (currentMode as string) === 'flight' ? 'hidden md:flex' : ''
             }`}
           >
             {/* Left: Brand logo & Navigation Back */}
@@ -1181,11 +1186,18 @@ function App() {
                 <img 
                   src="/drona_logo.png" 
                   alt="Drona Aviation" 
-                  className="h-7 sm:h-9 w-auto object-contain dark:invert select-none" 
+                  className="h-7 sm:h-9 w-auto object-contain dark:invert select-none cursor-pointer hover:opacity-80 transition-opacity" 
+                  onClick={() => {
+                    if (activeMissionIndex >= 0 && missionStatus !== 'passed') {
+                      addNotification('Please complete or abort the current lesson first.', 'warning');
+                      return;
+                    }
+                    setMode('home');
+                  }}
                 />
                 <span className="hidden sm:inline-block text-slate-300 dark:text-slate-700 font-light">//</span>
                 <span className="hidden sm:inline-block text-slate-800 dark:text-slate-200 text-[10px] font-extrabold uppercase tracking-widest">
-                  {currentMode === 'flight' ? (isAcademyMode ? 'PILOT ACADEMY' : 'CLOSED SIMULATOR') : 'ANATOMY LAB'}
+                  {(currentMode as string) === 'flight' ? (isAcademyMode ? 'PILOT ACADEMY' : 'CLOSED SIMULATOR') : 'ANATOMY LAB'}
                 </span>
               </div>
             </div>
@@ -1206,7 +1218,7 @@ function App() {
               <button
                 onClick={() => handleModeSwitch('flight')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-300 ${
-                  currentMode === 'flight'
+                  (currentMode as string) === 'flight'
                     ? 'bg-orange-600 text-white shadow shadow-orange-500/10'
                     : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
                 } ${activeMissionIndex >= 0 && missionStatus !== 'passed' ? 'cursor-not-allowed opacity-60' : ''}`}
@@ -1292,6 +1304,9 @@ function App() {
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
                   The pilot flight simulator requires landscape orientation. Please rotate your device to begin.
+                </p>
+                <p className="text-[11px] text-amber-400 font-semibold mt-4">
+                  Note: If rotating physically doesn't unlock the screen, please check if "Auto-Rotate" or "Portrait Orientation Lock" is disabled/enabled in your device's system settings.
                 </p>
               </div>
             </div>

@@ -26,6 +26,7 @@ import {
   User,
   Video,
   RotateCcw,
+  HelpCircle,
 } from 'lucide-react';
 
 interface ClosedSimMobileMenuProps {
@@ -1470,6 +1471,14 @@ export function ClosedSimMobileMenu({
                       label="Reset Drone"
                       onClick={() => { handleResetWithTimer(); close(); }}
                       variant="warning"
+                    />
+                    <ActionBtn
+                      icon={<HelpCircle className="w-3.5 h-3.5" />}
+                      label="Replay Tutorial"
+                      onClick={() => {
+                        useDroneStore.getState().startTutorial();
+                        close();
+                      }}
                     />
                     {onRecenterCamera && (
                       <ActionBtn

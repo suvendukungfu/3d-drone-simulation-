@@ -74,7 +74,8 @@ function CameraController({ controlsRef, vrEye, floorGroupRef }: CameraControlle
           }
 
           if (componentId === 'motor') {
-            componentId = `motor${matchedCorner}`;
+            const mappedCorner = matchedCorner === 3 ? 4 : matchedCorner === 4 ? 3 : matchedCorner;
+            componentId = `motor${mappedCorner}`;
           } else if (componentId === 'propeller') {
             componentId = (matchedCorner === 1 || matchedCorner === 4) ? 'propellerA' : 'propellerB';
           }

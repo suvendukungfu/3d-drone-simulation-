@@ -248,7 +248,9 @@ export class PhysicsEngine {
     this.lastCollision = null;
     this.lastInProximity = false;
 
-    const N = 4;
+    // Dynamically scale integration sub-steps N based on velocity and dt (capped at [4, 16]) to prevent tunneling
+    const speed = state.velocity.length();
+    const N = Math.max(4, Math.min(16, Math.ceil((speed * dt) / 0.02)));
     const subDt = dt / N;
     const radius = 0.08;
     let currentState = {

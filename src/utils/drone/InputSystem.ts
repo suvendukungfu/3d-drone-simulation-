@@ -346,7 +346,7 @@ export class InputSystem {
   // ══════════════════════════════════════════════════════════════════
   public update(dt: number, isArmed: boolean): FlightControlStick {
     const droneInitFailed = useDroneStore.getState().droneInitFailed;
-    if (droneInitFailed || !isArmed) {
+    if (droneInitFailed) {
       this.stick = {
         throttle: 0.0,
         yaw: 0.0,
@@ -441,8 +441,8 @@ export class InputSystem {
         }
       } else {
         const rawY = this.analogLeft.y;
-        if (Math.abs(rawY) > 0.01) {
-          const targetThrottle = Math.max(0.0, 0.5 + rawY * 0.5);
+        if (rawY > 0.01) {
+          const targetThrottle = rawY * 0.8;
           this.stick.throttle += aLpf * (targetThrottle - this.stick.throttle);
         } else {
           this.stick.throttle = 0.0;

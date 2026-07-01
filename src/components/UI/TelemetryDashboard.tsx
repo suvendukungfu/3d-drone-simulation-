@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDroneStore } from '../../store/useDroneStore';
 import { 
-  ShieldAlert, Cpu, RotateCcw, Battery, Activity, Info, AlertTriangle, CheckCircle, Circle, XCircle, Award
+  ShieldAlert, Cpu, RotateCcw, Battery, Activity, Info, AlertTriangle, CheckCircle, Circle, XCircle, Award, HelpCircle
 } from 'lucide-react';
 import { MISSIONS } from './TrainingMissionSystem';
 
@@ -769,6 +769,13 @@ export function TelemetryDashboard({
                 Reset Sim
               </button>
             </div>
+            <button
+              onClick={() => useDroneStore.getState().startTutorial()}
+              className="w-full mt-2 py-1.5 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-900/60 text-[10px] font-bold uppercase tracking-wider rounded-lg text-blue-655 dark:text-blue-450 transition flex items-center justify-center gap-1.5 shadow-sm"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              Replay Tutorial
+            </button>
           </div>
         </div>
 

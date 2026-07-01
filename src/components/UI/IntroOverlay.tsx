@@ -13,31 +13,31 @@ const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.2 },
+    transition: { staggerChildren: 0.08, delayChildren: 0.15 },
   },
 };
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 20, filter: 'blur(8px)' },
+  hidden: { opacity: 0, y: 15 },
   visible: {
-    opacity: 1, y: 0, filter: 'blur(0px)',
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
-  },
-};
-
-const cardSlide = {
-  hidden: { opacity: 0, x: -12, filter: 'blur(4px)' },
-  visible: {
-    opacity: 1, x: 0, filter: 'blur(0px)',
+    opacity: 1, y: 0,
     transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
   },
 };
 
-const showcaseReveal = {
-  hidden: { opacity: 0, scale: 0.88, filter: 'blur(12px)' },
+const cardSlide = {
+  hidden: { opacity: 0, x: -8 },
   visible: {
-    opacity: 1, scale: 1, filter: 'blur(0px)',
-    transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.3 },
+    opacity: 1, x: 0,
+    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
+const showcaseReveal = {
+  hidden: { opacity: 0, scale: 0.95 },
+  visible: {
+    opacity: 1, scale: 1,
+    transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.15 },
   },
 };
 
@@ -394,7 +394,8 @@ export function IntroOverlay() {
             <img 
               src="/drona_logo.png" 
               alt="Drona Aviation Logo" 
-              className="h-[32px] w-auto object-contain dark:invert select-none opacity-80 hover:opacity-100 transition-opacity duration-400" 
+              className="h-[32px] w-auto object-contain dark:invert select-none opacity-80 hover:opacity-100 transition-opacity duration-400 cursor-pointer" 
+              onClick={() => setMode('home')}
             />
           </motion.div>
           <motion.div
@@ -491,7 +492,7 @@ export function IntroOverlay() {
                 whileHover={{ y: -3, transition: { type: 'spring', stiffness: 400, damping: 17 } }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleEnterFlightSim}
-                className="card-shimmer w-full flex items-center justify-between px-4 py-[14px] rounded-[14px] border border-slate-200/50 dark:border-slate-800/40 bg-white/70 dark:bg-white/[0.025] backdrop-blur-md hover:bg-white/90 dark:hover:bg-white/[0.05] hover:border-blue-300/50 dark:hover:border-cyan-700/40 hover:shadow-[0_8px_32px_-6px_rgba(59,130,246,0.12)] dark:hover:shadow-[0_8px_32px_-6px_rgba(6,182,212,0.15)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group text-left relative overflow-hidden"
+                className="card-shimmer w-full flex items-center justify-between px-4 py-[14px] rounded-[14px] border border-blue-200/50 dark:border-cyan-700/40 bg-white/70 dark:bg-white/[0.025] backdrop-blur-md hover:bg-white/90 dark:hover:bg-white/[0.05] hover:border-blue-300/50 dark:hover:border-cyan-700/40 hover:shadow-[0_8px_32px_-6px_rgba(59,130,246,0.12)] dark:hover:shadow-[0_8px_32px_-6px_rgba(6,182,212,0.15)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group text-left relative overflow-hidden shadow-[0_0_20px_rgba(59,130,246,0.18)] dark:shadow-[0_0_20px_rgba(6,182,212,0.22)] animate-[pulse_2.2s_infinite]"
               >
                 <div className="absolute left-0 top-[15%] bottom-[15%] w-[3px] rounded-r-full bg-transparent group-hover:bg-gradient-to-b group-hover:from-blue-400 group-hover:to-indigo-500 dark:group-hover:from-cyan-400 dark:group-hover:to-blue-500 transition-all duration-400" />
                 

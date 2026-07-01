@@ -46,10 +46,10 @@ export const droneComponents: Record<string, DroneComponent> = {
   },
   propellerA: {
     id: 'propellerA',
-    name: 'Propeller A (CW)',
-    functionName: 'Clockwise rotating propeller generating vertical thrust.',
-    workingPrinciple: 'Aerodynamic airfoil that creates a pressure difference (Bernoulli principle) to push air downward and lift the drone.',
-    flightRole: 'Works in tandem with Counter-Clockwise (CCW) propellers to generate lift and manage yaw controls.',
+    name: 'Propeller A (CCW)',
+    functionName: 'Counter-Clockwise rotating propeller generating vertical thrust.',
+    workingPrinciple: 'Symmetrical but oppositely pitched airfoil creating lift while counteracting the torque of CW propellers.',
+    flightRole: 'Works in tandem with Clockwise (CW) propellers to generate lift and manage yaw controls.',
     safetyNotes: 'Spinning blades can cause severe cuts. Keep hands and eyes clear at all times when battery is connected.',
     maintenanceNotes: 'Inspect for micro-cracks or chips. Out-of-balance props cause severe vibrations, degrading sensor stability.',
     hotspotPosition: [-0.6, 0.25, 0.6],
@@ -57,9 +57,9 @@ export const droneComponents: Record<string, DroneComponent> = {
   },
   propellerB: {
     id: 'propellerB',
-    name: 'Propeller B (CCW)',
-    functionName: 'Counter-Clockwise rotating propeller generating vertical thrust.',
-    workingPrinciple: 'Symmetrical but oppositely pitched airfoil creating lift while counteracting the torque of CW propellers.',
+    name: 'Propeller B (CW)',
+    functionName: 'Clockwise rotating propeller generating vertical thrust.',
+    workingPrinciple: 'Aerodynamic airfoil that creates a pressure difference (Bernoulli principle) to push air downward and lift the drone.',
     flightRole: 'Maintains angular momentum balance; modifying its speed adjusts heading (yaw) and elevation.',
     safetyNotes: 'Ensure correct installation! Swapping CW and CCW props will cause immediate flip-over on takeoff.',
     maintenanceNotes: 'Regularly clean dirt accumulation on leading edges. Hand-tighten self-locking nuts securely.',
@@ -90,25 +90,25 @@ export const droneComponents: Record<string, DroneComponent> = {
   },
   motor3: {
     id: 'motor3',
-    name: 'Motor 3',
-    functionName: 'Brushless DC Motor (Rear Left).',
+    name: 'Motor 3 (Rear Right)',
+    functionName: 'High-speed brushless DC (BLDC) motor (Rear Right) driving Propeller A (CCW).',
     workingPrinciple: 'Driven by high-frequency PWM signals to achieve exact rotational speed.',
-    flightRole: 'Controls the rear-left lift sector, balancing diagonal force matrices.',
+    flightRole: 'Controls the rear-right lift sector, balancing diagonal force matrices.',
     safetyNotes: 'Keep loose hair and clothing away from the motor mount area during bench testing.',
     maintenanceNotes: 'Ensure mounting screws are tight and have thread locker applied to prevent backing out due to vibrations.',
-    hotspotPosition: [-0.6, 0, -0.6],
-    explosionOffset: [-0.8, -0.2, -0.8]
+    hotspotPosition: [0.6, 0, -0.6],
+    explosionOffset: [0.8, -0.2, -0.8]
   },
   motor4: {
     id: 'motor4',
-    name: 'Motor 4',
-    functionName: 'Brushless DC Motor (Rear Right).',
+    name: 'Motor 4 (Rear Left)',
+    functionName: 'High-speed brushless DC (BLDC) motor (Rear Left) driving Propeller B (CW).',
     workingPrinciple: 'Operates synchronously under the ESC command sequence to manage flight dynamics.',
-    flightRole: 'Maintains rear-right stability, controlling roll/pitch adjustments.',
+    flightRole: 'Maintains rear-left stability, controlling roll/pitch adjustments.',
     safetyNotes: 'Never run motors at full throttle without propellers attached to avoid over-revving.',
     maintenanceNotes: 'Check wire insulation for wear or pinching against the carbon frame edges.',
-    hotspotPosition: [0.6, 0, -0.6],
-    explosionOffset: [0.8, -0.2, -0.8]
+    hotspotPosition: [-0.6, 0, -0.6],
+    explosionOffset: [-0.8, -0.2, -0.8]
   },
   xBreakoutBoard: {
     id: 'xBreakoutBoard',

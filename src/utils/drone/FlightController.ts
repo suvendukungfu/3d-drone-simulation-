@@ -141,8 +141,8 @@ export class FlightController {
     const climbFilterAlpha = dt / (dt + 1.0 / (2.0 * Math.PI * 10.0)); // 10Hz filter
     this.filteredClimbRate += climbFilterAlpha * (estVelocity.y - this.filteredClimbRate);
 
-    // Smooth stick inputs (10Hz LPF)
-    const stickFilterAlpha = dt / (dt + 1.0 / (2.0 * Math.PI * 10.0));
+    // Smooth stick inputs (40Hz LPF for ultra-responsive control)
+    const stickFilterAlpha = dt / (dt + 1.0 / (2.0 * Math.PI * 40.0));
     this.smoothedRoll += stickFilterAlpha * (stick.roll - this.smoothedRoll);
     this.smoothedPitch += stickFilterAlpha * (stick.pitch - this.smoothedPitch);
     this.smoothedYaw += stickFilterAlpha * (stick.yaw - this.smoothedYaw);
@@ -179,9 +179,8 @@ export class FlightController {
           const isThrottleNeutral = stick.throttle >= 0.50 && stick.throttle <= 0.60;
           
           if (isThrottleNeutral) {
-            // Hold locked altitude using filtered altitude error plus natural tiny oscillations (5-10cm)
-            const oscillation = Math.sin(this.hoverTime * 1.8) * 0.06; // ±6 cm natural wave
-            const altError = (this.lockedAltitude + oscillation) - this.filteredAltitude;
+            // Hold locked altitude using filtered altitude error (bobbing oscillation removed)
+            const altError = this.lockedAltitude - this.filteredAltitude;
             targetClimbRate = THREE.MathUtils.clamp(altError * this.altitudeGains.kp, -1.0, 1.0);
           } else if (stick.throttle > 0.60) {
             // Climb Zone (60% to 100%) - continuous
@@ -374,7 +373,7 @@ export class FlightController {
     // +yaw   → increase CW (1,2), decrease CCW (0,3)
     
     const u_p = torqueCor.x; // pitch correction
-    const u_y = torqueCor.y; // yaw correction
+    const u_y = THREE.MathUtils.clamp(torqueCor.y, -0.22, 0.22); // yaw correction clamped to prevent saturation
     const u_r = torqueCor.z; // roll correction
     
     let m1 = mixedThrottle - u_r - u_p - u_y; // FL (CCW)

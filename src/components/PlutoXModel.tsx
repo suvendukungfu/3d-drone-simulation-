@@ -177,7 +177,8 @@ export function PlutoXModel({ isFlightMode = false, onLoad, modelPath = '/models
 
         // Refine component ID for motors and props
         if (componentId === 'motor') {
-          componentId = `motor${matchedCorner}`;
+          const mappedCorner = matchedCorner === 3 ? 4 : matchedCorner === 4 ? 3 : matchedCorner;
+          componentId = `motor${mappedCorner}`;
         } else if (componentId === 'propeller') {
           componentId = (matchedCorner === 1 || matchedCorner === 4) ? 'propellerA' : 'propellerB';
         }
@@ -188,7 +189,8 @@ export function PlutoXModel({ isFlightMode = false, onLoad, modelPath = '/models
           if (componentId.startsWith('motor')) {
             motorKey = componentId as any;
           } else if (componentId === 'propellerA' || componentId === 'propellerB') {
-            motorKey = `motor${matchedCorner}` as any;
+            const mappedCorner = matchedCorner === 3 ? 4 : matchedCorner === 4 ? 3 : matchedCorner;
+            motorKey = `motor${mappedCorner}` as any;
           }
         }
 
@@ -228,7 +230,8 @@ export function PlutoXModel({ isFlightMode = false, onLoad, modelPath = '/models
         
         let finalId = tempId;
         if (tempId === 'motor') {
-          finalId = `motor${corner}`;
+          const mappedCorner = corner === 3 ? 4 : corner === 4 ? 3 : corner;
+          finalId = `motor${mappedCorner}`;
         } else if (tempId === 'propeller') {
           finalId = (corner === 1 || corner === 4) ? 'propellerA' : 'propellerB';
         }
@@ -376,14 +379,30 @@ export function PlutoXModel({ isFlightMode = false, onLoad, modelPath = '/models
           }
         }
 
-        // B. Isolation opacity shifting
+        // B. Isolation opacity shifting, raycast toggle, and visual blinking fixes
         if (isolationMode && selectedComponent) {
           const isComponentPart = componentId === selectedComponent;
-          mat.transparent = true;
-          mat.opacity = THREE.MathUtils.lerp(mat.opacity, isComponentPart ? 1.0 : 0.05, delta * 8);
+          const targetOpacity = isComponentPart ? 1.0 : 0.05;
+          const targetDepthWrite = targetOpacity > 0.5;
+          
+          if (mat.transparent !== true) mat.transparent = true;
+          if (mat.depthWrite !== targetDepthWrite) mat.depthWrite = targetDepthWrite;
+          
+          mat.opacity = THREE.MathUtils.lerp(mat.opacity, targetOpacity, delta * 8);
+          mesh.raycast = isComponentPart ? THREE.Mesh.prototype.raycast : () => null;
         } else {
-          mat.transparent = originalTransparent;
-          mat.opacity = THREE.MathUtils.lerp(mat.opacity, originalOpacity, delta * 8);
+          const targetOpacity = originalOpacity;
+          const currentOpacity = THREE.MathUtils.lerp(mat.opacity, targetOpacity, delta * 8);
+          mat.opacity = currentOpacity;
+          
+          const isOpaqueTarget = Math.abs(currentOpacity - originalOpacity) < 0.01;
+          const nextTransparent = isOpaqueTarget ? originalTransparent : true;
+          const nextDepthWrite = isOpaqueTarget ? true : (currentOpacity > 0.5);
+          
+          if (mat.transparent !== nextTransparent) mat.transparent = nextTransparent;
+          if (mat.depthWrite !== nextDepthWrite) mat.depthWrite = nextDepthWrite;
+          
+          mesh.raycast = THREE.Mesh.prototype.raycast;
         }
       });
 
@@ -418,8 +437,8 @@ export function PlutoXModel({ isFlightMode = false, onLoad, modelPath = '/models
   const propLocations = [
     { corner: 1, label: 'FL (CCW)', pos: [-0.48 * 18, 0.12 * 18, 0.48 * 18] as [number, number, number], active: activeMotors.motor1 },
     { corner: 2, label: 'FR (CW)', pos: [0.48 * 18, 0.12 * 18, 0.48 * 18] as [number, number, number], active: activeMotors.motor2 },
-    { corner: 3, label: 'RL (CW)', pos: [-0.48 * 18, 0.12 * 18, -0.48 * 18] as [number, number, number], active: activeMotors.motor3 },
-    { corner: 4, label: 'RR (CCW)', pos: [0.48 * 18, 0.12 * 18, -0.48 * 18] as [number, number, number], active: activeMotors.motor4 },
+    { corner: 3, label: 'RL (CW)', pos: [-0.48 * 18, 0.12 * 18, -0.48 * 18] as [number, number, number], active: activeMotors.motor4 },
+    { corner: 4, label: 'RR (CCW)', pos: [0.48 * 18, 0.12 * 18, -0.48 * 18] as [number, number, number], active: activeMotors.motor3 },
   ];
 
 
