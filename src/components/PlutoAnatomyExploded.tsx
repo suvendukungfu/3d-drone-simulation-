@@ -161,7 +161,7 @@ const LABELS: LabelDef[] = [
   // ── Motors ──────────────────────────────────────────────────────────────────
   {
     id: 'motorFL',
-    name: 'BLDC Motor 1 · FL',
+    name: 'Motor B · FL',
     spec: '720 kV · 1S · 48 000 RPM · 7 g',
     detail:
       'Brushless DC 4-pole internal rotor. ESC drives via 3-phase PWM at ≤50 kHz. Neodymium magnets.',
@@ -171,7 +171,7 @@ const LABELS: LabelDef[] = [
   },
   {
     id: 'motorFR',
-    name: 'BLDC Motor 2 · FR',
+    name: 'Motor A · FR',
     spec: '720 kV · 1S · 48 000 RPM · 7 g',
     detail: 'Phase-reversed wiring relative to M1 for opposing rotation. Identical mechanical spec.',
     category: 'propulsion',
@@ -180,7 +180,7 @@ const LABELS: LabelDef[] = [
   },
   {
     id: 'motorRL',
-    name: 'BLDC Motor 4 · RL',
+    name: 'Motor A · RL',
     spec: '720 kV · 1S · 48 000 RPM · 7 g',
     detail: 'RPM differential vs M2 (FR) generates pitch axis moment for forward/backward flight.',
     category: 'propulsion',
@@ -189,7 +189,7 @@ const LABELS: LabelDef[] = [
   },
   {
     id: 'motorRR',
-    name: 'BLDC Motor 3 · RR',
+    name: 'Motor B · RR',
     spec: '720 kV · 1S · 48 000 RPM · 7 g',
     detail: 'Motor orientation determined by PCB phase wiring order only.',
     category: 'propulsion',

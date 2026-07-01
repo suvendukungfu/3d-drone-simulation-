@@ -68,8 +68,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   },
   motor1: {
     id: 'motor1',
-    name: 'Motor 1',
-    functionName: 'High-speed brushless DC (BLDC) motor driving Propeller A.',
+    name: 'Motor B',
+    functionName: 'High-speed brushless DC (BLDC) motor (Front Left) — Propeller B, CCW rotation.',
     workingPrinciple: 'Uses electromagnetic fields controlled by electronic speed controllers (ESC) to rotate the rotor relative to the stator.',
     flightRole: 'Provides precise torque and RPM adjustments required for attitude stabilization and flight control.',
     safetyNotes: 'Can reach high temperatures during operation. Allow to cool before touching after a flight.',
@@ -79,8 +79,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   },
   motor2: {
     id: 'motor2',
-    name: 'Motor 2',
-    functionName: 'High-speed brushless DC (BLDC) motor driving Propeller B.',
+    name: 'Motor A',
+    functionName: 'High-speed brushless DC (BLDC) motor (Front Right) — Propeller A, CW rotation.',
     workingPrinciple: 'Converts electrical energy into mechanical rotation using magnetic field switching.',
     flightRole: 'Controls the front-right lift sector to regulate pitch and roll dynamics.',
     safetyNotes: 'Disconnect power immediately if motor stalls to prevent overheating and winding damage.',
@@ -90,8 +90,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   },
   motor3: {
     id: 'motor3',
-    name: 'Motor 3 (Rear Right)',
-    functionName: 'High-speed brushless DC (BLDC) motor (Rear Right) driving Propeller A (CCW).',
+    name: 'Motor B',
+    functionName: 'High-speed brushless DC (BLDC) motor (Rear Right) — Propeller B, CCW rotation.',
     workingPrinciple: 'Driven by high-frequency PWM signals to achieve exact rotational speed.',
     flightRole: 'Controls the rear-right lift sector, balancing diagonal force matrices.',
     safetyNotes: 'Keep loose hair and clothing away from the motor mount area during bench testing.',
@@ -101,8 +101,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   },
   motor4: {
     id: 'motor4',
-    name: 'Motor 4 (Rear Left)',
-    functionName: 'High-speed brushless DC (BLDC) motor (Rear Left) driving Propeller B (CW).',
+    name: 'Motor A',
+    functionName: 'High-speed brushless DC (BLDC) motor (Rear Left) — Propeller A, CW rotation.',
     workingPrinciple: 'Operates synchronously under the ESC command sequence to manage flight dynamics.',
     flightRole: 'Maintains rear-left stability, controlling roll/pitch adjustments.',
     safetyNotes: 'Never run motors at full throttle without propellers attached to avoid over-revving.',
