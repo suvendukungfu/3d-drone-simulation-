@@ -244,7 +244,7 @@ export class FlightController {
     // Convert stick inputs (-1 to 1) to target Euler angles (radians)
     const maxTiltAngle = 30.0 * (Math.PI / 180.0); // max 30 degrees tilt for fast, responsive movement
     let targetRoll = this.isLandingActive ? 0.0 : -this.smoothedRoll * maxTiltAngle;
-    let targetPitch = this.isLandingActive ? 0.0 : -this.smoothedPitch * maxTiltAngle;
+    let targetPitch = this.isLandingActive ? 0.0 : this.smoothedPitch * maxTiltAngle;
     
     // Hover stabilization (active position hold / drift damping) when sticks are neutral in flight
     if (hasTakenOff && !this.isLandingActive) {
@@ -262,9 +262,9 @@ export class FlightController {
         }
         // Integrate lateral displacement
         this.hoverPosX += bodyVel.x * dt;
-        const pTerm = -this.hoverPosX * 0.12;
-        const dTerm = -bodyVel.x * 0.18;
-        this.hoverPosIntX = THREE.MathUtils.clamp(this.hoverPosIntX - this.hoverPosX * dt * 0.05, -0.02, 0.02);
+        const pTerm = this.hoverPosX * 0.12;
+        const dTerm = bodyVel.x * 0.18;
+        this.hoverPosIntX = THREE.MathUtils.clamp(this.hoverPosIntX + this.hoverPosX * dt * 0.05, -0.02, 0.02);
         targetRoll = THREE.MathUtils.clamp(pTerm + dTerm + this.hoverPosIntX, -0.22, 0.22);
       } else {
         this.hoverPosActiveX = false;
@@ -280,9 +280,9 @@ export class FlightController {
         }
         // Integrate longitudinal displacement
         this.hoverPosZ += bodyVel.z * dt;
-        const pTerm = this.hoverPosZ * 0.12;
-        const dTerm = bodyVel.z * 0.18;
-        this.hoverPosIntZ = THREE.MathUtils.clamp(this.hoverPosIntZ + this.hoverPosZ * dt * 0.05, -0.02, 0.02);
+        const pTerm = -this.hoverPosZ * 0.12;
+        const dTerm = -bodyVel.z * 0.18;
+        this.hoverPosIntZ = THREE.MathUtils.clamp(this.hoverPosIntZ - this.hoverPosZ * dt * 0.05, -0.02, 0.02);
         targetPitch = THREE.MathUtils.clamp(pTerm + dTerm + this.hoverPosIntZ, -0.22, 0.22);
       } else {
         this.hoverPosActiveZ = false;

@@ -63,6 +63,33 @@ describe('ClosedSimMobileMenu Component Tests', () => {
     expect(btn).toBeInTheDocument();
   });
 
+  test('Local closed simulator controls are available without AppLink connection', () => {
+    useDroneStore.setState({ appLinkStatus: 'disconnected' as any });
+    const onArmSpy = vi.fn();
+    const setAnalogStickValues = vi.fn();
+
+    render(
+      <ClosedSimMobileMenu
+        onReset={() => {}}
+        onArm={onArmSpy}
+        onToggleAltHold={() => {}}
+        stickState={defaultStickState}
+        orchestrator={{
+          input: { setAnalogStickValues },
+          getIsCrashed: () => false,
+        } as any}
+      />
+    );
+
+    expect(screen.getByText(/SIM READY/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Connect$/i)).not.toBeInTheDocument();
+
+    const armButton = screen.getByText(/^ARM$/i).parentElement?.querySelector('button');
+    expect(armButton).toBeInTheDocument();
+    fireEvent.click(armButton!);
+    expect(onArmSpy).toHaveBeenCalledTimes(1);
+  });
+
   test('Does NOT render hamburger button in non-closed simulation environment', () => {
     useDroneStore.setState({ flightEnvironment: 'field' }); // non-closed env
 
@@ -259,4 +286,3 @@ describe('ClosedSimMobileMenu Component Tests', () => {
     expect(onFlipSpy).toHaveBeenCalledTimes(1);
   });
 });
-

@@ -47,6 +47,11 @@ vi.mock('../store/useDroneStore', () => {
 });
 
 describe('PlutoX Flight Simulator Control and Stability Integration Tests', () => {
+  const syncStoreTelemetry = (orchestrator: SimulatorOrchestrator) => {
+    const currentPos = orchestrator.getPhysicsState().position;
+    useDroneStore.getState().telemetry.altitude = currentPos.y - 0.05;
+    useDroneStore.getState().telemetry.isArmed = orchestrator.getIsArmed();
+  };
 
 
   test('Takeoff sequence, hover auto-centering, and stabilization', () => {
@@ -155,6 +160,40 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     
     // Flip should have finished and recovered
     expect((orchestrator as any).isFlipping).toBe(false);
+    expect(orchestrator.getWarnings()).not.toContain('CRASH DETECTED');
+
+    orchestrator.destroy();
+  });
+
+  test('Forward pitch input moves the closed simulator drone forward', () => {
+    const orchestrator = new SimulatorOrchestrator();
+    orchestrator.init();
+
+    const dt = 1.0 / 60.0;
+    for (let i = 0; i < 125; i++) {
+      orchestrator.update(dt);
+      syncStoreTelemetry(orchestrator);
+    }
+
+    orchestrator.arm();
+    orchestrator.triggerAutoTakeoff();
+
+    for (let i = 0; i < 180; i++) {
+      orchestrator.update(dt);
+      syncStoreTelemetry(orchestrator);
+    }
+
+    expect(orchestrator.getHasTakenOff()).toBe(true);
+    const baselineZ = orchestrator.getPhysicsState().position.z;
+
+    orchestrator.input.setAnalogStickValues(0, 0, 0, 1);
+    for (let i = 0; i < 90; i++) {
+      orchestrator.update(dt);
+      syncStoreTelemetry(orchestrator);
+    }
+    orchestrator.input.clearAnalogInput();
+
+    expect(orchestrator.getPhysicsState().position.z).toBeGreaterThan(baselineZ + 0.1);
     expect(orchestrator.getWarnings()).not.toContain('CRASH DETECTED');
 
     orchestrator.destroy();
@@ -386,14 +425,9 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     // 2. ARMED + MOTOR IDLE: Arm the drone
     orchestrator.arm();
     expect(orchestrator.getIsArmed()).toBe(true);
-    expect((orchestrator as any).motorsStarted).toBe(false);
-
-    // Trigger throttle down to start the motors
-    (orchestrator.input as any).hasAnalogInput = true;
-    (orchestrator.input as any).analogLeft = { x: 0, y: -1.0 };
-    orchestrator.update(dt);
-    (orchestrator.input as any).clearAnalogInput();
     expect((orchestrator as any).motorsStarted).toBe(true);
+
+    orchestrator.update(dt);
 
     // Motor commands must immediately spin at idle (0.08) on the ground when throttle is 0
     expect(orchestrator.getMotorCommands()[0]).toBeCloseTo(0.08, 2);

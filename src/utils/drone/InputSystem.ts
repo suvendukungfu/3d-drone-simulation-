@@ -51,6 +51,7 @@ export class InputSystem {
   private readonly KBD_CENTER_TAU = 0.08;  // self-center speed on key release
   private readonly ANALOG_LPF_HZ  = 20.0;  // analog stick low-pass filter cutoff
   private readonly KBD_EXPO       = 0.30;  // expo curve strength for keyboard
+  private readonly ANALOG_ACTIVE_EPSILON = 0.015;
 
   // HeadFree mode state
   private prevArmed = false;
@@ -93,6 +94,7 @@ export class InputSystem {
 
   private handleBlur(): void {
     this.keys = {};
+    this.clearAnalogInput();
   }
 
   private handleOrientation(e: DeviceOrientationEvent): void {
@@ -153,11 +155,16 @@ export class InputSystem {
   }
 
   public setAnalogStickValues(leftX: number, leftY: number, rightX: number, rightY: number): void {
-    this.analogLeft.x = leftX;
-    this.analogLeft.y = leftY;
-    this.analogRight.x = rightX;
-    this.analogRight.y = rightY;
-    this.hasAnalogInput = true;
+    this.analogLeft.x = this.clampNormalized(leftX);
+    this.analogLeft.y = this.clampNormalized(leftY);
+    this.analogRight.x = this.clampNormalized(rightX);
+    this.analogRight.y = this.clampNormalized(rightY);
+    this.hasAnalogInput = [
+      this.analogLeft.x,
+      this.analogLeft.y,
+      this.analogRight.x,
+      this.analogRight.y
+    ].some((value) => Math.abs(value) > this.ANALOG_ACTIVE_EPSILON);
   }
 
   public clearAnalogInput(): void {
@@ -212,6 +219,11 @@ export class InputSystem {
   private clampRc(value: number, min: number, max: number): number {
     const next = Number.isFinite(value) ? Math.round(value) : min;
     return Math.max(min, Math.min(max, next));
+  }
+
+  private clampNormalized(value: number): number {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(-1.0, Math.min(1.0, value));
   }
 
   private normalizeCenteredRc(value: number): number {

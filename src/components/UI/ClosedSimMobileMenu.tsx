@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDroneStore } from '../../store/useDroneStore';
 import { SimulatorOrchestrator } from '../../utils/drone/SimulatorOrchestrator';
@@ -275,6 +275,7 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
   const containerRef = useRef<HTMLDivElement>(null);
   const [isTouched, setIsTouched] = useState(false);
   const [touchPos, setTouchPos] = useState({ x: 0, y: 0 });
+  const activePointerId = useRef<number | null>(null);
 
   // Refs to avoid stale closures in listeners
   const latestVisualY = useRef(visualY);
@@ -308,103 +309,44 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
     onChange(dx / maxRadius, -(dy / maxRadius));
   };
 
-  const handleTouchMove = (e: TouchEvent) => {
-    e.preventDefault();
-    const touch = e.targetTouches[0] || e.touches[0];
-    if (touch) {
-      handleMove(touch.clientX, touch.clientY);
-    }
-  };
-
-  const handleTouchStart = (e: TouchEvent) => {
-    e.preventDefault();
-    setIsTouched(true);
-    const touch = e.targetTouches[0] || e.touches[0];
-    if (touch) {
-      handleMove(touch.clientX, touch.clientY);
-    }
-  };
-
-  const handleTouchEnd = (e: TouchEvent) => {
-    e.preventDefault();
+  const resetStick = () => {
+    activePointerId.current = null;
     setIsTouched(false);
     setTouchPos({ x: 0, y: 0 });
-    // Both sides reset to center on release.
-    // For throttle: center (0,0) = hold current throttle (rate-based model).
     onChange(0, 0);
   };
 
-  const isMouseActive = useRef(false);
-  const mouseMoveHandler = useRef<((e: MouseEvent) => void) | null>(null);
-  const mouseUpHandler = useRef<(() => void) | null>(null);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (disabledRef.current) return;
+  const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (disabledRef.current || activePointerId.current !== null) return;
     e.preventDefault();
+    activePointerId.current = e.pointerId;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
     setIsTouched(true);
-    isMouseActive.current = true;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      if (isMouseActive.current) {
-        handleMove(moveEvent.clientX, moveEvent.clientY);
-      }
-    };
-
-    const onMouseUp = () => {
-      isMouseActive.current = false;
-      setIsTouched(false);
-      setTouchPos({ x: 0, y: 0 });
-      // Both sides reset to center on release (rate-based throttle: center = hold)
-      onChange(0, 0);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-
-    mouseMoveHandler.current = onMouseMove;
-    mouseUpHandler.current = onMouseUp;
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-
     handleMove(e.clientX, e.clientY);
   };
 
-  // Keep event handler refs up-to-date for stable touch listener bindings
-  const touchStartRef = useRef(handleTouchStart);
-  touchStartRef.current = handleTouchStart;
-  const touchMoveRef = useRef(handleTouchMove);
-  touchMoveRef.current = handleTouchMove;
-  const touchEndRef = useRef(handleTouchEnd);
-  touchEndRef.current = handleTouchEnd;
+  const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (disabledRef.current || activePointerId.current !== e.pointerId) return;
+    e.preventDefault();
+    handleMove(e.clientX, e.clientY);
+  };
+
+  const handlePointerEnd = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (activePointerId.current !== e.pointerId) return;
+    e.preventDefault();
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    resetStick();
+  };
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const onTouchStart = (e: TouchEvent) => touchStartRef.current(e);
-    const onTouchMove = (e: TouchEvent) => touchMoveRef.current(e);
-    const onTouchEnd = (e: TouchEvent) => touchEndRef.current(e);
-
-    container.addEventListener('touchstart', onTouchStart, { passive: false });
-    container.addEventListener('touchmove', onTouchMove, { passive: false });
-    container.addEventListener('touchend', onTouchEnd, { passive: false });
-    container.addEventListener('touchcancel', onTouchEnd, { passive: false });
-
-    return () => {
-      container.removeEventListener('touchstart', onTouchStart);
-      container.removeEventListener('touchmove', onTouchMove);
-      container.removeEventListener('touchend', onTouchEnd);
-      container.removeEventListener('touchcancel', onTouchEnd);
-
-      // Cleanup mouse listeners if unmounted mid-drag
-      if (mouseMoveHandler.current) {
-        window.removeEventListener('mousemove', mouseMoveHandler.current);
-      }
-      if (mouseUpHandler.current) {
-        window.removeEventListener('mouseup', mouseUpHandler.current);
-      }
-    };
-  }, []);
+    if (!disabled || !isTouched) return;
+    activePointerId.current = null;
+    setIsTouched(false);
+    setTouchPos({ x: 0, y: 0 });
+    onChange(0, 0);
+  }, [disabled, isTouched, onChange]);
 
   const maxRadius = getMaxRadius();
   const tx = isTouched ? touchPos.x : visualX * maxRadius;
@@ -423,7 +365,11 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
             ? 'border-cyan-500/50 shadow-[0_0_25px_rgba(6,182,212,0.25),inset_0_2px_8px_rgba(0,0,0,0.8)]' 
             : ''
         } ${disabled ? 'opacity-40 pointer-events-none' : ''}`}
-        onMouseDown={handleMouseDown}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onLostPointerCapture={resetStick}
       >
         {/* Vector Trail and Inner Rings SVG */}
         <svg className="absolute w-full h-full p-3 pointer-events-none" viewBox="0 0 100 100">
@@ -628,6 +574,11 @@ export function ClosedSimMobileMenu({
   const setAppLinkStatus = useDroneStore((s) => s.setAppLinkStatus);
   const clearTelemetryPackets = useDroneStore((s) => s.clearTelemetryPackets);
 
+  const closedEnvs = ['room', 'lab', 'classroom', 'warehouse'] as const;
+  const isClosedSim = closedEnvs.includes(flightEnvironment as any);
+  const hasLocalClosedSimControls = isClosedSim && Boolean(orchestrator);
+  const controlsAvailable = appLinkStatus === 'connected' || hasLocalClosedSimControls;
+
   // Reset stick tracking refs when disarmed, app link disconnected, landing, or not taken off
   useEffect(() => {
     if (!telemetry || !telemetry.isArmed || isLandingActive || !hasTakenOff) {
@@ -639,13 +590,10 @@ export function ClosedSimMobileMenu({
 
   const isReady = modelLoadStatus === 'success' && droneSpawnDiagnostics !== null;
 
-  const closedEnvs = ['room', 'lab', 'classroom', 'warehouse'] as const;
-  const isClosedSim = closedEnvs.includes(flightEnvironment as any);
-
   // ── Derived Flight State Label ──
   const getFlightStateLabel = () => {
-    if (appLinkStatus === 'disconnected') return 'NOT CONNECTED';
-    if (appLinkStatus === 'connecting') return 'CONNECTING';
+    if (!controlsAvailable) return 'NOT CONNECTED';
+    if (appLinkStatus === 'connecting' && !hasLocalClosedSimControls) return 'CONNECTING';
 
     const isCrashed = telemetry?.sensorError || (orchestrator?.getIsCrashed() ?? false);
     if (isCrashed) return 'CRASHED';
@@ -659,7 +607,7 @@ export function ClosedSimMobileMenu({
       return 'ARMED'; // standby
     }
 
-    return 'CONNECTED';
+    return hasLocalClosedSimControls && appLinkStatus !== 'connected' ? 'SIM READY' : 'CONNECTED';
   };
 
   const stateLabel = getFlightStateLabel();
@@ -898,24 +846,23 @@ export function ClosedSimMobileMenu({
       onFlip?.(); // Toggle arm flip mode
     }
 
-    const currentSticks = orchestrator.input.getStickState();
     let roll = 0, pitch = 0;
-    if (dir === 'front') pitch = -1.0;
-    else if (dir === 'back') pitch = 1.0;
+    if (dir === 'front') pitch = 1.0;
+    else if (dir === 'back') pitch = -1.0;
     else if (dir === 'left') roll = -1.0;
     else if (dir === 'right') roll = 1.0;
 
     orchestrator.input.setAnalogStickValues(
-      currentSticks.yaw,
-      currentSticks.throttle,
+      leftStickVal.current.x,
+      leftStickVal.current.y,
       roll,
       pitch
     );
 
     setTimeout(() => {
       orchestrator.input.setAnalogStickValues(
-        currentSticks.yaw,
-        currentSticks.throttle,
+        leftStickVal.current.x,
+        leftStickVal.current.y,
         0,
         0
       );
@@ -1015,25 +962,25 @@ export function ClosedSimMobileMenu({
 
           {/* Right layout section */}
           <div className="flex items-center gap-3.5">
-            <Wifi className={`w-4 h-4 ${appLinkStatus === 'connected' ? 'text-cyan-400' : 'text-white/30'}`} />
+            <Wifi className={`w-4 h-4 ${controlsAvailable ? 'text-cyan-400' : 'text-white/30'}`} />
             
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/8">
               <div className="relative w-5 h-2.5 border border-white/30 rounded-sm p-0.5 flex items-center">
                 <div
                   className={`h-full rounded-2xs ${
-                    appLinkStatus === 'connected' ? 'bg-emerald-500' : 'bg-white/20'
+                    controlsAvailable ? 'bg-emerald-500' : 'bg-white/20'
                   }`}
-                  style={{ width: appLinkStatus === 'connected' ? `${telemetry?.battery ?? 0}%` : '20%' }}
+                  style={{ width: controlsAvailable ? `${telemetry?.battery ?? 0}%` : '20%' }}
                 />
                 <div className="absolute right-[-2.5px] top-[2px] w-[2px] h-[4px] bg-white/30 rounded-r-2xs" />
               </div>
               <span className="text-[10px] font-mono font-bold text-white/70 tabular-nums">
-                {appLinkStatus === 'connected' && telemetry
+                {controlsAvailable && telemetry
                   ? `${get1SVoltage(telemetry.battery)}V | ${telemetry.battery}%`
                   : '-- V'}
               </span>
             </div>
-            <Navigation className={`w-4 h-4 rotate-45 ${appLinkStatus === 'connected' ? 'text-cyan-400' : 'text-white/30'}`} />
+            <Navigation className={`w-4 h-4 rotate-45 ${controlsAvailable ? 'text-cyan-400' : 'text-white/30'}`} />
           </div>
         </div>
 
@@ -1057,7 +1004,7 @@ export function ClosedSimMobileMenu({
                 ? (stickState.throttle - 0.55) / 0.45
                 : (stickState.throttle - 0.55) / 0.55
             }
-            disabled={appLinkStatus !== 'connected'}
+            disabled={!controlsAvailable}
           />
         </div>
 
@@ -1069,7 +1016,7 @@ export function ClosedSimMobileMenu({
             label={headFree ? 'Roll / Pitch (HeadFree)' : 'Roll / Pitch'}
             visualX={stickState.roll}
             visualY={stickState.pitch}
-            disabled={appLinkStatus !== 'connected'}
+            disabled={!controlsAvailable}
           />
         </div>
 
@@ -1102,7 +1049,7 @@ export function ClosedSimMobileMenu({
           {/* Bottom Workflow Action Buttons */}
           <div className="pluto-bottom-bar select-none">
             {/* ARM Switch */}
-            {appLinkStatus === 'connected' && stateLabel !== 'CRASHED' && (
+            {controlsAvailable && stateLabel !== 'CRASHED' && (
               <div className="pluto-arm-toggle pluto-interactive flex items-center justify-between">
                 <span className="text-[8px] font-black text-white/55 tracking-wider uppercase">
                   ARM
@@ -1125,7 +1072,7 @@ export function ClosedSimMobileMenu({
             )}
 
             {/* CONNECT / TAKEOFF / LAND / RESET Button */}
-            {appLinkStatus !== 'connected' ? (
+            {!controlsAvailable ? (
               <button
                 onClick={handleTriggerConnect}
                 disabled={appLinkStatus === 'connecting'}
@@ -1272,6 +1219,8 @@ export function ClosedSimMobileMenu({
         }`}>
           {appLinkStatus === 'connected'
             ? 'FW: C MAGIS V2 v3.0.0 | FC: PRIMUS V5'
+            : hasLocalClosedSimControls
+            ? 'LOCAL SIM | FC: SIMULATED'
             : 'FW: -- | FC: --'}
         </div>
 
