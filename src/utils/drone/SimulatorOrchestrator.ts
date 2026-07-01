@@ -251,7 +251,7 @@ export class SimulatorOrchestrator {
     this.crashDetected = false;
     this.hardLanding = false;
     this.hasTakenOff = false;
-    this.motorsStarted = true;
+    this.motorsStarted = false;
     this.isAutoTakeoffActive = false;
     this.isLandingActive = false;
     this.recoveryTimer = 0.0;
