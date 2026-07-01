@@ -105,7 +105,7 @@ function ARDrone({
     rotationRef.current.y -= inputs.yaw * rotSpeed * delta;
 
     // Pitch (Right Y) & Roll (Right X) -> Moves drone horizontally relative to heading
-    const direction = new THREE.Vector3(inputs.roll, 0, -inputs.pitch);
+    const direction = new THREE.Vector3(inputs.roll, 0, inputs.pitch);
     direction.applyEuler(new THREE.Euler(0, rotationRef.current.y, 0));
     positionRef.current.addScaledVector(direction, speed * delta);
 
@@ -130,7 +130,7 @@ function ARDrone({
       if (nextProgress >= 1.0) {
         setFlipProgress(0);
         setFlipDirection(null);
-        groupRef.current.rotation.x = inputs.pitch * 0.25;
+        groupRef.current.rotation.x = -inputs.pitch * 0.25;
         groupRef.current.rotation.z = -inputs.roll * 0.25;
       } else {
         setFlipProgress(nextProgress);
@@ -153,7 +153,7 @@ function ARDrone({
     } else {
       // Normal fly tilts: pitch / roll tilts
       const targetRoll = -inputs.roll * 0.25;
-      const targetPitch = inputs.pitch * 0.25;
+      const targetPitch = -inputs.pitch * 0.25;
       
       groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetPitch, delta * 6);
       groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, targetRoll, delta * 6);
@@ -171,10 +171,10 @@ function ARDrone({
     useDroneStore.setState({
       activeMotors: { motor1: true, motor2: true, motor3: true, motor4: true },
       motorRPMs: {
-        motor1: Math.max(1000, baseRPM - inputs.pitch * 600 + inputs.roll * 600 - inputs.yaw * 600),
-        motor2: Math.max(1000, baseRPM - inputs.pitch * 600 - inputs.roll * 600 + inputs.yaw * 600),
-        motor3: Math.max(1000, baseRPM + inputs.pitch * 600 + inputs.roll * 600 + inputs.yaw * 600),
-        motor4: Math.max(1000, baseRPM + inputs.pitch * 600 - inputs.roll * 600 - inputs.yaw * 600),
+        motor1: Math.max(1000, baseRPM + inputs.pitch * 600 + inputs.roll * 600 - inputs.yaw * 600),
+        motor2: Math.max(1000, baseRPM + inputs.pitch * 600 - inputs.roll * 600 + inputs.yaw * 600),
+        motor3: Math.max(1000, baseRPM - inputs.pitch * 600 + inputs.roll * 600 + inputs.yaw * 600),
+        motor4: Math.max(1000, baseRPM - inputs.pitch * 600 - inputs.roll * 600 - inputs.yaw * 600),
       }
     });
 
@@ -1128,7 +1128,7 @@ export function ARSimulator() {
       // Map keyboard to mock stick inputs
       const throttle = keys.w ? 0.8 : keys.s ? -0.8 : 0;
       const yaw = keys.a ? -0.8 : keys.d ? 0.8 : 0;
-      const pitch = keys.ArrowUp ? 0.8 : keys.ArrowDown ? -0.8 : 0;
+      const pitch = keys.ArrowUp ? -0.8 : keys.ArrowDown ? 0.8 : 0;
       const roll = keys.ArrowLeft ? -0.8 : keys.ArrowRight ? 0.8 : 0;
 
       setJoystickLeft({ x: yaw, y: throttle });
@@ -1207,7 +1207,7 @@ export function ARSimulator() {
     const updateControls = () => {
       const throttle = keys.w ? 0.8 : keys.s ? -0.8 : 0;
       const yaw = keys.a ? -0.8 : keys.d ? 0.8 : 0;
-      const pitch = keys.ArrowUp ? 0.8 : keys.ArrowDown ? -0.8 : 0;
+      const pitch = keys.ArrowUp ? -0.8 : keys.ArrowDown ? 0.8 : 0;
       const roll = keys.ArrowLeft ? -0.8 : keys.ArrowRight ? 0.8 : 0;
 
       setJoystickLeft({ x: yaw, y: throttle });

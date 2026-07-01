@@ -89,7 +89,7 @@ function takeoffAndHover(orch: SimulatorOrchestrator, dt = 1/60) {
 describe('PlutoX Real-World Control Mapping Audit', () => {
   const dt = 1/60;
 
-  test('PITCH: Right stick UP → drone flies FORWARD (-Z)', () => {
+  test('PITCH: Right stick UP → drone flies BACKWARD (+Z) [Reversed]', () => {
     const orch = new SimulatorOrchestrator(); orch.init();
     takeoffAndHover(orch, dt);
     expect(orch.getHasTakenOff()).toBe(true);
@@ -101,7 +101,7 @@ describe('PlutoX Real-World Control Mapping Audit', () => {
 
     const finalZ = orch.getPhysicsState().position.z;
     console.log(`PITCH TEST: baseZ=${baseZ.toFixed(4)}, finalZ=${finalZ.toFixed(4)}, delta=${(finalZ-baseZ).toFixed(4)}`);
-    expect(finalZ).toBeLessThan(baseZ - 0.05);
+    expect(finalZ).toBeGreaterThan(baseZ + 0.05);
     orch.destroy();
   });
 

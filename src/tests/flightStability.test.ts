@@ -165,7 +165,7 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     orchestrator.destroy();
   });
 
-  test('Forward pitch input moves the closed simulator drone forward', () => {
+  test('Forward pitch input moves the closed simulator drone backward', () => {
     const orchestrator = new SimulatorOrchestrator();
     orchestrator.init();
 
@@ -193,7 +193,7 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     }
     orchestrator.input.clearAnalogInput();
 
-    expect(orchestrator.getPhysicsState().position.z).toBeLessThan(baselineZ - 0.1);
+    expect(orchestrator.getPhysicsState().position.z).toBeGreaterThan(baselineZ + 0.1);
     expect(orchestrator.getWarnings()).not.toContain('CRASH DETECTED');
 
     orchestrator.destroy();

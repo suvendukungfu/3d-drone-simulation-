@@ -558,10 +558,10 @@ export class SimulatorOrchestrator {
       let triggered = false;
       let type: 'front' | 'back' | 'left' | 'right' = 'front';
       
-      if (stick.pitch < -0.7) {
+      if (stick.pitch > 0.7) {
         type = 'front';
         triggered = true;
-      } else if (stick.pitch > 0.7) {
+      } else if (stick.pitch < -0.7) {
         type = 'back';
         triggered = true;
       } else if (stick.roll < -0.7) {
