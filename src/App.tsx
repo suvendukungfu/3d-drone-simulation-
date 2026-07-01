@@ -739,6 +739,7 @@ function App() {
                         const active = activeMotors[id];
                         const rpm = motorRPMs[id];
                         const cornerNames = ['FL (CCW)', 'FR (CW)', 'RR (CCW)', 'RL (CW)'];
+                        const motorLetter = (index === 0 || index === 2) ? 'B' : 'A';
                         
                         return (
                            <div key={id} className="anatomy-motor-row">
@@ -750,7 +751,7 @@ function App() {
                                   : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
                               }`}
                             >
-                              <span>Motor {index + 1} ({cornerNames[index]})</span>
+                              <span>Motor {motorLetter} ({cornerNames[index]})</span>
                               <span className="text-[9px] font-mono opacity-80">{active ? 'RUNNING' : 'STOPPED'}</span>
                             </button>
                             {active && (
