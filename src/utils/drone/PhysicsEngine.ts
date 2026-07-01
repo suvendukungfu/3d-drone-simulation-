@@ -403,12 +403,10 @@ export class PhysicsEngine {
       const vn = state.velocity.y;
       if (vn < 0) {
         const speed = -vn;
-        // If landing gently, damp completely
-        if (speed < 0.5) {
-          state.velocity.y = 0;
-        } else {
+        // If landing gently or firmly, damp completely to prevent bouncing
+        state.velocity.y = 0;
+        if (speed >= 0.5) {
           registerCollision(speed, new THREE.Vector3(0, 1, 0), 'Ground', false);
-          applyRebound(new THREE.Vector3(0, 1, 0), speed);
         }
         
         // Ground friction
