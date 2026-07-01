@@ -695,7 +695,7 @@ export function IntroOverlay() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-950/20 dark:bg-black/40 backdrop-blur-xl"
+              className="absolute inset-0 bg-slate-950/80 dark:bg-black/80"
               onClick={() => setFlightSimModalOpen(false)}
             />
 
@@ -711,7 +711,7 @@ export function IntroOverlay() {
               <div className="absolute inset-0 rounded-[28px] animated-border opacity-30" />
               
               {/* Modal content */}
-              <div className="relative m-[1.5px] rounded-[19px] sm:rounded-[27px] bg-white/97 dark:bg-[#0c0f18]/97 backdrop-blur-2xl p-4 sm:p-6 md:p-8 flex flex-col space-y-4 sm:space-y-6 overflow-y-auto max-h-[calc(90vh-4px)] sm:max-h-[calc(92vh-4px)]">
+              <div className="relative m-[1.5px] rounded-[19px] sm:rounded-[27px] bg-white dark:bg-[#0c0f18] p-4 sm:p-6 md:p-8 flex flex-col space-y-4 sm:space-y-6 overflow-y-auto max-h-[calc(90vh-4px)] sm:max-h-[calc(92vh-4px)]">
                 <div className="absolute inset-0 noise-overlay pointer-events-none opacity-30" />
                 <div className="absolute inset-0 bg-blueprint-grid opacity-[0.02] pointer-events-none" />
                 
