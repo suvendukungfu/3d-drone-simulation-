@@ -187,17 +187,9 @@ export class FlightController {
             // Climb Zone (60% to 100%) - continuous
             targetClimbRate = ((stick.throttle - 0.60) / 0.40) * 2.2;
             this.lockedAltitude = this.filteredAltitude;
-          } else if (stick.throttle >= 0.10 && stick.throttle < 0.50) {
-            // Descent Zone (10% to 50%) - continuous
-            targetClimbRate = ((stick.throttle - 0.50) / 0.40) * 1.5;
-            this.lockedAltitude = this.filteredAltitude;
-          } else {
-            // Landing / Idle Zone (0% to 10%)
-            if (this.filteredAltitude > 0.25) {
-              targetClimbRate = -0.8;
-            } else {
-              targetClimbRate = -0.20;
-            }
+          } else if (stick.throttle >= 0.0 && stick.throttle < 0.50) {
+            // Descent Zone (0% to 50%) - continuous down to max -2.0 m/s
+            targetClimbRate = ((stick.throttle - 0.50) / 0.50) * 2.0;
             this.lockedAltitude = this.filteredAltitude;
           }
         }

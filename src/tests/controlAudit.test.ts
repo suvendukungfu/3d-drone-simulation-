@@ -155,4 +155,20 @@ describe('PlutoX Real-World Control Mapping Audit', () => {
     expect(finalY).toBeGreaterThan(baseY + 0.1);
     orch.destroy();
   });
+
+  test('THROTTLE: Left stick DOWN → drone descends (-Y)', () => {
+    const orch = new SimulatorOrchestrator(); orch.init();
+    takeoffAndHover(orch, dt);
+
+    const baseY = orch.getPhysicsState().position.y;
+    // Left stick Y=-1 (push down = descend)
+    orch.input.setAnalogStickValues(0, -1, 0, 0);
+    for (let i = 0; i < 60; i++) { orch.update(dt); syncStore(orch); }
+    orch.input.clearAnalogInput();
+
+    const finalY = orch.getPhysicsState().position.y;
+    console.log(`THROTTLE DOWN TEST: baseY=${baseY.toFixed(4)}, finalY=${finalY.toFixed(4)}, delta=${(finalY-baseY).toFixed(4)}`);
+    expect(finalY).toBeLessThan(baseY - 0.1);
+    orch.destroy();
+  });
 });
