@@ -226,6 +226,12 @@ function CameraController({ controlsRef, vrEye, floorGroupRef }: CameraControlle
       // Snapped close enough, let OrbitControls handle it freely
       if (camera.position.distanceTo(targetCamPos.current) < 0.05) {
         isTransitioning.current = false;
+        // Snap exactly to target to fix any azimuthal drift near poles (Top/Bottom view)
+        camera.position.copy(targetCamPos.current);
+        if (controlsRef.current) {
+          controlsRef.current.target.copy(targetLookAt.current);
+          controlsRef.current.update();
+        }
       }
     } else {
       if (controlsRef.current) {
