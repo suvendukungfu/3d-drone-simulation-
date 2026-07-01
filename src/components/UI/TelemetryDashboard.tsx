@@ -408,7 +408,7 @@ export function TelemetryDashboard({
           )}
 
           {/* Camera View Switcher with Camera Mode Indicator badge */}
-          <div className="flex flex-col items-end gap-1.5">
+          <div className="desktop-camera-switcher flex flex-col items-end gap-1.5">
             <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 px-3 py-1 rounded-full text-[9px] font-mono font-bold text-blue-600 dark:text-blue-400 shadow-sm uppercase tracking-wider">
               CAM VIEW: {flightCameraView}
             </div>

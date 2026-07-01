@@ -647,6 +647,13 @@ body.mobile-menu-open .virtual-joysticks {
   display: none !important;
 }
 
+/* Hide desktop camera switcher on mobile/coarse pointer */
+@media (pointer: coarse), (max-width: 1024px) {
+  .desktop-camera-switcher {
+    display: none !important;
+  }
+}
+
 /* Standalone desktop Menu button styling */
 .desktop-only-menu-btn {
   display: flex !important;
