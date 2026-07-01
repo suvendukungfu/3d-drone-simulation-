@@ -986,7 +986,7 @@ function App() {
                           <strong>Rotation Direction:</strong> {selectedComponent === 'propellerA' ? 'Clockwise (CW)' : 'Counter-Clockwise (CCW)'}
                         </p>
                         <p>
-                          <strong>Torque Balancing:</strong> A quadcopter requires adjacent propellers to rotate in opposite directions. As motor 1 spins its blade CW, it exerts an opposite CCW reaction torque on the chassis. By spinning motor 2 CCW, its reaction torque balances out, preventing the drone from spinning uncontrollably.
+                          <strong>Torque Balancing:</strong> A quadcopter requires adjacent propellers to rotate in opposite directions. As Motor A spins its blade CW, it exerts an opposite CCW reaction torque on the chassis. By spinning Motor B CCW, its reaction torque balances out, preventing the drone from spinning uncontrollably.
                         </p>
                         <p>
                           <strong>Yaw Authority:</strong> To turn left or right (yaw), the flight controller speeds up the CW pair while slowing down the CCW pair. The net imbalance in reactive torque rotates the drone without changing overall altitude.
