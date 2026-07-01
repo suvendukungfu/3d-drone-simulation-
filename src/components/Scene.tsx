@@ -109,7 +109,7 @@ function CameraController({ controlsRef, vrEye, floorGroupRef }: CameraControlle
     // 2. Preset Orthogonal View Calculations
     switch (cameraView) {
       case 'top':
-        targetCamPos.current.set(0, 7.5, -0.01); // negative Z offset to ensure nose (+Z) points UP
+        targetCamPos.current.set(0, 7.5, 0.01); // positive Z offset ensures nose (+Z) points UP without mirroring L/R
         targetLookAt.current.set(0, 0, 0);
         break;
       case 'bottom':
