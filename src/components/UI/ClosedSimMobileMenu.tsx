@@ -1018,9 +1018,11 @@ export function ClosedSimMobileMenu({
             label="Yaw / Throttle"
             visualX={stickState.yaw}
             visualY={
-              stickState.throttle >= 0.55
-                ? (stickState.throttle - 0.55) / 0.45
-                : (stickState.throttle - 0.55) / 0.55
+              !hasTakenOff
+                ? 0
+                : stickState.throttle >= 0.55
+                  ? (stickState.throttle - 0.55) / 0.45
+                  : (stickState.throttle - 0.55) / 0.55
             }
             disabled={!controlsAvailable}
           />
