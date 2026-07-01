@@ -141,7 +141,7 @@ const LABELS: LabelDef[] = [
   },
   {
     id: 'propRL',
-    name: 'Propeller C · RL (CW)',
+    name: 'Propeller B · RL (CW)',
     spec: '55 mm · 2-blade GF · 4.5″ pitch',
     detail: 'Rear-left CW prop. Speed differential vs FR generates pitch moments.',
     category: 'propulsion',
@@ -150,7 +150,7 @@ const LABELS: LabelDef[] = [
   },
   {
     id: 'propRR',
-    name: 'Propeller D · RR (CCW)',
+    name: 'Propeller A · RR (CCW)',
     spec: '55 mm · 2-blade GF · 4.5″ pitch',
     detail: 'Rear-right CCW prop. Speed modulation vs Prop A controls yaw authority.',
     category: 'propulsion',
@@ -180,7 +180,7 @@ const LABELS: LabelDef[] = [
   },
   {
     id: 'motorRL',
-    name: 'BLDC Motor 3 · RL',
+    name: 'BLDC Motor 4 · RL',
     spec: '720 kV · 1S · 48 000 RPM · 7 g',
     detail: 'RPM differential vs M2 (FR) generates pitch axis moment for forward/backward flight.',
     category: 'propulsion',
@@ -189,7 +189,7 @@ const LABELS: LabelDef[] = [
   },
   {
     id: 'motorRR',
-    name: 'BLDC Motor 4 · RR',
+    name: 'BLDC Motor 3 · RR',
     spec: '720 kV · 1S · 48 000 RPM · 7 g',
     detail: 'Motor orientation determined by PCB phase wiring order only.',
     category: 'propulsion',

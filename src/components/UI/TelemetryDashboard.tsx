@@ -389,7 +389,7 @@ export function TelemetryDashboard({
         ) : <div className="hidden md:block flex-1" />}
 
         {/* Right Side: Battery, Arm State, Camera presets */}
-        <div className="hidden md:flex flex-col items-end justify-start gap-2">
+        <div className="flex flex-col items-end justify-start gap-2 pointer-events-auto">
           {/* Battery Status Panel */}
           {showTelemetry && (
             <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 rounded-xl flex items-center gap-3.5 shadow-[0_8px_25px_rgba(0,0,0,0.02)]">

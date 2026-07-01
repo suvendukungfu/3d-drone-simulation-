@@ -19,6 +19,50 @@ export function LearningWorkflow() {
   return (
     <div className="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between p-6 font-sans select-none">
       
+      {/* Left Sidebar Checklist (HUD Element - stays visible) */}
+      {learningStatus === 'identifying' && (
+        <div className="absolute left-6 top-24 bottom-6 w-64 bg-slate-900/85 backdrop-blur-xl border border-white/10 p-4 rounded-2xl hidden md:flex flex-col shadow-2xl pointer-events-auto">
+          <h3 className="text-white font-mono font-extrabold text-[11px] tracking-wider uppercase border-b border-white/10 pb-2 mb-3">
+            Anatomy Checklist
+          </h3>
+          <div className="flex-1 overflow-y-auto scrollbar-none pr-1 flex flex-col gap-2">
+            {guidedQuestions.map((id, index) => {
+              const component = droneComponents[id];
+              const isCompleted = index < guidedStep;
+              const isActive = index === guidedStep;
+              
+              let statusColor = 'text-white/30 border-white/10';
+              let textColor = 'text-white/40';
+              let icon = '○';
+              
+              if (isCompleted) {
+                statusColor = 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10';
+                textColor = 'text-white/60 line-through';
+                icon = '✓';
+              } else if (isActive) {
+                statusColor = 'text-amber-400 border-amber-500 bg-amber-500/10 shadow-[0_0_10px_rgba(245,158,11,0.2)] animate-pulse';
+                textColor = 'text-white font-bold';
+                icon = '▶';
+              }
+              
+              return (
+                <div 
+                  key={id}
+                  className={`flex items-center gap-2.5 p-2 rounded-xl border text-[10px] font-mono transition-all duration-300 ${statusColor}`}
+                >
+                  <span className="w-4 h-4 rounded-full flex items-center justify-center font-extrabold">
+                    {icon}
+                  </span>
+                  <span className={`truncate flex-1 ${textColor}`}>
+                    {component?.name ?? id}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Top Banner showing training status */}
       <div className="w-full flex justify-center mt-20 pointer-events-auto">
         {learningStatus === 'identifying' && targetComponent && (
@@ -46,7 +90,7 @@ export function LearningWorkflow() {
             </div>
             <div className="flex justify-between w-full text-[9px] font-mono text-slate-400 dark:text-slate-500">
               <span>0%</span>
-              <span>100% COMPLETE</span>
+              <span>{Math.round((guidedStep / guidedQuestions.length) * 100)}% COMPLETE</span>
             </div>
           </motion.div>
         )}

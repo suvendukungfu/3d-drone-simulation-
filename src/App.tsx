@@ -274,8 +274,14 @@ function App() {
       const store = useDroneStore.getState();
       if (isFlying && !store.immersiveMode) {
         store.setImmersiveMode(true);
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
       } else if (!isFlying && store.immersiveMode) {
         store.setImmersiveMode(false);
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
       }
     }
   }, [currentMode, orchestratorState.hasTakenOff]);

@@ -992,6 +992,23 @@ export function ClosedSimMobileMenu({
           </span>
         </div>
 
+        {/* 2.5. MOBILE LANDSCAPE CAMERA VIEW SWITCHER */}
+        <div className="absolute right-[max(20px,env(safe-area-inset-right))] top-[calc(max(8px,env(safe-area-inset-top))+54px)] z-30 flex items-center gap-1 bg-slate-950/60 backdrop-blur-md border border-white/10 p-0.5 rounded-full shadow-lg pointer-events-auto">
+          {(['chase', 'fpv', 'orbit'] as const).map((view) => (
+            <button
+              key={view}
+              onClick={() => setFlightCameraView(view)}
+              className={`px-3 py-1 rounded-full text-[9px] font-mono font-black uppercase tracking-wider transition-all active:scale-95 ${
+                flightCameraView === view
+                  ? 'bg-cyan-500 text-slate-950 font-black shadow-[0_0_12px_rgba(34,211,238,0.4)]'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              {view}
+            </button>
+          ))}
+        </div>
+
         {/* 3. ERGONOMIC RC CORNER JOYSTICKS & CONTROLS */}
         {/* Left Joystick positioned bottom-left */}
         <div className="absolute bottom-5 left-[max(20px,env(safe-area-inset-left))] z-30">

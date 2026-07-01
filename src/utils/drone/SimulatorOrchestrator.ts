@@ -558,10 +558,10 @@ export class SimulatorOrchestrator {
       let triggered = false;
       let type: 'front' | 'back' | 'left' | 'right' = 'front';
       
-      if (stick.pitch > 0.7) {
+      if (stick.pitch < -0.7) {
         type = 'front';
         triggered = true;
-      } else if (stick.pitch < -0.7) {
+      } else if (stick.pitch > 0.7) {
         type = 'back';
         triggered = true;
       } else if (stick.roll < -0.7) {
@@ -645,21 +645,13 @@ export class SimulatorOrchestrator {
     if (this.isArmed && this.isLandingActive) {
       const altitude = this.state.position.y - this.physics.environmentBounds.minY;
       if (altitude <= 0.01 || (this.physics.lastCollision && this.physics.lastCollision.collided && this.physics.lastCollision.obstacleName === 'Ground')) {
-        this.isLandingActive = false;
-        this.hasTakenOff = false;
-        this.controller.isLandingActive = false;
+        this.disarm();
         
-        // Return to armed - idle state
+        // Return to disarmed on ground
         this.state.position.y = this.physics.environmentBounds.minY;
         this.state.velocity.set(0, 0, 0);
         this.state.angularVelocity.set(0, 0, 0);
         this.state.quaternion.set(0, 0, 0, 1);
-        
-        const store = useDroneStore.getState() as any;
-        if (store.addNotification) {
-          store.addNotification('Motors Armed', 'success');
-          store.addNotification('Ready For Takeoff', 'info');
-        }
       }
     }
 
@@ -776,8 +768,8 @@ export class SimulatorOrchestrator {
       this.flipTimer += dt;
       const p = Math.min(1.0, this.flipTimer / this.flipDuration);
       const axis = new THREE.Vector3();
-      if (this.flipType === 'front') axis.set(1, 0, 0);
-      else if (this.flipType === 'back') axis.set(-1, 0, 0);
+      if (this.flipType === 'front') axis.set(-1, 0, 0);
+      else if (this.flipType === 'back') axis.set(1, 0, 0);
       else if (this.flipType === 'left') axis.set(0, 0, -1);
       else if (this.flipType === 'right') axis.set(0, 0, 1);
       
@@ -884,10 +876,7 @@ export class SimulatorOrchestrator {
         this.wallCollision = true;
         this.collisionTimer = 0.8; // warning stays active for 0.8s
       }
-
-      const impactEnergy = 0.5 * this.physics.mass * speed * speed;
-
-      if (speed > 6.0 || impactEnergy > 1.0) {
+      if (speed > 3.0) {
         // Stage 5: Crash Event
         const alertText = 'CRASH DETECTED';
         this.crashDetected = true;
@@ -899,20 +888,14 @@ export class SimulatorOrchestrator {
         }
         this.disarm();
         return;
-      } else if (speed > 4.0) {
-        // Stage 4: Major Impact
-        const alertText = 'CRITICAL IMPACT';
-        if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
-          store.addNotification(alertText, 'error'); // Red
-        }
-        this.destabilizeTimer = 1.0;
       } else if (speed >= 1.5) {
-        // Stage 3: Moderate Impact
+        // Stage 3/4: Moderate/Major Impact
         const alertText = 'WARNING: IMPACT DETECTED';
         if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
           store.addNotification(alertText, 'orange'); // Orange
         }
         this.recoveryTimer = 1.5;
+        this.destabilizeTimer = 0.5;
       } else {
         // Stage 2: Light Contact
         const alertText = col.isWall ? 'CAUTION: WALL CONTACT' : 'CAUTION: OBSTACLE CONTACT';
@@ -947,8 +930,9 @@ export class SimulatorOrchestrator {
     
     // C. Floor check for landing/disarming (Ground Impact System)
     const hitGround = col && col.collided && col.obstacleName === 'Ground' && oldVelocity.y < 0;
-    if (this.state.position.y <= this.physics.environmentBounds.minY + 0.005 || hitGround) {
+    if (this.state.position.y <= this.physics.environmentBounds.minY + 0.02 || hitGround) {
       const landSpeed = -oldVelocity.y; // downward landing speed
+      console.log(`FLOOR CHECK AUDIT: positionY=${this.state.position.y.toFixed(4)}, landSpeed=${landSpeed.toFixed(4)}, isArmed=${this.isArmed}, hasTakenOff=${this.hasTakenOff}`);
       
       if (landSpeed > 1.5) {
         // CRASH LANDING
@@ -981,17 +965,7 @@ export class SimulatorOrchestrator {
       } else {
         // SAFE LANDING
         if (this.hasTakenOff) {
-          const alertText = 'SAFE LANDING';
-          if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
-            store.addNotification(alertText, 'success');
-          }
-          this.hasTakenOff = false;
-          this.isLandingActive = false;
-          this.controller.isLandingActive = false;
-          if (store.addNotification) {
-            store.addNotification('Motors Armed', 'success');
-            store.addNotification('Ready For Takeoff', 'info');
-          }
+          this.disarm();
         }
       }
     }

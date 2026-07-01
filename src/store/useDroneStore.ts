@@ -68,6 +68,40 @@ const getLocalStorageLevels = (): boolean[] => {
   return [true, false, false, false, false];
 };
 
+const getLocalStorageGuidedStep = (): number => {
+  if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
+    const val = window.localStorage.getItem('guidedStep');
+    if (val !== null) {
+      const parsed = parseInt(val, 10);
+      if (!isNaN(parsed)) return parsed;
+    }
+  }
+  return 0;
+};
+
+const getLocalStorageCompletedIdentifiers = (): string[] => {
+  if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
+    const val = window.localStorage.getItem('completedIdentifiers');
+    if (val !== null) {
+      try {
+        const parsed = JSON.parse(val);
+        if (Array.isArray(parsed)) return parsed.map(String);
+      } catch (e) {
+        console.warn("Failed to parse completedIdentifiers from localStorage", e);
+      }
+    }
+  }
+  return [];
+};
+
+const getLocalStorageLearningStatus = (): 'idle' | 'identifying' | 'completed' => {
+  if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
+    const val = window.localStorage.getItem('learningStatus');
+    if (val === 'idle' || val === 'identifying' || val === 'completed') return val;
+  }
+  return 'idle';
+};
+
 export type AppMode = 'home' | 'explore' | 'inspect' | 'learning' | 'flight';
 export type CameraView = 'orbit' | 'inspect' | 'top' | 'bottom' | 'left' | 'right' | 'front' | 'back';
 export type FlightCameraView = 'chase' | 'fpv' | 'orbit';
@@ -333,10 +367,10 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   },
   showRotationDirections: false,
 
-  guidedStep: 0,
-  completedIdentifiers: [],
+  guidedStep: getLocalStorageGuidedStep(),
+  completedIdentifiers: getLocalStorageCompletedIdentifiers(),
   guidedQuestions: GUIDED_QUESTIONS,
-  learningStatus: 'idle',
+  learningStatus: getLocalStorageLearningStatus(),
 
   // --- FLIGHT SIMULATOR INITIAL STATE ---
   flightCameraView: 'chase',
@@ -580,15 +614,22 @@ export const useDroneStore = create<DroneState>((set, get) => ({
     set({ showRotationDirections: show });
   },
 
-  startLearning: () => set({
-    currentMode: 'learning',
-    learningStatus: 'identifying',
-    guidedStep: 0,
-    completedIdentifiers: [],
-    selectedComponent: null,
-    isolationMode: false,
-    isExploded: false
-  }),
+  startLearning: () => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('guidedStep', '0');
+      window.localStorage.setItem('completedIdentifiers', JSON.stringify([]));
+      window.localStorage.setItem('learningStatus', 'identifying');
+    }
+    set({
+      currentMode: 'learning',
+      learningStatus: 'identifying',
+      guidedStep: 0,
+      completedIdentifiers: [],
+      selectedComponent: null,
+      isolationMode: false,
+      isExploded: false
+    });
+  },
 
   identifyComponent: (id) => {
     const { guidedQuestions, guidedStep, completedIdentifiers } = get();
@@ -598,8 +639,16 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       const nextStep = guidedStep + 1;
       const isFinished = nextStep >= guidedQuestions.length;
       
+      const newCompleted = [...completedIdentifiers, id];
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('completedIdentifiers', JSON.stringify(newCompleted));
+        if (isFinished) {
+          window.localStorage.setItem('learningStatus', 'completed');
+        }
+      }
+
       set({
-        completedIdentifiers: [...completedIdentifiers, id],
+        completedIdentifiers: newCompleted,
         selectedComponent: id, 
       });
 
@@ -607,6 +656,9 @@ export const useDroneStore = create<DroneState>((set, get) => ({
         if (isFinished) {
           set({ learningStatus: 'completed' });
         } else {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem('guidedStep', nextStep.toString());
+          }
           set({ 
             guidedStep: nextStep,
             selectedComponent: null
@@ -619,17 +671,29 @@ export const useDroneStore = create<DroneState>((set, get) => ({
     return false;
   },
 
-  nextGuidedStep: () => set((state) => ({
-    guidedStep: Math.min(state.guidedStep + 1, state.guidedQuestions.length - 1)
-  })),
+  nextGuidedStep: () => {
+    const { guidedStep, guidedQuestions } = get();
+    const nextStep = Math.min(guidedStep + 1, guidedQuestions.length - 1);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('guidedStep', nextStep.toString());
+    }
+    set({ guidedStep: nextStep });
+  },
 
-  resetGuided: () => set({
-    guidedStep: 0,
-    completedIdentifiers: [],
-    learningStatus: 'idle',
-    currentMode: 'explore',
-    selectedComponent: null
-  }),
+  resetGuided: () => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('guidedStep', '0');
+      window.localStorage.setItem('completedIdentifiers', JSON.stringify([]));
+      window.localStorage.setItem('learningStatus', 'idle');
+    }
+    set({
+      guidedStep: 0,
+      completedIdentifiers: [],
+      learningStatus: 'idle',
+      currentMode: 'explore',
+      selectedComponent: null
+    });
+  },
 
   // --- FLIGHT SIMULATOR ACTIONS ---
   setFlightCameraView: (view) => {

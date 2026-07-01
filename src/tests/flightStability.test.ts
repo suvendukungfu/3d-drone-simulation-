@@ -193,7 +193,7 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     }
     orchestrator.input.clearAnalogInput();
 
-    expect(orchestrator.getPhysicsState().position.z).toBeGreaterThan(baselineZ + 0.1);
+    expect(orchestrator.getPhysicsState().position.z).toBeLessThan(baselineZ - 0.1);
     expect(orchestrator.getWarnings()).not.toContain('CRASH DETECTED');
 
     orchestrator.destroy();
@@ -240,10 +240,10 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
 
     triggeredNotifications.length = 0;
 
-    // --- TEST 2: Stage 3 - Moderate impact (1.5 - 4.0 m/s) ---
+    // --- TEST 2: Stage 3 - Moderate impact (1.5 - 3.0 m/s) ---
     physState = orchestrator.getPhysicsState();
     physState.position.set(-2.18, 0.5, -3.5);
-    physState.velocity.set(-2.5, 0, 0);
+    physState.velocity.set(-2.0, 0, 0);
 
     orchestrator.update(dt);
     expect(orchestrator.getIsArmed()).toBe(true); // Stays armed
@@ -252,22 +252,10 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
 
     triggeredNotifications.length = 0;
 
-    // --- TEST 3: Stage 4 - Major impact (4.0 - 6.0 m/s) ---
+    // --- TEST 3: Stage 5 - Crash Event (> 3.0 m/s) ---
     physState = orchestrator.getPhysicsState();
     physState.position.set(-2.18, 0.5, -3.5);
-    physState.velocity.set(-5.0, 0, 0);
-
-    orchestrator.update(dt);
-    expect(orchestrator.getIsArmed()).toBe(true); // Stays armed (Stage 4 is critical but recovery attempted)
-    expect((orchestrator as any).destabilizeTimer).toBeGreaterThan(0); // Large wobble/drift active
-    expect(triggeredNotifications.some(n => n.text === 'CRITICAL IMPACT' && n.type === 'error')).toBe(true);
-
-    triggeredNotifications.length = 0;
-
-    // --- TEST 4: Stage 5 - Crash Event (> 6.0 m/s) ---
-    physState = orchestrator.getPhysicsState();
-    physState.position.set(-2.18, 0.5, -3.5);
-    physState.velocity.set(-7.0, 0, 0);
+    physState.velocity.set(-4.5, 0, 0);
 
     orchestrator.update(dt);
     expect(orchestrator.getIsArmed()).toBe(false); // Disarmed!
@@ -308,10 +296,11 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     physState = orchestrator.getPhysicsState();
     physState.position.set(0, 0.05, 0);
     physState.velocity.set(0, -0.2, 0);
+    syncStoreTelemetry(orchestrator);
     orchestrator.update(dt);
     expect(orchestrator.getIsArmed()).toBe(true); // stays armed
     expect((orchestrator as any).hasTakenOff).toBe(false); // not flying (idle)
-    expect(triggeredNotifications.some(n => n.text === 'SAFE LANDING' && n.type === 'success')).toBe(true);
+    expect(triggeredNotifications.some(n => n.text === 'Touchdown: Motors Idle' && n.type === 'success')).toBe(true);
 
     triggeredNotifications.length = 0;
 
@@ -322,6 +311,7 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     physState.position.set(0, 0.05, 0);
     physState.velocity.set(0, -0.8, 0);
     (orchestrator.input as any).stick.throttle = 0.0;
+    useDroneStore.getState().telemetry.altitude = 1.0; // simulate flying in store
     orchestrator.update(dt);
     expect(orchestrator.getIsArmed()).toBe(true); // stays armed
     expect((orchestrator as any).hasTakenOff).toBe(false); // not flying (idle)
@@ -335,6 +325,7 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     physState = orchestrator.getPhysicsState();
     physState.position.set(0, 0.05, 0);
     physState.velocity.set(0, -2.0, 0);
+    useDroneStore.getState().telemetry.altitude = 1.0; // simulate flying in store
     orchestrator.update(dt);
     expect(orchestrator.getIsArmed()).toBe(false); // disarms
     expect(triggeredNotifications.some(n => n.text === 'CRASH LANDING' && n.type === 'error')).toBe(true);

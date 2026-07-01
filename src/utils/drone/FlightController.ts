@@ -81,6 +81,10 @@ export class FlightController {
   private hoverPosIntX = 0.0;
   private hoverPosIntZ = 0.0;
   
+  // Yaw Lock (Heading Hold) states
+  private lockedYaw = 0.0;
+  private isYawInitialized = false;
+  
   constructor() {}
   
   public reset(): void {
@@ -115,6 +119,8 @@ export class FlightController {
     this.hoverPosIntX = 0.0;
     this.hoverPosIntZ = 0.0;
     this.hoverTime = 0.0;
+    this.lockedYaw = 0.0;
+    this.isYawInitialized = false;
   }
   
   // Apply PID calculations to compute motor outputs [m1, m2, m3, m4]
@@ -289,7 +295,32 @@ export class FlightController {
     // Target rates (rad/s)
     const targetRollRate = rollAngleErr * this.rollAngleGains.kp;
     const targetPitchRate = pitchAngleErr * this.pitchAngleGains.kp;
-    const targetYawRate = -this.smoothedYaw * 2.2; // max yaw rate: 2.2 rad/s (~126 deg/s) for responsive rotation
+    
+    // Heading Hold on Yaw (Angle Lock when sticks are neutral)
+    if (!hasTakenOff) {
+      this.isYawInitialized = false;
+    }
+    
+    if (!this.isYawInitialized) {
+      this.lockedYaw = estAttitude.y;
+      this.isYawInitialized = true;
+    }
+    
+    let targetYawRate = 0.0;
+    const isYawStickActive = Math.abs(this.smoothedYaw) > 0.02;
+    
+    if (isYawStickActive) {
+      this.lockedYaw = estAttitude.y;
+      targetYawRate = -this.smoothedYaw * 2.2; // max rate: 2.2 rad/s
+    } else {
+      // Calculate shortest angle path error
+      let yawError = this.lockedYaw - estAttitude.y;
+      while (yawError > Math.PI) yawError -= Math.PI * 2;
+      while (yawError < -Math.PI) yawError += Math.PI * 2;
+      
+      // Proportional controller for yaw lock
+      targetYawRate = yawError * 3.0;
+    }
     
     const targetRates = new THREE.Vector3(targetPitchRate, targetYawRate, targetRollRate);
     

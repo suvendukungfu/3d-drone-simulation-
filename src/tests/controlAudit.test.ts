@@ -80,28 +80,28 @@ const syncStore = (orch: SimulatorOrchestrator) => {
 };
 
 function takeoffAndHover(orch: SimulatorOrchestrator, dt = 1/60) {
-  for (let i = 0; i < 125; i++) { orch.update(dt); syncStore(orch); }
+  for (let i = 0; i < 125; i++) { syncStore(orch); orch.update(dt); }
   orch.arm();
   orch.triggerAutoTakeoff();
-  for (let i = 0; i < 200; i++) { orch.update(dt); syncStore(orch); }
+  for (let i = 0; i < 200; i++) { syncStore(orch); orch.update(dt); }
 }
 
 describe('PlutoX Real-World Control Mapping Audit', () => {
   const dt = 1/60;
 
-  test('PITCH: Right stick UP → drone flies FORWARD (+Z)', () => {
+  test('PITCH: Right stick UP → drone flies FORWARD (-Z)', () => {
     const orch = new SimulatorOrchestrator(); orch.init();
     takeoffAndHover(orch, dt);
     expect(orch.getHasTakenOff()).toBe(true);
 
     const baseZ = orch.getPhysicsState().position.z;
     orch.input.setAnalogStickValues(0, 0, 0, 1);
-    for (let i = 0; i < 120; i++) { orch.update(dt); syncStore(orch); }
+    for (let i = 0; i < 120; i++) { syncStore(orch); orch.update(dt); }
     orch.input.clearAnalogInput();
 
     const finalZ = orch.getPhysicsState().position.z;
     console.log(`PITCH TEST: baseZ=${baseZ.toFixed(4)}, finalZ=${finalZ.toFixed(4)}, delta=${(finalZ-baseZ).toFixed(4)}`);
-    expect(finalZ).toBeGreaterThan(baseZ + 0.05);
+    expect(finalZ).toBeLessThan(baseZ - 0.05);
     orch.destroy();
   });
 
@@ -112,7 +112,7 @@ describe('PlutoX Real-World Control Mapping Audit', () => {
 
     const baseX = orch.getPhysicsState().position.x;
     orch.input.setAnalogStickValues(0, 0, 1, 0);
-    for (let i = 0; i < 120; i++) { orch.update(dt); syncStore(orch); }
+    for (let i = 0; i < 120; i++) { syncStore(orch); orch.update(dt); }
     orch.input.clearAnalogInput();
 
     const finalX = orch.getPhysicsState().position.x;
@@ -129,7 +129,7 @@ describe('PlutoX Real-World Control Mapping Audit', () => {
     const heading0 = euler0.y;
 
     orch.input.setAnalogStickValues(1, 0, 0, 0);
-    for (let i = 0; i < 120; i++) { orch.update(dt); syncStore(orch); }
+    for (let i = 0; i < 120; i++) { syncStore(orch); orch.update(dt); }
     orch.input.clearAnalogInput();
 
     const euler1 = new THREE.Euler().setFromQuaternion(orch.getPhysicsState().quaternion, 'YXZ');
@@ -147,7 +147,7 @@ describe('PlutoX Real-World Control Mapping Audit', () => {
 
     const baseY = orch.getPhysicsState().position.y;
     orch.input.setAnalogStickValues(0, 1, 0, 0);
-    for (let i = 0; i < 60; i++) { orch.update(dt); syncStore(orch); }
+    for (let i = 0; i < 60; i++) { syncStore(orch); orch.update(dt); }
     orch.input.clearAnalogInput();
 
     const finalY = orch.getPhysicsState().position.y;
@@ -163,7 +163,7 @@ describe('PlutoX Real-World Control Mapping Audit', () => {
     const baseY = orch.getPhysicsState().position.y;
     // Left stick Y=-1 (push down = descend)
     orch.input.setAnalogStickValues(0, -1, 0, 0);
-    for (let i = 0; i < 60; i++) { orch.update(dt); syncStore(orch); }
+    for (let i = 0; i < 60; i++) { syncStore(orch); orch.update(dt); }
     orch.input.clearAnalogInput();
 
     const finalY = orch.getPhysicsState().position.y;

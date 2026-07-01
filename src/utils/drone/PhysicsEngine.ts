@@ -303,7 +303,18 @@ export class PhysicsEngine {
   // Boundary constraints & rebound calculations
   private handleCollisions(state: RigidBodyState): void {
     const bounds = this.environmentBounds;
-    const radius = 0.08; // 8cm drone radius
+    const radius = 0.08; // 8cm drone body radius
+    const rotorOffset = this.L; // distance of motor from center
+    const rotorRadius = 0.028; // 2.8cm prop radius
+    
+    // Compute the world positions of the 4 rotors
+    const localRotors = [
+      new THREE.Vector3(-rotorOffset, 0.015, rotorOffset),
+      new THREE.Vector3(rotorOffset, 0.015, rotorOffset),
+      new THREE.Vector3(-rotorOffset, 0.015, -rotorOffset),
+      new THREE.Vector3(rotorOffset, 0.015, -rotorOffset)
+    ];
+    const worldRotors = localRotors.map(r => r.clone().applyQuaternion(state.quaternion).add(state.position));
     
     let maxCollision = this.lastCollision;
     let inProximity = this.lastInProximity;
@@ -375,8 +386,19 @@ export class PhysicsEngine {
     };
 
     // 1. Ground Collision (Landing pad)
-    if (state.position.y <= bounds.minY) {
-      state.position.y = bounds.minY;
+    let groundPen = 0;
+    if (state.position.y < bounds.minY) {
+      groundPen = bounds.minY - state.position.y;
+    }
+    for (let i = 0; i < 4; i++) {
+      if (worldRotors[i].y < bounds.minY + rotorRadius) {
+        const pen = (bounds.minY + rotorRadius) - worldRotors[i].y;
+        if (pen > groundPen) groundPen = pen;
+      }
+    }
+    
+    if (groundPen > 0) {
+      state.position.y += groundPen;
       
       const vn = state.velocity.y;
       if (vn < 0) {
@@ -405,9 +427,19 @@ export class PhysicsEngine {
     }
 
     // 2. Ceiling boundary
-    const ceilMaxY = bounds.maxY - radius;
-    if (state.position.y >= ceilMaxY) {
-      state.position.y = ceilMaxY;
+    let ceilPen = 0;
+    if (state.position.y > bounds.maxY - radius) {
+      ceilPen = state.position.y - (bounds.maxY - radius);
+    }
+    for (let i = 0; i < 4; i++) {
+      if (worldRotors[i].y > bounds.maxY - rotorRadius) {
+        const pen = worldRotors[i].y - (bounds.maxY - rotorRadius);
+        if (pen > ceilPen) ceilPen = pen;
+      }
+    }
+    
+    if (ceilPen > 0) {
+      state.position.y -= ceilPen;
       const vn = state.velocity.y;
       if (vn > 0) {
         const speed = vn;
@@ -425,7 +457,7 @@ export class PhysicsEngine {
           applyRebound(new THREE.Vector3(0, -1, 0), speed);
         }
       }
-    } else if (ceilMaxY - state.position.y < proxThreshold) {
+    } else if (bounds.maxY - radius - state.position.y < proxThreshold) {
       inProximity = true;
     }
 
@@ -440,7 +472,7 @@ export class PhysicsEngine {
 
     // Helper: handle one wall boundary axis
     const handleWallCollision = (
-      axisValue: number,
+      axis: 'x' | 'z',
       wallLimit: number,
       velocityComponent: number,
       isNegativeSide: boolean,
@@ -450,20 +482,53 @@ export class PhysicsEngine {
       setVelocity: (v: number) => void,
       getVelocity: () => number
     ) => {
-      const cushionBoundary = isNegativeSide
-        ? wallLimit + cushionDepth
-        : wallLimit - cushionDepth;
-      const isInCushion = isNegativeSide
-        ? axisValue < cushionBoundary && axisValue > wallLimit
-        : axisValue > cushionBoundary && axisValue < wallLimit;
-      const isPastWall = isNegativeSide
-        ? axisValue <= wallLimit
-        : axisValue >= wallLimit;
+      // Find maximum penetration of body or rotors
+      const centerLimit = isNegativeSide ? wallLimit + radius : wallLimit - radius;
+      let pen = 0;
+      let isPastWall = false;
+      
+      const centerVal = state.position[axis];
+      if (isNegativeSide) {
+        if (centerVal <= centerLimit) {
+          pen = centerLimit - centerVal;
+          isPastWall = true;
+        }
+      } else {
+        if (centerVal >= centerLimit) {
+          pen = centerVal - centerLimit;
+          isPastWall = true;
+        }
+      }
+      
+      // Rotor spheres:
+      for (let i = 0; i < 4; i++) {
+        const rotorVal = worldRotors[i][axis];
+        const rotorLimit = isNegativeSide ? wallLimit + rotorRadius : wallLimit - rotorRadius;
+        if (isNegativeSide) {
+          if (rotorVal <= rotorLimit) {
+            const rPen = rotorLimit - rotorVal;
+            if (rPen > pen) {
+              pen = rPen;
+              isPastWall = true;
+            }
+          }
+        } else {
+          if (rotorVal >= rotorLimit) {
+            const rPen = rotorVal - rotorLimit;
+            if (rPen > pen) {
+              pen = rPen;
+              isPastWall = true;
+            }
+          }
+        }
+      }
+      
       const isApproaching = isNegativeSide ? velocityComponent < 0 : velocityComponent > 0;
       
       if (isPastWall) {
-        // Hard contact: clamp position to wall surface
-        setPosition(wallLimit);
+        // Hard contact: resolve position away from wall
+        const resolvedPos = isNegativeSide ? state.position[axis] + pen : state.position[axis] - pen;
+        setPosition(resolvedPos);
         const speed = Math.abs(velocityComponent);
         
         if (isApproaching || speed > 0.001) {
@@ -487,29 +552,35 @@ export class PhysicsEngine {
             applyRebound(normal, speed);
           }
         }
-      } else if (isInCushion && isApproaching) {
-        // Cushion zone: apply soft repulsion proportional to penetration depth
-        const penetration = isNegativeSide
-          ? cushionBoundary - axisValue
-          : axisValue - cushionBoundary;
-        const penetrationRatio = Math.min(1.0, penetration / cushionDepth);
-        // Quadratic repulsion force: stronger as drone gets closer to wall
-        const repulsionStrength = 2.5 * penetrationRatio * penetrationRatio;
-        const currentV = getVelocity();
-        const dampedV = currentV * (1.0 - 0.15 * penetrationRatio);
-        setVelocity(dampedV);
-        // Push velocity away from wall
-        state.velocity.addScaledVector(normal, repulsionStrength * 0.016); // ~1 frame at 60Hz
-        inProximity = true;
-      } else if (Math.abs(axisValue - wallLimit) < proxThreshold) {
-        inProximity = true;
+      } else {
+        // Cushion zone check on the center sphere
+        const cushionBoundary = isNegativeSide
+          ? wallLimit + cushionDepth + radius
+          : wallLimit - cushionDepth - radius;
+        const isInCushion = isNegativeSide
+          ? centerVal < cushionBoundary && centerVal > wallLimit
+          : centerVal > cushionBoundary && centerVal < wallLimit;
+          
+        if (isInCushion && isApproaching) {
+          const penetration = isNegativeSide
+            ? cushionBoundary - centerVal
+            : centerVal - cushionBoundary;
+          const penetrationRatio = Math.min(1.0, penetration / cushionDepth);
+          const repulsionStrength = 2.5 * penetrationRatio * penetrationRatio;
+          const currentV = getVelocity();
+          const dampedV = currentV * (1.0 - 0.15 * penetrationRatio);
+          setVelocity(dampedV);
+          state.velocity.addScaledVector(normal, repulsionStrength * 0.016);
+          inProximity = true;
+        } else if (Math.abs(centerVal - wallLimit) < proxThreshold) {
+          inProximity = true;
+        }
       }
     };
 
     // West Wall (minX)
-    const minWallX = bounds.minX + radius;
     handleWallCollision(
-      state.position.x, minWallX, state.velocity.x,
+      'x', bounds.minX, state.velocity.x,
       true, 'West Wall', new THREE.Vector3(1, 0, 0),
       (v) => { state.position.x = v; },
       (v) => { state.velocity.x = v; },
@@ -517,9 +588,8 @@ export class PhysicsEngine {
     );
 
     // East Wall (maxX)
-    const maxWallX = bounds.maxX - radius;
     handleWallCollision(
-      state.position.x, maxWallX, state.velocity.x,
+      'x', bounds.maxX, state.velocity.x,
       false, 'East Wall', new THREE.Vector3(-1, 0, 0),
       (v) => { state.position.x = v; },
       (v) => { state.velocity.x = v; },
@@ -527,9 +597,8 @@ export class PhysicsEngine {
     );
 
     // North Wall (minZ)
-    const minWallZ = bounds.minZ + radius;
     handleWallCollision(
-      state.position.z, minWallZ, state.velocity.z,
+      'z', bounds.minZ, state.velocity.z,
       true, 'North Wall', new THREE.Vector3(0, 0, 1),
       (v) => { state.position.z = v; },
       (v) => { state.velocity.z = v; },
@@ -537,9 +606,8 @@ export class PhysicsEngine {
     );
 
     // South Wall (maxZ)
-    const maxWallZ = bounds.maxZ - radius;
     handleWallCollision(
-      state.position.z, maxWallZ, state.velocity.z,
+      'z', bounds.maxZ, state.velocity.z,
       false, 'South Wall', new THREE.Vector3(0, 0, -1),
       (v) => { state.position.z = v; },
       (v) => { state.velocity.z = v; },
@@ -562,27 +630,51 @@ export class PhysicsEngine {
         ? { c: [0, 0, 0] as [number, number, number], s: box.s, label: box.label }
         : box;
 
-      const col = this.checkBoxCollision(checkPos, radius, localBox);
-      if (col && col.collided) {
+      let maxPen = 0;
+      let bestCol: any = null;
+
+      const centerCol = this.checkBoxCollision(checkPos, radius, localBox);
+      if (centerCol && centerCol.collided) {
+        maxPen = centerCol.penetration;
+        bestCol = centerCol;
+      }
+
+      // Check all 4 rotor spheres
+      for (let i = 0; i < 4; i++) {
+        let checkRotorPos = worldRotors[i].clone();
         if (hasRotation) {
-          col.normal.applyAxisAngle(new THREE.Vector3(0, 1, 0), box.r!);
+          checkRotorPos.sub(new THREE.Vector3(box.c[0], box.c[1], box.c[2]));
+          checkRotorPos.applyAxisAngle(new THREE.Vector3(0, 1, 0), -box.r!);
+        }
+        const rotorCol = this.checkBoxCollision(checkRotorPos, rotorRadius, localBox);
+        if (rotorCol && rotorCol.collided) {
+          if (rotorCol.penetration > maxPen) {
+            maxPen = rotorCol.penetration;
+            bestCol = rotorCol;
+          }
+        }
+      }
+
+      if (bestCol && bestCol.collided) {
+        if (hasRotation) {
+          bestCol.normal.applyAxisAngle(new THREE.Vector3(0, 1, 0), box.r!);
         }
 
         // Resolve penetration
-        state.position.addScaledVector(col.normal, col.penetration);
+        state.position.addScaledVector(bestCol.normal, bestCol.penetration);
         
-        const vn = state.velocity.dot(col.normal);
+        const vn = state.velocity.dot(bestCol.normal);
         if (vn < 0) {
           const speed = -vn;
           // Register collision at ALL speeds for feedback
-          registerCollision(speed, col.normal, box.label, false);
+          registerCollision(speed, bestCol.normal, box.label, false);
           
           if (speed < 0.3) {
             // Gentle sliding contact: damp normal velocity component
-            const v_n_vec = col.normal.clone().multiplyScalar(vn);
+            const v_n_vec = bestCol.normal.clone().multiplyScalar(vn);
             state.velocity.sub(v_n_vec);
             // Apply tangential sliding friction
-            const tangential = state.velocity.clone().sub(col.normal.clone().multiplyScalar(state.velocity.dot(col.normal)));
+            const tangential = state.velocity.clone().sub(bestCol.normal.clone().multiplyScalar(state.velocity.dot(bestCol.normal)));
             state.velocity.sub(tangential.multiplyScalar(0.3));
             // Small angular disturbance on contact
             state.angularVelocity.x += (Math.random() - 0.5) * 0.8;
@@ -590,7 +682,7 @@ export class PhysicsEngine {
             state.angularVelocity.z += (Math.random() - 0.5) * 0.8;
 
             // Ground-like flat stabilization if resting on top of the box
-            if (col.normal.y > 0.9) {
+            if (bestCol.normal.y > 0.9) {
               const euler = new THREE.Euler().setFromQuaternion(state.quaternion, 'YXZ');
               euler.x = 0;
               euler.z = 0;
@@ -600,7 +692,8 @@ export class PhysicsEngine {
               state.angularVelocity.y *= 0.7;
             }
           } else {
-            applyRebound(col.normal, speed);
+            // Full rebound with staged response
+            applyRebound(bestCol.normal, speed);
           }
         }
       } else {
@@ -630,20 +723,39 @@ export class PhysicsEngine {
     }
 
     for (const hoop of hoopObstacles) {
-      const col = this.checkHoopCollision(state.position, radius, hoop);
-      if (col && col.collided) {
+      let maxPen = 0;
+      let bestCol: any = null;
+
+      const centerCol = this.checkHoopCollision(state.position, radius, hoop);
+      if (centerCol && centerCol.collided) {
+        maxPen = centerCol.penetration;
+        bestCol = centerCol;
+      }
+
+      // Check all 4 rotor spheres
+      for (let i = 0; i < 4; i++) {
+        const rotorCol = this.checkHoopCollision(worldRotors[i], rotorRadius, hoop);
+        if (rotorCol && rotorCol.collided) {
+          if (rotorCol.penetration > maxPen) {
+            maxPen = rotorCol.penetration;
+            bestCol = rotorCol;
+          }
+        }
+      }
+
+      if (bestCol && bestCol.collided) {
         // Resolve penetration
-        state.position.addScaledVector(col.normal, col.penetration);
+        state.position.addScaledVector(bestCol.normal, bestCol.penetration);
         
-        const vn = state.velocity.dot(col.normal);
+        const vn = state.velocity.dot(bestCol.normal);
         if (vn < 0) {
           const speed = -vn;
           if (speed < 0.3) {
-            const v_n_vec = col.normal.clone().multiplyScalar(vn);
+            const v_n_vec = bestCol.normal.clone().multiplyScalar(vn);
             state.velocity.sub(v_n_vec);
           } else {
-            registerCollision(speed, col.normal, 'Gate Frame', false);
-            applyRebound(col.normal, speed);
+            registerCollision(speed, bestCol.normal, 'Gate Frame', false);
+            applyRebound(bestCol.normal, speed);
           }
         }
       } else {

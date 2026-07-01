@@ -96,6 +96,9 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
   const dragStart = useRef({ x: 0, y: 0 });
   const mouseOffset = useRef({ yaw: 0, pitch: 0 });
   const smoothYawRef = useRef<number | null>(null);
+  const wasTakenOffRef = useRef(false);
+  const gimbalPitchRef = useRef(0);
+  const gimbalRollRef = useRef(0);
 
   // Sync physics bounds to match selected environment
   const envType = useDroneStore((state) => state.flightEnvironment);
@@ -131,7 +134,7 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
     };
 
     const handlePointerMove = (e: PointerEvent) => {
-      if (!isDragging.current || flightCameraView === 'orbit') return;
+      if (!isDragging.current || flightCameraView === 'orbit' || flightCameraView === 'chase') return;
       const dx = e.clientX - dragStart.current.x;
       const dy = e.clientY - dragStart.current.y;
       dragStart.current = { x: e.clientX, y: e.clientY };
@@ -171,6 +174,15 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
     // 1. Run simulator steps
     const telemetry = orchestrator.update(delta);
     onTelemetryFrame?.(telemetry);
+    
+    // Auto-Reset at Takeoff
+    const hasTakenOff = orchestrator.getHasTakenOff();
+    if (hasTakenOff && !wasTakenOffRef.current) {
+      mouseOffset.current = { yaw: 0, pitch: 0 };
+      smoothYawRef.current = null;
+    }
+    wasTakenOffRef.current = hasTakenOff;
+
     const renderState = orchestrator.getRenderState();
     const physState = orchestrator.getPhysicsState();
     const motorCmds = orchestrator.getMotorCommands();
@@ -257,13 +269,10 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
 
       const levelUp = new THREE.Vector3(0, 1, 0); // Stabilized world up vector
 
-      // Behind and slightly above drone, rotated by mouse offset
+      // Behind and slightly above drone, locked (no manual mouse offset)
       const backVec = levelForward.clone().negate();
-      const offsetQuat = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(mouseOffset.current.pitch, mouseOffset.current.yaw, 0, 'YXZ')
-      );
-      const rotatedBackVec = backVec.clone().applyQuaternion(offsetQuat);
-      const rotatedUpVec = levelUp.clone().applyQuaternion(offsetQuat);
+      const rotatedBackVec = backVec.clone();
+      const rotatedUpVec = levelUp.clone();
 
       const targetCamPos = dronePos.clone()
         .addScaledVector(rotatedBackVec, 1.4)
@@ -304,12 +313,22 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
         .addScaledVector(up, 0.045);
       camera.position.copy(targetCamPos);
 
-      // In real FPV drones, the camera is fixed to the frame facing forward (no gimbal).
-      // Three.js cameras look down their local negative Z axis by default, while the drone 
-      // faces positive Z. Therefore, we must apply a base 180-degree yaw rotation (Euler 0, PI, 0)
-      // to point the camera forward relative to the drone body.
-      const baseCamRot = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0));
-      const cameraQuat = droneQuat.clone().multiply(baseCamRot).multiply(offsetQuat);
+      // 2-axis stabilized FPV camera gimbal
+      const euler = new THREE.Euler().setFromQuaternion(droneQuat, 'YXZ');
+      const droneYaw = euler.y;
+      
+      const targetGimbalPitch = euler.x * 0.15; // 85% stabilized pitch
+      const targetGimbalRoll = euler.z * 0.10;  // 90% stabilized roll
+      
+      gimbalPitchRef.current += (targetGimbalPitch - gimbalPitchRef.current) * delta * 5.0;
+      gimbalRollRef.current += (targetGimbalRoll - gimbalRollRef.current) * delta * 5.0;
+      
+      const gimbalYaw = droneYaw + Math.PI; // point camera forward
+      const gimbalQuat = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(gimbalPitchRef.current, gimbalYaw, gimbalRollRef.current, 'YXZ')
+      );
+      
+      const cameraQuat = gimbalQuat.multiply(offsetQuat);
       camera.quaternion.copy(cameraQuat);
       cameraInitialized.current = true;
     }
