@@ -105,7 +105,7 @@ describe('PlutoX Real-World Control Mapping Audit', () => {
     orch.destroy();
   });
 
-  test('ROLL: Right stick RIGHT → drone flies RIGHT (+X)', () => {
+  test('ROLL: Right stick RIGHT → drone flies LEFT (-X) [Reversed]', () => {
     const orch = new SimulatorOrchestrator(); orch.init();
     takeoffAndHover(orch, dt);
     expect(orch.getHasTakenOff()).toBe(true);
@@ -117,7 +117,7 @@ describe('PlutoX Real-World Control Mapping Audit', () => {
 
     const finalX = orch.getPhysicsState().position.x;
     console.log(`ROLL TEST: baseX=${baseX.toFixed(4)}, finalX=${finalX.toFixed(4)}, delta=${(finalX-baseX).toFixed(4)}`);
-    expect(finalX).toBeGreaterThan(baseX + 0.05);
+    expect(finalX).toBeLessThan(baseX - 0.05);
     orch.destroy();
   });
 

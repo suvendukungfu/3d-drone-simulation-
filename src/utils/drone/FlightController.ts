@@ -235,7 +235,7 @@ export class FlightController {
     // 2. Outer Angle Loop (Roll & Pitch Self-Leveling)
     // Convert stick inputs (-1 to 1) to target Euler angles (radians)
     const maxTiltAngle = 30.0 * (Math.PI / 180.0); // max 30 degrees tilt for fast, responsive movement
-    let targetRoll = this.isLandingActive ? 0.0 : -this.smoothedRoll * maxTiltAngle;
+    let targetRoll = this.isLandingActive ? 0.0 : this.smoothedRoll * maxTiltAngle;
     let targetPitch = this.isLandingActive ? 0.0 : this.smoothedPitch * maxTiltAngle;
     
     // Hover stabilization (active position hold / drift damping) when sticks are neutral in flight
