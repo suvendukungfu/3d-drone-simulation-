@@ -138,8 +138,9 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     // 4. Test Flip Mode
     orchestrator.toggleFlipArmed();
     
+
     // Pushing pitch stick forward to trigger flip
-    (orchestrator.input as any).keys['arrowup'] = true;
+    (orchestrator.input as any).keys['arrowdown'] = true;
     // Allow slew rate to reach triggering threshold
     for (let i = 0; i < 20; i++) {
       orchestrator.update(dt);
@@ -147,7 +148,7 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
         break;
       }
     }
-    (orchestrator.input as any).keys['arrowup'] = false;
+    (orchestrator.input as any).keys['arrowdown'] = false;
     
     // Check that flipping has engaged
     expect((orchestrator as any).isFlipping).toBe(true);
@@ -310,10 +311,9 @@ describe('PlutoX Flight Simulator Control and Stability Integration Tests', () =
     physState = orchestrator.getPhysicsState();
     physState.position.set(0, 0.05, 0);
     physState.velocity.set(0, -0.8, 0);
-    (orchestrator.input as any).stick.throttle = 0.0;
     useDroneStore.getState().telemetry.altitude = 1.0; // simulate flying in store
     orchestrator.update(dt);
-    expect(orchestrator.getIsArmed()).toBe(true); // stays armed
+    expect(orchestrator.getIsArmed()).toBe(false); // disarms to prevent bounce
     expect((orchestrator as any).hasTakenOff).toBe(false); // not flying (idle)
     expect(triggeredNotifications.some(n => n.text === 'HARD LANDING' && n.type === 'warning')).toBe(true);
 

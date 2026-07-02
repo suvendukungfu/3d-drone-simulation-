@@ -5,6 +5,13 @@ class SoundController {
   private isVisible = true;
   private baseAudioUrl = '/audio/drone_sound.mp3';
 
+  // Master Nodes for spatial panning and distance attenuation
+  private masterPanner: StereoPannerNode | null = null;
+  private masterGain: GainNode | null = null;
+
+  // Doppler effect pitch scaling factor
+  private dopplerFactor = 1.0;
+
   // Active motor source nodes and gain nodes
   private motorSources: Record<string, { source: AudioBufferSourceNode; gainNode: GainNode; biquadFilter: BiquadFilterNode }> = {};
   
@@ -18,6 +25,13 @@ class SoundController {
       if (AudioContextClass) {
         this.ctx = new AudioContextClass();
         
+        // Initialize Master spatial and gain chain
+        this.masterPanner = this.ctx.createStereoPanner();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(1.0, this.ctx.currentTime);
+        this.masterPanner.connect(this.masterGain);
+        this.masterGain.connect(this.ctx.destination);
+
         // Immediately synthesize a high-fidelity buffer synchronously so we have zero startup latency
         this.baseBuffer = this.createSyntheticMotorBuffer();
         
@@ -70,7 +84,7 @@ class SoundController {
 
   private recreateMotorSource(motorId: string) {
     const active = this.motorSources[motorId];
-    if (!active || !this.ctx || !this.baseBuffer) return;
+    if (!active || !this.ctx || !this.baseBuffer || !this.masterPanner) return;
     
     try {
       const oldSource = active.source;
@@ -92,7 +106,7 @@ class SoundController {
       
       newSource.connect(newFilter);
       newFilter.connect(newGainNode);
-      newGainNode.connect(this.ctx.destination);
+      newGainNode.connect(this.masterPanner);
       
       // Set current playback rate
       newSource.playbackRate.value = oldSource.playbackRate.value;
@@ -194,6 +208,30 @@ class SoundController {
     }
     
     return buffer;
+  }
+
+  updateSpatialAudio(pan: number, distance: number, relativeVelocity: number = 0) {
+    try {
+      this.initCtx();
+      if (!this.ctx || !this.masterPanner || !this.masterGain) return;
+
+      const clampedPan = Math.max(-1, Math.min(1, pan));
+      this.masterPanner.pan.setTargetAtTime(clampedPan, this.ctx.currentTime, 0.08);
+
+      // Inverse square law simulation for distance attenuation
+      const referenceDistance = 1.0;
+      const rolloffFactor = 1.2;
+      const atten = 1.0 / (1.0 + rolloffFactor * (Math.max(0, distance) - referenceDistance));
+      const clampedAtten = Math.max(0.05, Math.min(1.0, atten));
+      this.masterGain.gain.setTargetAtTime(clampedAtten, this.ctx.currentTime, 0.1);
+
+      // Doppler shift: speed of sound ~ 343 m/s. Relative velocity > 0 means moving away.
+      const speedOfSound = 343.0;
+      this.dopplerFactor = 1.0 - (relativeVelocity / speedOfSound);
+      this.dopplerFactor = Math.max(0.75, Math.min(1.35, this.dopplerFactor)); // boundary limits
+    } catch (e) {
+      // Fail silently
+    }
   }
 
   playHover() {
@@ -332,7 +370,7 @@ class SoundController {
   startMotorSound(motorId: string) {
     try {
       this.initCtx();
-      if (!this.ctx || !this.baseBuffer) return;
+      if (!this.ctx || !this.baseBuffer || !this.masterPanner) return;
 
       if (this.motorSources[motorId]) return;
 
@@ -349,7 +387,7 @@ class SoundController {
 
       source.connect(biquadFilter);
       biquadFilter.connect(gainNode);
-      gainNode.connect(this.ctx.destination);
+      gainNode.connect(this.masterPanner);
 
       // Start looping at a random phase offset to avoid flanging with other motors
       const offset = Math.random() * this.baseBuffer.duration;
@@ -373,14 +411,16 @@ class SoundController {
       // Idle is ~10,000 RPM, Hover is ~30,000 RPM, Max is ~50,000 RPM
       // Frequency mapping: 80Hz to 550Hz
       const normalizedRpm = Math.max(0, Math.min(1, rpm / 50000));
-      const targetFreq = 80 + (normalizedRpm * 470);
+      const baseFreq = 80 + (normalizedRpm * 470);
       
       // Dynamic vibration / RPM wobbling modulation to simulate aerodynamic load & turbulence
       const vibrationFreq = 22; // Hz vibration frequency
       const vibrationAmp = 1.5 + normalizedRpm * 6.5; // Up to 8Hz of frequency wobble
       const vibration = Math.sin(this.ctx.currentTime * Math.PI * 2 * vibrationFreq) * vibrationAmp;
       
-      const playbackRate = (targetFreq + vibration) / 200.0; // Base buffer loops at 200Hz
+      // Pitch shifted by target base frequency and Doppler scaling
+      const targetFreq = (baseFreq + vibration) * this.dopplerFactor;
+      const playbackRate = targetFreq / 200.0; // Base buffer loops at 200Hz
 
       // Smooth interpolations using exponential ramps (setTargetAtTime) to prevent clicking
       active.source.playbackRate.setTargetAtTime(playbackRate, this.ctx.currentTime, 0.04);

@@ -45,6 +45,13 @@ function ARDrone({
   setFlipProgress
 }: ARDroneProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const shadowMeshRef = useRef<THREE.Mesh>(null);
+  const shadowMatRef = useRef<THREE.MeshBasicMaterial>(null);
+  
+  // Animation and physics state hooks
+  const [spawnTime] = useState(Date.now());
+  const velocity = useRef(new THREE.Vector3(0, 0, 0));
+  const lastDistance = useRef(0);
 
   // Sync motor audio triggers to arm state
   useEffect(() => {
@@ -62,71 +69,132 @@ function ARDrone({
     if (!groupRef.current) return;
 
     const floorY = placedPos.current.y;
+    
+    // 1. Gentle Spawn Settle Down & Suspension Animation
+    const elapsed = (Date.now() - spawnTime) / 1000;
+    let spawnOffset = 0;
+    
+    if (elapsed < 2.0) {
+      // Settle drop from 40cm above ground
+      const settleY = 0.4 * Math.exp(-elapsed * 4.5);
+      // Touchdown spring bounce oscillation
+      const bounce = 0.04 * Math.exp(-elapsed * 3.5) * Math.cos(elapsed * Math.PI * 4);
+      spawnOffset = settleY + bounce;
+    }
 
-    // 1. Stage: Disarmed -> Locked to ground surface
+    // Dynamic Contact Shadow calculations
+    if (shadowMatRef.current && shadowMeshRef.current) {
+      let op = 0.6;
+      let sc = 1.0;
+      if (elapsed < 2.0) {
+        op = 0.6 * Math.min(1.0, elapsed / 1.5);
+        sc = 0.4 + 0.6 * Math.min(1.0, elapsed / 1.5);
+      }
+      const distFromFloor = positionRef.current.y - floorY;
+      const fade = Math.max(0, 1.0 - distFromFloor / 1.5);
+      shadowMatRef.current.opacity = op * fade;
+      shadowMeshRef.current.scale.setScalar(sc);
+    }
+
+    // 2. Stage: Disarmed -> Locked to ground surface (Rotors idling slowly at 50 RPM)
     if (flightStage === 'disarmed') {
       positionRef.current.copy(placedPos.current);
       rotationRef.current.set(0, 0, 0);
-      groupRef.current.position.copy(placedPos.current);
+      groupRef.current.position.copy(placedPos.current).y += spawnOffset;
       groupRef.current.rotation.set(0, 0, 0);
+      velocity.current.set(0, 0, 0);
 
-      // Tell store propellers are off
+      // Spin propellers at very low visual speed to indicate standby
       useDroneStore.setState({
-        activeMotors: { motor1: false, motor2: false, motor3: false, motor4: false },
-        motorRPMs: { motor1: 0, motor2: 0, motor3: 0, motor4: 0 }
+        activeMotors: { motor1: true, motor2: true, motor3: true, motor4: true },
+        motorRPMs: { motor1: 50, motor2: 50, motor3: 50, motor4: 50 }
       });
       return;
     }
 
-    // 2. Stage: Armed Idle -> Run propellers at low idle RPM on the floor
+    // 3. Stage: Armed Idle -> Run propellers at idle RPM on floor
     if (flightStage === 'armed-idle') {
       positionRef.current.copy(placedPos.current);
       rotationRef.current.set(0, 0, 0);
-      groupRef.current.position.copy(placedPos.current);
+      groupRef.current.position.copy(placedPos.current).y += spawnOffset;
       groupRef.current.rotation.set(0, 0, 0);
+      velocity.current.set(0, 0, 0);
 
       useDroneStore.setState({
         activeMotors: { motor1: true, motor2: true, motor3: true, motor4: true },
         motorRPMs: { motor1: 1200, motor2: 1200, motor3: 1200, motor4: 1200 }
       });
 
-      // Throttle stick input upwards triggers takeoff
       if (inputs.throttle > 0.15) {
         setFlightStage('flying');
       }
       return;
     }
 
-    // 3. Stage: Flying -> 6-DOF controls
-    const speed = 2.2;
+    // 4. Stage: Flying -> Realistic Inertia & Momentum Physics
     const rotSpeed = 1.8;
+    const maxSpeed = 2.4;
+    const maxVertSpeed = 1.8;
 
-    // Yaw (Left Stick X) -> Rotate model heading Y
+    // Yaw (Left Stick X) -> Rotate heading Y
     rotationRef.current.y -= inputs.yaw * rotSpeed * delta;
 
-    // Pitch (Right Y) & Roll (Right X) -> Moves drone horizontally relative to heading
-    const direction = new THREE.Vector3(inputs.roll, 0, inputs.pitch);
-    direction.applyEuler(new THREE.Euler(0, rotationRef.current.y, 0));
-    positionRef.current.addScaledVector(direction, speed * delta);
+    // HeadFree yaw mapping: if ON, inputs are relative to camera's orientation rather than model heading
+    const headFree = useDroneStore.getState().headFree;
+    let refYaw = rotationRef.current.y;
+    if (headFree) {
+      const camEuler = new THREE.Euler().setFromQuaternion(state.camera.quaternion, 'YXZ');
+      refYaw = camEuler.y;
+    }
 
-    // Throttle (Left Y) -> Adjusts Y altitude
-    positionRef.current.y += inputs.throttle * speed * delta;
+    // Construct target velocity vector based on input directions
+    const targetDir = new THREE.Vector3(inputs.roll, 0, inputs.pitch);
+    targetDir.applyEuler(new THREE.Euler(0, refYaw, 0));
+    
+    const targetVelocity = new THREE.Vector3(
+      targetDir.x * maxSpeed,
+      inputs.throttle * maxVertSpeed,
+      targetDir.z * maxSpeed
+    );
 
-    // Clamp Y relative to dynamic floor
+    // Apply linear acceleration/deceleration coefficients (Mass & Inertia mapping)
+    const accelRate = (inputs.roll === 0 && inputs.pitch === 0) ? 3.0 : 4.5;
+    const vertAccelRate = (inputs.throttle === 0) ? 3.5 : 5.0;
+    
+    velocity.current.x = THREE.MathUtils.lerp(velocity.current.x, targetVelocity.x, delta * accelRate);
+    velocity.current.z = THREE.MathUtils.lerp(velocity.current.z, targetVelocity.z, delta * accelRate);
+    velocity.current.y = THREE.MathUtils.lerp(velocity.current.y, targetVelocity.y, delta * vertAccelRate);
+
+    // Dynamic Ground Effect: adds cushion lift when hovering very close to floor (< 0.25m)
+    const altitude = positionRef.current.y - floorY;
+    if (altitude < 0.25) {
+      const groundEffectBoost = 0.18 * Math.pow(1.0 - altitude / 0.25, 2);
+      if (velocity.current.y < 0) {
+        velocity.current.y *= (1.0 - groundEffectBoost); // Soften descent
+      }
+    }
+
+    // Apply velocity step integration
+    positionRef.current.addScaledVector(velocity.current, delta);
+
+    // Enforce vertical boundaries
     if (positionRef.current.y < floorY) {
       positionRef.current.y = floorY;
+      velocity.current.y = 0;
     }
     const maxAltitude = floorY + 4.5;
     if (positionRef.current.y > maxAltitude) {
       positionRef.current.y = maxAltitude;
+      velocity.current.y = 0;
     }
 
-    // Smooth visual positioning LERP
-    groupRef.current.position.lerp(positionRef.current, delta * 10);
+    // Smooth visual position LERP to filter high frame-rate oscillations
+    groupRef.current.position.lerp(positionRef.current, delta * 12);
+    groupRef.current.position.y += spawnOffset; // append spawn suspension bounce offset
 
-    // Visual rotation tilts or flip override animation
+    // Visual rotation tilts & flip overrides
     if (flipDirection !== null) {
-      const nextProgress = flipProgress + delta * 3.5; // full 360 flip in ~0.3s
+      const nextProgress = flipProgress + delta * 3.5;
       if (nextProgress >= 1.0) {
         setFlipProgress(0);
         setFlipDirection(null);
@@ -146,7 +214,6 @@ function ARDrone({
           groupRef.current.rotation.z = flipAngle;
         }
 
-        // sin lift curve to pop up organic looking altitude boost during flips
         const lift = Math.sin(nextProgress * Math.PI) * 0.35;
         groupRef.current.position.y += lift;
       }
@@ -161,12 +228,12 @@ function ARDrone({
     
     groupRef.current.rotation.y = rotationRef.current.y;
 
-    // Subtle random aerodynamic hover vibration
+    // Subtle random aerodynamic hover vibration (Prop Wash simulation)
     const time = state.clock.getElapsedTime();
-    groupRef.current.position.y += Math.sin(time * 3) * 0.0015;
-    groupRef.current.position.x += Math.cos(time * 2.5) * 0.001;
+    groupRef.current.position.y += Math.sin(time * 24) * 0.0008;
+    groupRef.current.position.x += Math.cos(time * 18) * 0.0005;
 
-    // RPM calculations based on throttle + tilt adjustments
+    // Mixed RPM calculation based on inputs & motor torque distributions
     const baseRPM = 3500 + inputs.throttle * 3500;
     useDroneStore.setState({
       activeMotors: { motor1: true, motor2: true, motor3: true, motor4: true },
@@ -178,16 +245,52 @@ function ARDrone({
       }
     });
 
-    // Update sound frequencies
+    // Update real-time motor pitch and spatial panning / Doppler pitch shift
     for (let i = 1; i <= 4; i++) {
       const motorKey = `motor${i}` as 'motor1'|'motor2'|'motor3'|'motor4';
       sound.updateMotorPitch(motorKey, useDroneStore.getState().motorRPMs[motorKey]);
     }
+
+    // Spatial panning calculations (Drone position relative to listener camera)
+    const relPos = groupRef.current.position.clone().sub(state.camera.position);
+    relPos.applyQuaternion(state.camera.quaternion.clone().invert());
+    
+    const pan = THREE.MathUtils.clamp(relPos.x / 1.5, -1, 1);
+    const distance = groupRef.current.position.distanceTo(state.camera.position);
+    
+    // Doppler effect: calculate rate of change of distance
+    let relativeVelocity = 0;
+    if (delta > 0.0001) {
+      if (lastDistance.current !== 0) {
+        relativeVelocity = (distance - lastDistance.current) / delta;
+      }
+      lastDistance.current = distance;
+    }
+    sound.updateSpatialAudio(pan, distance, relativeVelocity);
   });
 
   return (
-    <group ref={groupRef} scale={[2.2, 2.2, 2.2]}>
-      <PlutoXModel isFlightMode={true} modelPath="/PlutoX [Primus X2 v1].glb" />
+    <group>
+      {/* Contact Shadow Plane */}
+      <mesh 
+        ref={shadowMeshRef}
+        position={[placedPos.current.x, placedPos.current.y + 0.002, placedPos.current.z]} 
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <planeGeometry args={[0.35, 0.35]} />
+        <meshBasicMaterial 
+          ref={shadowMatRef}
+          color="#000000" 
+          transparent 
+          opacity={0} 
+          depthWrite={false} 
+        />
+      </mesh>
+
+      {/* Model Group */}
+      <group ref={groupRef} scale={[2.2, 2.2, 2.2]}>
+        <PlutoXModel isFlightMode={true} modelPath="/PlutoX [Primus X2 v1].glb" />
+      </group>
     </group>
   );
 }
@@ -365,6 +468,7 @@ function ARCameraController({
   threeCameraRef: React.MutableRefObject<THREE.Camera | null>;
 }) {
   const { camera } = useThree();
+  const lastQuat = useRef(new THREE.Quaternion().copy(camera.quaternion));
 
   useEffect(() => {
     threeCameraRef.current = camera;
@@ -382,9 +486,13 @@ function ARCameraController({
         screenOrientation,
         headingOffset
       );
-      // Smooth interpolation to prevent jitter
-      camera.quaternion.slerp(targetQuat, 0.15);
-      // Position camera at center origin for fixed-coordinate background passthrough
+      
+      // Adaptive sensor smoothing: slerp faster when moving fast, slower when static to reduce sensor noise
+      const angleDiff = lastQuat.current.angleTo(targetQuat);
+      const slerpFactor = THREE.MathUtils.clamp(0.04 + angleDiff * 1.5, 0.04, 0.35);
+
+      camera.quaternion.slerp(targetQuat, slerpFactor);
+      lastQuat.current.copy(camera.quaternion);
       camera.position.set(0, 0, 0);
     }
   });
@@ -461,6 +569,7 @@ function XRPlacement({
   const reticleRef = useRef<THREE.Mesh>(null);
   const [reticleVisible, setReticleVisible] = useState(false);
   const hitPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const hitNormalRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 1, 0));
 
   // Continuous hit testing relative to viewer camera
   useXRHitTest((results, getWorldMatrix) => {
@@ -471,14 +580,40 @@ function XRPlacement({
     if (results.length > 0) {
       const matrix = new THREE.Matrix4();
       getWorldMatrix(matrix, results[0]);
-      hitPositionRef.current.setFromMatrixPosition(matrix);
-      if (reticleRef.current) {
-        reticleRef.current.position.copy(hitPositionRef.current);
-        reticleRef.current.rotation.set(-Math.PI / 2, 0, 0);
+      
+      // Extract surface normal orientation to validate surface flatness
+      const normal = new THREE.Vector3(0, 1, 0);
+      normal.applyMatrix4(new THREE.Matrix4().extractRotation(matrix));
+      
+      // Plane Validation: Accept only horizontal planes (tilted up to ~30deg, normal.y >= 0.86)
+      // Reject walls (normal.y around 0) and ceilings (normal.y around -1)
+      if (normal.y >= 0.86) {
+        hitPositionRef.current.setFromMatrixPosition(matrix);
+        hitNormalRef.current.copy(normal);
+        
+        if (reticleRef.current) {
+          // Smooth reticle animation using LERP
+          reticleRef.current.position.lerp(hitPositionRef.current, 0.3);
+          reticleRef.current.rotation.set(-Math.PI / 2, 0, 0);
+          
+          // Confidence calculation: perfectly flat floor has confidence 1.0
+          const confidence = THREE.MathUtils.clamp((normal.y - 0.86) / 0.14, 0, 1);
+          (useDroneStore as any).setState({ arPlacementConfidence: confidence });
+          
+          // Visual feedback on confidence
+          if (reticleRef.current.material) {
+            const mat = reticleRef.current.material as THREE.MeshBasicMaterial;
+            mat.color.set(confidence > 0.75 ? '#00ffcc' : '#ffaa00');
+          }
+        }
+        setReticleVisible(true);
+      } else {
+        setReticleVisible(false);
+        (useDroneStore as any).setState({ arPlacementConfidence: 0 });
       }
-      setReticleVisible(true);
     } else {
       setReticleVisible(false);
+      (useDroneStore as any).setState({ arPlacementConfidence: 0 });
     }
   }, 'viewer');
 
@@ -535,7 +670,7 @@ function FallbackPlacement({
         }}
         onPointerMove={(e) => {
           if (reticleRef.current) {
-            reticleRef.current.position.copy(e.point);
+            reticleRef.current.position.lerp(e.point, 0.35); // Smooth reticle animation
             setReticleVisible(true);
           }
         }}
@@ -580,6 +715,7 @@ export function ARSimulator() {
   // WebXR and Flight stage states
   const [arSessionStarted, setArSessionStarted] = useState(isTestEnv);
   const [isWebXRAvailable, setIsWebXRAvailable] = useState<boolean | null>(null);
+  const [isPresenting, setIsPresenting] = useState(false);
   const [isPlaced, setIsPlaced] = useState(isTestEnv);
   const [isArmed, setIsArmed] = useState(false);
   const [flightStage, setFlightStage] = useState<'disarmed' | 'armed-idle' | 'flying'>('disarmed');
@@ -799,6 +935,60 @@ export function ARSimulator() {
     }
   };
 
+  // Ambient Lighting Estimation: sample webcam frame to determine average room brightness
+  useEffect(() => {
+    if (!isARActive || !cameraStream || isPresenting) return;
+
+    let active = true;
+    const video = videoRef.current;
+    
+    // Create offscreen canvas for sampling
+    const sampleCanvas = document.createElement('canvas');
+    sampleCanvas.width = 40;
+    sampleCanvas.height = 30;
+    const sampleCtx = sampleCanvas.getContext('2d');
+    if (!sampleCtx) return;
+
+    const sampleBrightness = () => {
+      if (!active || !video) return;
+      try {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          sampleCtx.drawImage(video, 0, 0, sampleCanvas.width, sampleCanvas.height);
+          const imgData = sampleCtx.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height);
+          const data = imgData.data;
+          
+          let sum = 0;
+          let count = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+            count++;
+          }
+          const avg = sum / count; // 0 to 255
+          const normalized = avg / 255.0;
+          
+          // Smooth interpolation (Low Pass Filter) to prevent sudden flashes
+          const currentAmb = (useDroneStore.getState() as any).ambientIntensity || 1.0;
+          const targetAmb = 0.5 + normalized * 0.9; // Scale between 0.5 and 1.4
+          const nextAmb = THREE.MathUtils.lerp(currentAmb, targetAmb, 0.05);
+          
+          (useDroneStore as any).setState({ ambientIntensity: nextAmb });
+        }
+      } catch (e) {
+        console.warn("Failed to estimate lighting:", e);
+      }
+      if (active) {
+        requestAnimationFrame(sampleBrightness);
+      }
+    };
+
+    requestAnimationFrame(sampleBrightness);
+
+    return () => {
+      active = false;
+      (useDroneStore as any).setState({ ambientIntensity: 1.0 }); // Reset on unmount
+    };
+  }, [isARActive, cameraStream, isPresenting]);
+
   // CV Hand Gesture Controls
   const [cvEnabled, setCvEnabled] = useState(false);
   const [cvOverlayOpen, setCvOverlayOpen] = useState(false);
@@ -1001,7 +1191,6 @@ export function ARSimulator() {
     }
   };
 
-  const [isPresenting, setIsPresenting] = useState(false);
   useEffect(() => {
     return xrStore.subscribe((state) => {
       setIsPresenting(!!state.session);
@@ -1633,6 +1822,9 @@ export function ARSimulator() {
   };
 
   const renderHUD = () => {
+    const isFlying = flightStage === 'flying';
+    const arPlacementConfidence = useDroneStore((s) => (s as any).arPlacementConfidence ?? 0);
+
     return (
       <div 
         ref={uiContainerRef} 
@@ -1642,20 +1834,38 @@ export function ARSimulator() {
         {droneIndicator && droneIndicator.visible && isPlaced && (
           <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
             <div 
-              className="absolute bg-slate-950/85 border border-cyan-500/40 text-cyan-400 font-mono text-[9px] px-3 py-1.5 rounded-full flex items-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.3)] animate-pulse pointer-events-auto"
+              className="absolute bg-slate-950/90 border border-cyan-500/40 text-cyan-400 font-mono text-[9px] px-4 py-2.5 rounded-2xl flex flex-col items-center gap-2 shadow-[0_0_20px_rgba(6,182,212,0.4)] pointer-events-auto"
               style={{
                 transform: `translate(${Math.cos(droneIndicator.angle * Math.PI / 180) * 110}px, ${-Math.sin(droneIndicator.angle * Math.PI / 180) * 110}px)`
               }}
             >
-              <span 
-                style={{ 
-                  display: 'inline-block',
-                  transform: `rotate(${-droneIndicator.angle}deg)`
-                }}
-              >
-                ➔
-              </span>
-              <span>Drone {droneIndicator.distance.toFixed(1)}m</span>
+              <div className="flex items-center gap-1.5 font-bold">
+                <span 
+                  className="inline-block animate-bounce text-xs"
+                  style={{ transform: `rotate(${-droneIndicator.angle}deg)` }}
+                >
+                  ➔
+                </span>
+                <span>Drone Off-screen</span>
+              </div>
+              <div className="flex flex-col gap-0.5 text-[8px] text-slate-300">
+                <span>Distance: {droneIndicator.distance.toFixed(1)}m</span>
+                <span>Alt Diff: {(dronePos.current.y - placedPos.current.y).toFixed(1)}m</span>
+              </div>
+              <div className="flex gap-1.5 pt-1.5 border-t border-slate-800/80 w-full justify-between">
+                <button 
+                  onClick={handleFindDrone}
+                  className="px-2 py-0.5 bg-cyan-600/80 hover:bg-cyan-500 text-white font-bold rounded text-[7.5px] uppercase transition flex-1 text-center"
+                >
+                  Find
+                </button>
+                <button 
+                  onClick={handleRecenterDrone}
+                  className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded text-[7.5px] uppercase transition flex-1 text-center"
+                >
+                  Center
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1669,6 +1879,11 @@ export function ARSimulator() {
                 ? "Scan floor, then tap the reticle to place PlutoX drone" 
                 : "Click on the grid floor to place the PlutoX drone"
               }
+              {isPresenting && (
+                <div className="mt-2 text-[8px] text-slate-400 font-bold">
+                  Surface Alignment: {(arPlacementConfidence * 100).toFixed(0)}%
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1687,10 +1902,12 @@ export function ARSimulator() {
             </button>
 
             {/* Prompt/Shortcut key indicator */}
-            <div className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border backdrop-blur-md text-[8px] font-mono font-bold uppercase tracking-wider ${isDark ? 'bg-slate-950/75 border-slate-800/80 text-cyan-400' : 'bg-white/85 border-slate-200 text-cyan-605'}`}>
-              <Radio className={`w-3.5 h-3.5 animate-pulse ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
-              <span>Keyboard: <kbd className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">Space</kbd> Arm // <kbd className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">Enter</kbd> Takeoff // <kbd className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">F</kbd> Flip</span>
-            </div>
+            {!isFlying && (
+              <div className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-xl border backdrop-blur-md text-[8px] font-mono font-bold uppercase tracking-wider ${isDark ? 'bg-slate-950/75 border-slate-800/80 text-cyan-400' : 'bg-white/85 border-slate-200 text-cyan-605'}`}>
+                <Radio className={`w-3.5 h-3.5 animate-pulse ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                <span>Keyboard: <kbd className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">Space</kbd> Arm // <kbd className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">Enter</kbd> Takeoff // <kbd className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 text-cyan-600 dark:text-cyan-400 px-1.5 py-0.5 rounded">F</kbd> Flip</span>
+              </div>
+            )}
 
             {/* Mode Watermark */}
             <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border backdrop-blur-md text-[8px] font-mono font-bold uppercase tracking-wider ${isDark ? 'bg-slate-950/75 border-slate-800/80 text-cyan-400' : 'bg-white/85 border-slate-200 text-cyan-605'}`}>
@@ -1745,7 +1962,7 @@ export function ARSimulator() {
           </div>
 
           {/* Camera Selection Dropdown (Only for fallback webcam mode) */}
-          {!isPresenting && (
+          {!isPresenting && !isFlying && (
             <div className="flex flex-col gap-1">
               <label className="text-[7.5px] text-slate-500 dark:text-slate-400">Select Video Input</label>
               <select
@@ -1842,40 +2059,42 @@ export function ARSimulator() {
             </div>
           )}
 
-          {/* AR Recovery Tools Section */}
-          <div className="flex flex-col gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/60">
-            <span className="text-[7.5px] text-slate-500 dark:text-slate-400">Recovery Tools</span>
-            
-            <button
-              onClick={handleFindDrone}
-              className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
-            >
-              <Compass className="w-3.5 h-3.5" /> Find Drone
-            </button>
-
-            <button
-              onClick={handleRecenterDrone}
-              className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Recenter Drone
-            </button>
-
-            <button
-              onClick={handleRestartARSession}
-              className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
-            >
-              <RotateCw className="w-3.5 h-3.5" /> Restart Session
-            </button>
-
-            {!isPresenting && (
+          {/* AR Recovery Tools Section (Auto-hidden during flight to minimize clutter) */}
+          {!isFlying && (
+            <div className="flex flex-col gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/60">
+              <span className="text-[7.5px] text-slate-500 dark:text-slate-400">Recovery Tools</span>
+              
               <button
-                onClick={handleRefreshTracking}
-                className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
+                onClick={handleFindDrone}
+                className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
               >
-                <RefreshCw className="w-3.5 h-3.5" /> Refresh Tracking
+                <Compass className="w-3.5 h-3.5" /> Find Drone
               </button>
-            )}
-          </div>
+
+              <button
+                onClick={handleRecenterDrone}
+                className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Recenter Drone
+              </button>
+
+              <button
+                onClick={handleRestartARSession}
+                className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
+              >
+                <RotateCw className="w-3.5 h-3.5" /> Restart Session
+              </button>
+
+              {!isPresenting && (
+                <button
+                  onClick={handleRefreshTracking}
+                  className="w-full py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-805 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded flex items-center justify-center gap-1.5 transition"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Refresh Tracking
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Interactive virtual joysticks at the bottom (Only when drone is placed) */}
@@ -1922,12 +2141,13 @@ export function ARSimulator() {
   };
 
   const renderCanvasContent = () => {
+    const ambientIntensity = useDroneStore((s) => (s as any).ambientIntensity ?? 1.0);
     const sceneContent = (
       <>
         {/* Transparent scene setup */}
-        <ambientLight intensity={isDark ? 0.8 : 1.2} color="#ffffff" />
-        <directionalLight position={[5, 10, 3]} intensity={isDark ? 1.0 : 1.5} color="#ffffff" />
-        <directionalLight position={[-5, 5, -3]} intensity={isDark ? 0.3 : 0.5} color="#cbd5e1" />
+        <ambientLight intensity={(isDark ? 0.8 : 1.2) * ambientIntensity} color="#ffffff" />
+        <directionalLight position={[5, 10, 3]} intensity={(isDark ? 1.0 : 1.5) * ambientIntensity} color="#ffffff" />
+        <directionalLight position={[-5, 5, -3]} intensity={(isDark ? 0.3 : 0.5) * ambientIntensity} color="#cbd5e1" />
         
         <Environment preset="city" />
 
