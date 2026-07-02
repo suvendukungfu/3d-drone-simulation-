@@ -178,7 +178,9 @@ interface DroneState {
   
   // Motor Test Systems (Avionics Lab)
   activeMotors: MotorState;
-  motorRPMs: MotorRPMState;
+  motorRPMs: MotorRPMState; // Used as target RPMs
+  activeTestMotor: keyof MotorState | null;
+  isTestingSequence: boolean;
   showRotationDirections: boolean;
 
   // Learning Workflow State (Avionics Lab)
@@ -365,6 +367,8 @@ export const useDroneStore = create<DroneState>((set, get) => ({
     motor3: 0,
     motor4: 0,
   },
+  activeTestMotor: null,
+  isTestingSequence: false,
   showRotationDirections: false,
 
   guidedStep: getLocalStorageGuidedStep(),
@@ -563,37 +567,67 @@ export const useDroneStore = create<DroneState>((set, get) => ({
 
   testAllMotors: () => {
     sound.playClick();
-    const active = get().activeMotors;
-    const allOn = active.motor1 && active.motor2 && active.motor3 && active.motor4;
+    if (get().isTestingSequence) return; // Prevent double trigger
     
-    if (allOn) {
-      get().stopAllMotors();
-    } else {
-      sound.startMotorSound('motor1');
-      sound.startMotorSound('motor2');
-      sound.startMotorSound('motor3');
-      sound.startMotorSound('motor4');
+    // Reset state before starting sequence
+    get().stopAllMotors();
+    set({ isTestingSequence: true });
+    
+    // Define sequence matching the Pluto diagnostic UI layout (FL, FR, RR, RL)
+    const sequence: (keyof MotorState)[] = ['motor1', 'motor2', 'motor3', 'motor4'];
+    let step = 0;
+    
+    const runNext = () => {
+      if (step >= sequence.length || !get().isTestingSequence) {
+        // Sequence finished or interrupted
+        set({ isTestingSequence: false, activeTestMotor: null });
+        get().stopAllMotors();
+        return;
+      }
       
-      set({
-        activeMotors: {
-          motor1: true,
-          motor2: true,
-          motor3: true,
-          motor4: true,
-        },
-        motorRPMs: {
-          motor1: 48000,
-          motor2: 48000,
-          motor3: 48000,
-          motor4: 48000,
-        }
-      });
-    }
+      const motorId = sequence[step];
+      
+      // Update UI state
+      set((state) => ({
+        activeTestMotor: motorId,
+        activeMotors: { ...state.activeMotors, [motorId]: true },
+        motorRPMs: { ...state.motorRPMs, [motorId]: 48000 }
+      }));
+      
+      // Play sound and mark as tested
+      sound.startMotorSound(motorId);
+      const motorIndex = parseInt(motorId.replace('motor', '')) - 1;
+      if (!isNaN(motorIndex)) get().setMotorTested(motorIndex, true);
+      
+      // Wait for motor to spool up, run, then spool down
+      setTimeout(() => {
+        if (!get().isTestingSequence) return;
+        
+        // Stop current motor
+        set((state) => ({
+          activeMotors: { ...state.activeMotors, [motorId]: false },
+          motorRPMs: { ...state.motorRPMs, [motorId]: 0 }
+        }));
+        sound.stopMotorSound(motorId);
+        
+        // Short delay before next motor
+        setTimeout(() => {
+          if (!get().isTestingSequence) return;
+          step++;
+          runNext();
+        }, 500); // Wait 500ms between motors
+      }, 3000); // Run each motor for 3 seconds
+    };
+    
+    // Start sequence
+    runNext();
   },
 
   stopAllMotors: () => {
     sound.stopAllMotors();
     set({
+      isTestingSequence: false,
+      activeTestMotor: null,
       activeMotors: {
         motor1: false,
         motor2: false,

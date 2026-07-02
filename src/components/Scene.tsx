@@ -134,7 +134,27 @@ function CameraController({ controlsRef, vrEye, floorGroupRef }: CameraControlle
         break;
       case 'orbit':
       default:
-        if (isExploded) {
+        const { activeTestMotor } = useDroneStore.getState();
+        if (activeTestMotor && currentMode === 'anatomy') {
+          // Smart focus on the active motor being tested
+          // Base offsets for motors scaled up for Anatomy mode
+          // FL: [-0.6, 0, 0.6], FR: [0.6, 0, 0.6], RR: [0.6, 0, -0.6], RL: [-0.6, 0, -0.6]
+          const scale = 18;
+          let mx = 0, mz = 0;
+          if (activeTestMotor === 'motor1') { mx = -0.6; mz = 0.6; } // FL
+          else if (activeTestMotor === 'motor2') { mx = 0.6; mz = 0.6; } // FR
+          else if (activeTestMotor === 'motor3') { mx = 0.6; mz = -0.6; } // RR
+          else if (activeTestMotor === 'motor4') { mx = -0.6; mz = -0.6; } // RL
+          
+          const worldX = mx * scale;
+          const worldZ = mz * scale;
+          
+          // Camera looks at the motor, slightly raised
+          targetLookAt.current.set(worldX, 1.0, worldZ);
+          // Position camera outside looking in
+          targetCamPos.current.set(worldX + (mx * 2.5), 3.5, worldZ + (mz * 2.5));
+          
+        } else if (isExploded) {
           targetCamPos.current.set(7.0, 5.0, 8.0);
           targetLookAt.current.set(0, 0.5, 0);
         } else {

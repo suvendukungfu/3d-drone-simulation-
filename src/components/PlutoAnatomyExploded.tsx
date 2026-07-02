@@ -596,6 +596,15 @@ export function PlutoAnatomyExploded() {
   useEffect(() => { injectStyles(); }, []);
 
   // Clone scene + materials so we can mutate them
+  const propRefs = useRef<{
+    motor1: THREE.Object3D[];
+    motor2: THREE.Object3D[];
+    motor3: THREE.Object3D[];
+    motor4: THREE.Object3D[];
+  }>({ motor1: [], motor2: [], motor3: [], motor4: [] });
+
+  const currentRPMs = useRef({ motor1: 0, motor2: 0, motor3: 0, motor4: 0 });
+
   const scene = useMemo(() => {
     const cloned = raw.clone(true);
     cloned.traverse((child) => {
@@ -698,6 +707,11 @@ export function PlutoAnatomyExploded() {
       mats.forEach((m) => {
         const sm = m as THREE.MeshStandardMaterial;
         if (sm.isMeshStandardMaterial) {
+          if (labelId === 'propFL' && child instanceof THREE.Mesh) propRefs.current.motor1.push(child);
+          if (labelId === 'propFR' && child instanceof THREE.Mesh) propRefs.current.motor2.push(child);
+          if (labelId === 'propRR' && child instanceof THREE.Mesh) propRefs.current.motor3.push(child);
+          if (labelId === 'propRL' && child instanceof THREE.Mesh) propRefs.current.motor4.push(child);
+
           list.push({
             material: sm,
             labelId,

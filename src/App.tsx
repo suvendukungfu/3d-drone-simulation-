@@ -87,6 +87,8 @@ function App() {
   const immersiveMode = useDroneStore((state) => state.immersiveMode);
   const vrMode = useDroneStore((state) => state.vrMode);
   const activeMotors = useDroneStore((state) => state.activeMotors);
+  const isTestingSequence = useDroneStore((state) => state.isTestingSequence);
+  const activeTestMotor = useDroneStore((state) => state.activeTestMotor);
   const motorRPMs = useDroneStore((state) => state.motorRPMs);
   const showRotationDirections = useDroneStore((state) => state.showRotationDirections);
   const isAcademyMode = useDroneStore((state) => state.isAcademyMode);
@@ -745,14 +747,17 @@ function App() {
                            <div key={id} className="anatomy-motor-row">
                             <button
                               onClick={() => toggleMotor(id)}
+                              disabled={isTestingSequence}
                               className={`flex-1 flex justify-between items-center anatomy-motor-btn rounded-lg border text-xs font-bold uppercase tracking-wider transition ${
-                                active 
-                                  ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-[0_4px_12px_rgba(249,115,22,0.08)] dark:bg-orange-950/30 dark:border-orange-500 dark:text-orange-400' 
-                                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
-                              }`}
+                                activeTestMotor === id
+                                  ? 'bg-blue-50 border-blue-500 text-blue-600 shadow-[0_4px_12px_rgba(59,130,246,0.15)] dark:bg-blue-900/40 dark:border-blue-400 dark:text-blue-300'
+                                  : active 
+                                    ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-[0_4px_12px_rgba(249,115,22,0.08)] dark:bg-orange-950/30 dark:border-orange-500 dark:text-orange-400' 
+                                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
+                              } ${isTestingSequence && activeTestMotor !== id ? 'opacity-50' : 'opacity-100'}`}
                             >
                               <span>Motor {motorLetter} ({cornerNames[index]})</span>
-                              <span className="text-[9px] font-mono opacity-80">{active ? 'RUNNING' : 'STOPPED'}</span>
+                              <span className="text-[9px] font-mono opacity-80">{activeTestMotor === id ? 'TESTING' : active ? 'RUNNING' : 'STOPPED'}</span>
                             </button>
                             {active && (
                               <div className="anatomy-motor-rpm">
@@ -769,9 +774,17 @@ function App() {
                     <div className={isMobile ? 'anatomy-sticky-actions' : 'grid grid-cols-2 gap-2 pt-1.5'}>
                       <button
                         onClick={testAllMotors}
-                        className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase rounded-lg transition"
+                        disabled={isTestingSequence}
+                        className={`py-2.5 text-white text-xs font-bold uppercase rounded-lg transition ${
+                          isTestingSequence ? 'bg-blue-400 cursor-not-allowed flex items-center justify-center gap-2' : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
                       >
-                        Test All
+                        {isTestingSequence ? (
+                          <>
+                            <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Testing...
+                          </>
+                        ) : 'Test All'}
                       </button>
                       <button
                         onClick={stopAllMotors}
