@@ -1,8 +1,11 @@
 export const MSP = Object.freeze({
-  SET_RAW_RC: 200,
+  IDENT: 100,
+  STATUS: 101,
+  RAW_IMU: 102,
   ATTITUDE: 108,
   ALTITUDE: 109,
   ANALOG: 110,
+  SET_RAW_RC: 200,
   FLIGHT_STATUS: 255,
 });
 
@@ -188,6 +191,42 @@ export function buildFlightStatusPayload(status) {
   return payload;
 }
 
+export function buildIdentPayload() {
+  const payload = Buffer.alloc(7);
+  payload.writeUInt8(230, 0); // version (MultiWii 2.30)
+  payload.writeUInt8(3, 1); // multitype (QUADX)
+  payload.writeUInt8(0, 2); // msp_version (0)
+  payload.writeUInt32LE(0, 3); // capability (0)
+  return payload;
+}
+
+export function buildStatusPayload(telemetry = {}) {
+  const payload = Buffer.alloc(11);
+  payload.writeUInt16LE(1000, 0); // cycleTime (1000μs)
+  payload.writeUInt16LE(0, 2); // i2c_errors_count (0)
+  payload.writeUInt16LE(15, 4); // active sensors (15 = Acc, Gyro, Mag, Baro)
+  payload.writeUInt32LE(telemetry.status ?? 8, 6); // flight mode flags
+  payload.writeUInt8(0, 10); // profile index (0)
+  return payload;
+}
+
+export function buildRawImuPayload() {
+  const payload = Buffer.alloc(18);
+  // Acc (x, y, z)
+  payload.writeInt16LE(0, 0);
+  payload.writeInt16LE(0, 2);
+  payload.writeInt16LE(512, 4); // Acc Z = 512 (1G)
+  // Gyro (x, y, z)
+  payload.writeInt16LE(0, 6);
+  payload.writeInt16LE(0, 8);
+  payload.writeInt16LE(0, 10);
+  // Mag (x, y, z)
+  payload.writeInt16LE(0, 12);
+  payload.writeInt16LE(0, 14);
+  payload.writeInt16LE(0, 16);
+  return payload;
+}
+
 export function buildAnalogPayload(telemetry = {}) {
   const payload = Buffer.alloc(10);
   payload.writeUInt16LE(clampInt(telemetry.vbat ?? 370, 0, 0xffff), 0);
@@ -216,6 +255,12 @@ export function buildAltitudePayload(telemetry = {}) {
 
 export function buildTelemetryResponse(command, telemetry = {}) {
   switch (command) {
+    case MSP.IDENT:
+      return buildMspFrame('>', command, buildIdentPayload());
+    case MSP.STATUS:
+      return buildMspFrame('>', command, buildStatusPayload(telemetry));
+    case MSP.RAW_IMU:
+      return buildMspFrame('>', command, buildRawImuPayload());
     case MSP.FLIGHT_STATUS:
       return buildMspFrame('>', command, buildFlightStatusPayload(telemetry.status ?? 8));
     case MSP.ANALOG:

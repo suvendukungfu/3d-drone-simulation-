@@ -105,4 +105,24 @@ describe('MSP v1 frame helpers', () => {
     const badFrame = Buffer.from('244d3e02ff080000', 'hex');
     assert.throws(() => parseMspFrame(badFrame), /checksum/i);
   });
+
+  it('builds valid IDENT, STATUS, and RAW_IMU handshake payloads', () => {
+    const ident = buildTelemetryResponse(MSP.IDENT);
+    const parsedIdent = parseMspFrame(ident);
+    assert.equal(parsedIdent.length, 7);
+    assert.equal(parsedIdent.payload.readUInt8(0), 230);
+    assert.equal(parsedIdent.payload.readUInt8(1), 3);
+
+    const status = buildTelemetryResponse(MSP.STATUS, { status: 8 });
+    const parsedStatus = parseMspFrame(status);
+    assert.equal(parsedStatus.length, 11);
+    assert.equal(parsedStatus.payload.readUInt16LE(0), 1000);
+    assert.equal(parsedStatus.payload.readUInt16LE(4), 15);
+    assert.equal(parsedStatus.payload.readUInt32LE(6), 8);
+
+    const rawImu = buildTelemetryResponse(MSP.RAW_IMU);
+    const parsedRawImu = parseMspFrame(rawImu);
+    assert.equal(parsedRawImu.length, 18);
+    assert.equal(parsedRawImu.payload.readInt16LE(4), 512);
+  });
 });

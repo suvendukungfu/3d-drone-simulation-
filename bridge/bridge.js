@@ -64,6 +64,70 @@ const safeJson = (raw) => {
   }
 };
 
+const isDev = process.env.NODE_ENV !== 'production' || logFrames;
+
+function logMspPacket(direction, command, payload, parsedData = null) {
+  if (!isDev) return;
+
+  if (direction === '<') {
+    if (command === MSP.SET_RAW_RC && parsedData) {
+      console.log(
+        `[tcp] IN: MSP_SET_RAW_RC (200) | roll=${parsedData.roll} pitch=${parsedData.pitch} ` +
+        `thr=${parsedData.throttle} yaw=${parsedData.yaw} aux4=${parsedData.aux4}`
+      );
+    } else {
+      console.log(`[tcp] IN: REQ command=${command} len=${payload.length}`);
+    }
+  } else {
+    switch (command) {
+      case MSP.FLIGHT_STATUS: {
+        const status = payload.readUInt16LE(0);
+        console.log(`[tcp] OUT: MSP_FLIGHT_STATUS (255) | status=${status}`);
+        break;
+      }
+      case MSP.ANALOG: {
+        const vbat = payload.readUInt16LE(0);
+        const soc = payload.readUInt8(8);
+        console.log(`[tcp] OUT: MSP_ANALOG (110) | vbat=${vbat} soc=${soc}%`);
+        break;
+      }
+      case MSP.ATTITUDE: {
+        const roll = payload.readInt16LE(0) / 10;
+        const pitch = payload.readInt16LE(2) / 10;
+        const yaw = payload.readInt16LE(4);
+        console.log(`[tcp] OUT: MSP_ATTITUDE (108) | roll=${roll}° pitch=${pitch}° yaw=${yaw}°`);
+        break;
+      }
+      case MSP.ALTITUDE: {
+        const alt = payload.readInt32LE(0) / 100;
+        const vspeed = payload.readInt16LE(4) / 100;
+        console.log(`[tcp] OUT: MSP_ALTITUDE (109) | altitude=${alt}m vspeed=${vspeed}m/s`);
+        break;
+      }
+      case MSP.IDENT: {
+        const version = payload.readUInt8(0);
+        const multitype = payload.readUInt8(1);
+        console.log(`[tcp] OUT: MSP_IDENT (100) | version=${version} multitype=${multitype}`);
+        break;
+      }
+      case MSP.STATUS: {
+        const cycleTime = payload.readUInt16LE(0);
+        const sensors = payload.readUInt16LE(4);
+        const flags = payload.readUInt32LE(6);
+        console.log(`[tcp] OUT: MSP_STATUS (101) | cycleTime=${cycleTime}μs sensors=${sensors} flags=${flags}`);
+        break;
+      }
+      case MSP.RAW_IMU: {
+        const accZ = payload.readInt16LE(4);
+        console.log(`[tcp] OUT: MSP_RAW_IMU (102) | accZ=${accZ}`);
+        break;
+      }
+      default:
+        console.log(`[tcp] OUT: ACK command=${command} len=${payload.length}`);
+    }
+  }
+}
+
 const wss = new WebSocketServer({ host: wsHost, port: wsPort });
 
 function broadcastJson(message, exceptSocket = null) {
@@ -130,10 +194,6 @@ const tcpServer = net.createServer((socket) => {
 
   const parser = new MspStreamParser({
     onFrame: (frame) => {
-      if (logFrames) {
-        console.log(`[tcp] MSP dir=${frame.direction} cmd=${frame.command} len=${frame.length}`);
-      }
-
       if (frame.direction !== '<') {
         return;
       }
@@ -141,15 +201,26 @@ const tcpServer = net.createServer((socket) => {
       if (frame.command === MSP.SET_RAW_RC) {
         try {
           latestRc = parseRawRcPayload(frame.payload);
+          logMspPacket('<', frame.command, frame.payload, latestRc);
           broadcastJson({ type: 'RC_INPUT', data: latestRc });
+
+          const response = buildTelemetryResponse(frame.command, latestTelemetry);
+          socket.write(response);
+          const payloadLength = response[3];
+          const payloadBuffer = response.subarray(5, 5 + payloadLength);
+          logMspPacket('>', frame.command, payloadBuffer);
         } catch (error) {
           console.warn(`[tcp] invalid MSP_SET_RAW_RC payload: ${error.message}`);
         }
         return;
       }
 
+      logMspPacket('<', frame.command, frame.payload);
       const response = buildTelemetryResponse(frame.command, latestTelemetry);
       socket.write(response);
+      const payloadLength = response[3];
+      const payloadBuffer = response.subarray(5, 5 + payloadLength);
+      logMspPacket('>', frame.command, payloadBuffer);
     },
     onError: (error) => {
       console.warn(`[tcp] MSP parse error: ${error.message}`);
