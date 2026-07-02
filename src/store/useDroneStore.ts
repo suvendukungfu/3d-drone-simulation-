@@ -312,6 +312,11 @@ interface DroneState {
   setFlightSimModalOpen: (open: boolean) => void;
   isARActive: boolean;
   setARActive: (active: boolean) => void;
+  // Diagnostics & Simulation Features
+  isMotorTestActive: boolean;
+  setMotorTestActive: (active: boolean) => void;
+  postLandingActive: boolean;
+  setPostLandingActive: (active: boolean) => void;
   gyroPilot: boolean;
   setGyroPilot: (val: boolean) => void;
   gyroSensitivity: number;
@@ -916,6 +921,11 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   setModelDiagnostics: (diagnostics) => set({ modelDiagnostics: diagnostics }),
   setDroneSpawnDiagnostics: (diagnostics) => set({ droneSpawnDiagnostics: diagnostics }),
   setDroneInitFailed: (failed) => set({ droneInitFailed: failed }),
+  // Diagnostics & Simulation
+  isMotorTestActive: false,
+  setMotorTestActive: (active) => set({ isMotorTestActive: active }),
+  postLandingActive: false,
+  setPostLandingActive: (active) => set({ postLandingActive: active }),
   toggleSpawnDebugMode: () => set((state) => ({ isSpawnDebugMode: !state.isSpawnDebugMode })),
   
   // --- LEVEL PROGRESSION & MODAL ACTIONS ---

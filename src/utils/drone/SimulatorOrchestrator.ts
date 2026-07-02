@@ -9,6 +9,7 @@ import { WindSimulation } from './WindSimulation';
 import { FlightPerformanceAnalyzer } from './FlightPerformanceAnalyzer';
 import { RawRcInput, RigidBodyState, TelemetryData } from './types';
 import { useDroneStore } from '../../store/useDroneStore';
+import { sound } from '../soundController';
 
 export class SimulatorOrchestrator {
   // Core Engines
@@ -274,6 +275,7 @@ export class SimulatorOrchestrator {
       store.addNotification('Motors Armed', 'success');
       store.addNotification('Ready For Takeoff', 'info');
     }
+    sound.playArm();
   }
   
   public disarm(): void {
@@ -299,9 +301,24 @@ export class SimulatorOrchestrator {
       store.addNotification('Drone Disarmed', 'info');
       if (isSoft && this.hasTakenOff) {
         store.addNotification('SAFE LANDING', 'success');
+        this.armPosition.copy(this.state.position);
+        
+        // Trigger post-landing workflow dialog via store
+        if (store.setPostLandingActive) {
+          store.setPostLandingActive(true);
+        }
+      } else {
+        this.armPosition.set(0, 0, 0);
+      }
+    } else {
+      if (isSoft && this.hasTakenOff) {
+        this.armPosition.copy(this.state.position);
+      } else {
+        this.armPosition.set(0, 0, 0);
       }
     }
     this.hasTakenOff = false;
+    sound.playDisarm();
   }
 
   private checkSafetyForTakeoff(showNotification: boolean): boolean {
@@ -559,10 +576,10 @@ export class SimulatorOrchestrator {
       let type: 'front' | 'back' | 'left' | 'right' = 'front';
       
       if (stick.pitch > 0.7) {
-        type = 'front';
+        type = 'back';
         triggered = true;
       } else if (stick.pitch < -0.7) {
-        type = 'back';
+        type = 'front';
         triggered = true;
       } else if (stick.roll < -0.7) {
         type = 'left';
@@ -578,6 +595,8 @@ export class SimulatorOrchestrator {
         this.flipType = type;
         this.flipTimer = 0.0;
         this.flipStartQuaternion.copy(this.state.quaternion);
+        // Pre-flip altitude bump (approx 30cm) to counteract gravity during the flip
+        this.state.velocity.y += 3.0;
         
         const store = useDroneStore.getState() as any;
         if (store.addNotification) {
@@ -767,6 +786,20 @@ export class SimulatorOrchestrator {
     if (this.isFlipping) {
       this.flipTimer += dt;
       const p = Math.min(1.0, this.flipTimer / this.flipDuration);
+      
+      // Dynamic motor spooling simulation during flip for authentic audio
+      const activeThrust = 1.0;
+      const inactiveThrust = 0.1;
+      if (this.flipType === 'front') {
+        this.motorCommands = [inactiveThrust, inactiveThrust, activeThrust, activeThrust];
+      } else if (this.flipType === 'back') {
+        this.motorCommands = [activeThrust, activeThrust, inactiveThrust, inactiveThrust];
+      } else if (this.flipType === 'left') {
+        this.motorCommands = [inactiveThrust, activeThrust, inactiveThrust, activeThrust];
+      } else if (this.flipType === 'right') {
+        this.motorCommands = [activeThrust, inactiveThrust, activeThrust, inactiveThrust];
+      }
+      
       const axis = new THREE.Vector3();
       if (this.flipType === 'front') axis.set(-1, 0, 0);
       else if (this.flipType === 'back') axis.set(1, 0, 0);
@@ -779,9 +812,16 @@ export class SimulatorOrchestrator {
       this.state.angularVelocity.set(0, 0, 0);
       
       if (p >= 1.0) {
+        this.state.quaternion.copy(this.flipStartQuaternion); // ensure perfect final orientation
         this.isFlipping = false;
         this.flipType = null;
         this.flipTimer = 0.0;
+        
+        // Hover recovery: stop rotational and linear momentum
+        this.state.angularVelocity.set(0, 0, 0);
+        this.state.velocity.x *= 0.1;
+        this.state.velocity.y *= 0.1;
+        this.state.velocity.z *= 0.1;
         const sensorDataForAlt = this.sensors.update(this.state, this.linearAcceleration, 0);
         this.controller.setAltitudeLock(sensorDataForAlt.baroAltitude);
       }
@@ -857,6 +897,7 @@ export class SimulatorOrchestrator {
     
     if (!this.isFlipping && (rollAngle > 1.36 || pitchAngle > 1.36)) {
       this.crashDetected = true;
+      sound.playCrash();
       if (store.addNotification) {
         store.addNotification('CRASH DETECTED', 'error');
         store.addNotification('MOTORS DISARMED', 'info');
@@ -880,6 +921,7 @@ export class SimulatorOrchestrator {
         // Stage 5: Crash Event
         const alertText = 'CRASH DETECTED';
         this.crashDetected = true;
+        sound.playCrash();
         if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
           store.addNotification(alertText, 'error');
           store.addNotification('MOTORS DISARMED', 'info');
@@ -938,6 +980,7 @@ export class SimulatorOrchestrator {
         // CRASH LANDING
         this.hardLanding = true;
         this.crashDetected = true;
+        sound.playCrash();
         const alertText = 'CRASH LANDING';
         if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
           store.addNotification(alertText, 'error');

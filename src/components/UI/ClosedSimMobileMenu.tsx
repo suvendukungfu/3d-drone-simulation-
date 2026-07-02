@@ -549,10 +549,12 @@ export function ClosedSimMobileMenu({
   }, []);
 
   const telemetry = useDroneStore((s) => s.telemetry);
-  const flightEnvironment = useDroneStore((s) => s.flightEnvironment);
-  const setFlightEnvironment = useDroneStore((s) => s.setFlightEnvironment);
   const flightCameraView = useDroneStore((s) => s.flightCameraView);
+  const flightEnvironment = useDroneStore((s) => s.flightEnvironment);
   const setFlightCameraView = useDroneStore((s) => s.setFlightCameraView);
+  const setFlightEnvironment = useDroneStore((s) => s.setFlightEnvironment);
+  const postLandingActive = useDroneStore((s) => s.postLandingActive);
+  const setPostLandingActive = useDroneStore((s) => s.setPostLandingActive);
   const showTelemetryDashboard = useDroneStore((s) => s.showTelemetryDashboard);
   const toggleTelemetryDashboard = useDroneStore((s) => s.toggleTelemetryDashboard);
   const showControlsOverlay = useDroneStore((s) => s.showControlsOverlay);
@@ -1662,6 +1664,57 @@ export function ClosedSimMobileMenu({
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Post Landing Workflow Dialog */}
+      <AnimatePresence>
+        {postLandingActive && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => {}}
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-sm bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl overflow-hidden p-6"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
+                  <Shield className="w-6 h-6 text-green-400" />
+                </div>
+                <h2 className="text-xl font-bold text-white mb-2">Safe Landing</h2>
+                <p className="text-sm text-slate-400 mb-6">
+                  The drone has been disarmed and secured at its current location.
+                </p>
+                <div className="flex flex-col gap-3 w-full">
+                  <button
+                    onClick={() => {
+                      setPostLandingActive(false);
+                      onTakeoff?.(); // Or just arm depending on implementation, but user said 'Continue Flight (re-arm)'
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-colors text-sm shadow-[0_0_15px_rgba(37,99,235,0.4)]"
+                  >
+                    Continue Flight
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPostLandingActive(false);
+                      handleResetWithTimer();
+                    }}
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors border border-slate-700 text-sm"
+                  >
+                    Reset to Home
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </>
