@@ -923,7 +923,7 @@ function App() {
         </AnimatePresence>
 
         {/* DYNAMIC TELEMETRY HUD & DASHBOARD OVERLAY (Visible in Flight mode) */}
-        {currentMode === 'flight' && (
+        {currentMode === 'flight' && !isARActive && (
           <TelemetryDashboard 
             onReset={handleResetSimulator}
             onCalibrate={handleCalibrateSensors}
@@ -940,7 +940,7 @@ function App() {
             onFlip={() => orchestratorRef.current?.toggleFlipArmed()}
           />
         )}
-        {currentMode === 'flight' && (
+        {currentMode === 'flight' && !isARActive && (
           <InteractiveTutorial telemetry={telemetry} stickState={stickState} />
         )}
       </div>      {/* 4. RIGHT SIDEBAR: Avionics Info Inspector (Only in Avionics Lab mode) */}
@@ -1273,7 +1273,7 @@ function App() {
       <VirtualJoysticks orchestrator={orchestratorRef.current!} />
 
       {/* PLUTO CONTROLLER MOBILE MENU (Closed Simulation only, mobile only) */}
-      {currentMode === 'flight' && (
+      {currentMode === 'flight' && !isARActive && (
         <ClosedSimMobileMenu
           onReset={handleResetSimulator}
           onToggleAltHold={handleToggleAltHold}
@@ -1293,7 +1293,7 @@ function App() {
 
       {/* 9. PORTRAIT ORIENTATION LOCK OVERLAY FOR MOBILE/TABLET FLIGHT SIMULATOR */}
       <AnimatePresence>
-        {currentMode === 'flight' && isPortraitMobile && (
+        {currentMode === 'flight' && !isARActive && isPortraitMobile && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

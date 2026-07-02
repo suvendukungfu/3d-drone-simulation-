@@ -115,6 +115,8 @@ export default function VirtualJoysticks({ orchestrator }: { orchestrator?: Simu
   const closedEnvs = ['room', 'lab', 'classroom', 'warehouse'] as const;
   const isClosedSim = closedEnvs.includes(flightEnvironment as any);
 
+  const isARActive = useDroneStore((state) => state.isARActive);
+
   const leftStick = useRef({ x: 0, y: 0 });
   const rightStick = useRef({ x: 0, y: 0 });
 
@@ -124,7 +126,7 @@ export default function VirtualJoysticks({ orchestrator }: { orchestrator?: Simu
     };
   }, [orchestrator]);
 
-  if (currentMode !== 'flight' || !showControlsOverlay || isClosedSim) return null;
+  if (currentMode !== 'flight' || !showControlsOverlay || isClosedSim || isARActive) return null;
 
   const handleLeftStick = (nx: number, ny: number) => {
     leftStick.current = { x: nx, y: ny };
