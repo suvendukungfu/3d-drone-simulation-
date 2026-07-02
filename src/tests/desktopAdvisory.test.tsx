@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { expect, test, describe, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
@@ -31,7 +31,7 @@ vi.mock('../PlutoXModel', () => ({
   PlutoXModel: () => React.createElement('div', { 'data-testid': 'mock-plutox' }, 'Mock PlutoX Model')
 }));
 
-describe('ARSimulator Desktop Advisory Tests', () => {
+describe('ARSimulator Desktop Inline Warning Tests', () => {
   let originalUserAgent: string;
 
   beforeEach(() => {
@@ -74,7 +74,7 @@ describe('ARSimulator Desktop Advisory Tests', () => {
     vi.unstubAllEnvs();
   });
 
-  test('Renders desktop warning modal when user is on a Desktop device', async () => {
+  test('Renders desktop inline warning banner when user is on a Desktop device', async () => {
     // Stub a desktop user agent (no Android/iPhone/iPad/iPod)
     vi.stubGlobal('navigator', {
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -83,14 +83,14 @@ describe('ARSimulator Desktop Advisory Tests', () => {
 
     render(<ARSimulator />);
 
-    // Verify advisory elements are present
-    expect(screen.getByText(/AR Experience Works Best on Mobile/i)).toBeInTheDocument();
-    expect(screen.getByText(/Feature Support Status/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Switch to Closed Simulator/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Continue with Desktop Preview/i })).toBeInTheDocument();
+    // Verify checklist lobby is immediately visible
+    expect(screen.getByText(/Hardware \/ Sensor Calibration Checklist/i)).toBeInTheDocument();
+
+    // Verify inline desktop advisory banner is present
+    expect(screen.getByText(/desktop preview mode active/i)).toBeInTheDocument();
   });
 
-  test('Bypasses warning modal when user is on a Mobile device', async () => {
+  test('Bypasses warning banner when user is on a Mobile device', async () => {
     // Stub a mobile user agent
     vi.stubGlobal('navigator', {
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
@@ -99,50 +99,10 @@ describe('ARSimulator Desktop Advisory Tests', () => {
 
     render(<ARSimulator />);
 
-    // Warning should NOT be present
-    expect(screen.queryByText(/AR Experience Works Best on Mobile/i)).not.toBeInTheDocument();
-
     // Checklist lobby should be displayed
     expect(screen.getByText(/Hardware \/ Sensor Calibration Checklist/i)).toBeInTheDocument();
-  });
 
-  test('Clicking "Switch to Closed Simulator" correctly updates global store state', async () => {
-    // Stub desktop
-    vi.stubGlobal('navigator', {
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-      mediaDevices: navigator.mediaDevices
-    });
-
-    render(<ARSimulator />);
-
-    const switchBtn = screen.getByRole('button', { name: /Switch to Closed Simulator/i });
-    fireEvent.click(switchBtn);
-
-    const state = useDroneStore.getState();
-    expect(state.isARActive).toBe(false);
-    expect(state.currentMode).toBe('flight');
-    expect(state.activeMissionIndex).toBe(-1);
-    expect(state.isAcademyMode).toBe(false);
-    expect(state.isAcademyOpen).toBe(false);
-  });
-
-  test('Clicking "Continue with Desktop Preview" dismisses the modal and shows the lobby', async () => {
-    // Stub desktop
-    vi.stubGlobal('navigator', {
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-      mediaDevices: navigator.mediaDevices
-    });
-
-    render(<ARSimulator />);
-
-    // Click continue
-    const continueBtn = screen.getByRole('button', { name: /Continue with Desktop Preview/i });
-    fireEvent.click(continueBtn);
-
-    // Advisory warning should be gone
-    expect(screen.queryByText(/AR Experience Works Best on Mobile/i)).not.toBeInTheDocument();
-
-    // Standard lobby should now be visible
-    expect(screen.getByText(/Hardware \/ Sensor Calibration Checklist/i)).toBeInTheDocument();
+    // Inline desktop warning banner should NOT be present
+    expect(screen.queryByText(/desktop preview mode active/i)).not.toBeInTheDocument();
   });
 });
