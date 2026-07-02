@@ -282,10 +282,8 @@ export class SimulatorOrchestrator {
     if (!this.isArmed) return;
     console.trace('disarm called');
     
-    // Check for safe landing
-    const altitude = this.state.position.y - this.physics.environmentBounds.minY;
-    const vSpeed = this.state.velocity.y;
-    const isSoft = altitude < 0.02 && vSpeed > -0.8;
+    // Check for safe landing (non-crash)
+    const isSoft = !this.crashDetected;
     
     this.isArmed = false;
     this.motorCommands = [0, 0, 0, 0];
@@ -300,7 +298,7 @@ export class SimulatorOrchestrator {
     if (store.addNotification) {
       store.addNotification('Drone Disarmed', 'info');
       if (isSoft && this.hasTakenOff) {
-        store.addNotification('SAFE LANDING', 'success');
+        store.addNotification('TOUCHDOWN DETECTED', 'success');
         this.armPosition.copy(this.state.position);
         
         // Trigger post-landing workflow dialog via store
@@ -663,7 +661,11 @@ export class SimulatorOrchestrator {
     // Check for landing touchdown
     if (this.isArmed && this.isLandingActive) {
       const altitude = this.state.position.y - this.physics.environmentBounds.minY;
-      if (altitude <= 0.01 || (this.physics.lastCollision && this.physics.lastCollision.collided && this.physics.lastCollision.obstacleName === 'Ground')) {
+      const hitGroundRays = this.physics.getRaycastDistance(this.state) <= 0.06;
+      const hitGroundCollision = (this.physics.lastCollision && this.physics.lastCollision.collided && this.physics.lastCollision.obstacleName === 'Ground');
+      const isCloseToGround = altitude <= 0.04 || this.state.position.y <= this.physics.environmentBounds.minY + 0.04;
+      
+      if (isCloseToGround || hitGroundCollision || hitGroundRays) {
         this.disarm();
         
         // Return to disarmed on ground
@@ -997,13 +999,7 @@ export class SimulatorOrchestrator {
           store.addNotification(alertText, 'warning');
         }
         if (this.hasTakenOff) {
-          this.hasTakenOff = false;
-          this.isLandingActive = false;
-          this.controller.isLandingActive = false;
-          if (store.addNotification) {
-            store.addNotification('Motors Armed', 'success');
-            store.addNotification('Ready For Takeoff', 'info');
-          }
+          this.disarm(); // Disarm immediately to prevent bouncing
         }
       } else {
         // SAFE LANDING
