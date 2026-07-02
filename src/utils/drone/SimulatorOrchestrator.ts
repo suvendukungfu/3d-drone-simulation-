@@ -301,8 +301,12 @@ export class SimulatorOrchestrator {
         store.addNotification('TOUCHDOWN DETECTED', 'success');
         this.armPosition.copy(this.state.position);
         
-        // Trigger post-landing workflow dialog via store
-        if (store.setPostLandingActive) {
+        // Trigger post-landing workflow dialog via store only if landed on target pad (3.0, 3.5)
+        const targetMat = new THREE.Vector2(3.0, 3.5);
+        const distTarget = new THREE.Vector2(this.state.position.x, this.state.position.z).distanceTo(targetMat);
+        const landedOnTarget = distTarget <= 0.65;
+
+        if (landedOnTarget && store.setPostLandingActive) {
           store.setPostLandingActive(true);
         }
       } else {
