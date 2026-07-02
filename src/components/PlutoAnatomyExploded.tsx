@@ -669,6 +669,32 @@ export function PlutoAnatomyExploded() {
         targetEmissiveIntensity = 0.02;
       }
 
+      // Special overrides for diagnostic test active motor highlighting
+      const { activeTestMotor } = useDroneStore.getState();
+      if (activeTestMotor) {
+        // When diagnostic test is running, dim everything EXCEPT the active motor and its prop
+        const activeMotorLabel = activeTestMotor === 'motor1' ? 'motorFL' :
+                                 activeTestMotor === 'motor2' ? 'motorFR' :
+                                 activeTestMotor === 'motor3' ? 'motorRR' :
+                                 activeTestMotor === 'motor4' ? 'motorRL' : null;
+                                 
+        const activePropLabel = activeTestMotor === 'motor1' ? 'propFL' :
+                                activeTestMotor === 'motor2' ? 'propFR' :
+                                activeTestMotor === 'motor3' ? 'propRR' :
+                                activeTestMotor === 'motor4' ? 'propRL' : null;
+
+        if (labelId === activeMotorLabel || labelId === activePropLabel) {
+          // Highlight active motor components
+          targetOpacity = 1.0;
+          targetEmissiveColor = new THREE.Color('#3b82f6'); // Blue glow
+          targetEmissiveIntensity = 1.2;
+        } else {
+          // Dim inactive components heavily during testing
+          targetOpacity = Math.min(targetOpacity, 0.1);
+          targetEmissiveIntensity = 0;
+        }
+      }
+
       const targetDepthWrite = targetOpacity > 0.5;
       if (material.transparent !== true) material.transparent = true;
       if (material.depthWrite !== targetDepthWrite) material.depthWrite = targetDepthWrite;
@@ -680,6 +706,26 @@ export function PlutoAnatomyExploded() {
         targetEmissiveIntensity,
         lerpSpeed
       );
+    });
+
+    // Spin Propellers based on motorRPMs state
+    const { motorRPMs } = useDroneStore.getState();
+    const rpmKeys: (keyof typeof motorRPMs)[] = ['motor1', 'motor2', 'motor3', 'motor4'];
+    
+    // Rotation directions based on Pluto configuration
+    // motor1(FL)=CCW(-), motor2(FR)=CW(+), motor3(RR)=CCW(-), motor4(RL)=CW(+)
+    const directions = { motor1: -1, motor2: 1, motor3: -1, motor4: 1 };
+    
+    rpmKeys.forEach((key) => {
+      // Lerp current RPM towards target RPM for smooth spool up/down
+      currentRPMs.current[key] = THREE.MathUtils.lerp(currentRPMs.current[key], motorRPMs[key], delta * 4);
+      
+      const speed = (currentRPMs.current[key] / 60) * Math.PI * 2 * delta;
+      const rotDelta = speed * directions[key];
+      
+      propRefs.current[key].forEach((mesh) => {
+        mesh.rotateY(rotDelta);
+      });
     });
   });
 

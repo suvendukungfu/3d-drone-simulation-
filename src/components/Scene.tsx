@@ -135,7 +135,7 @@ function CameraController({ controlsRef, vrEye, floorGroupRef }: CameraControlle
       case 'orbit':
       default:
         const { activeTestMotor } = useDroneStore.getState();
-        if (activeTestMotor && currentMode === 'anatomy') {
+        if (activeTestMotor && isExploded) {
           // Smart focus on the active motor being tested
           // Base offsets for motors scaled up for Anatomy mode
           // FL: [-0.6, 0, 0.6], FR: [0.6, 0, 0.6], RR: [0.6, 0, -0.6], RL: [-0.6, 0, -0.6]
