@@ -675,6 +675,10 @@ body.mobile-menu-open .virtual-joysticks {
   .desktop-only-menu-btn {
     display: none !important;
   }
+
+  .desktop-notifications-stack {
+    display: none !important;
+  }
 }
 
 /* Glassmorphism System */

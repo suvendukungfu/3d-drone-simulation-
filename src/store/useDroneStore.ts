@@ -781,10 +781,22 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   },
 
   addNotification: (text, type = 'info') => {
+    const active = get().notifications;
+    // Deduplicate: ignore if exact same text is already showing to prevent spam
+    if (active.some((n) => n.text === text)) {
+      return;
+    }
+
     const id = Math.random().toString(36).substring(2, 9);
-    set((state) => ({
-      notifications: [...state.notifications, { id, text, type }]
-    }));
+    set((state) => {
+      const nextList = [...state.notifications, { id, text, type }];
+      // FIFO: Cap at maximum 3 notifications to prevent vertical layout clutter
+      if (nextList.length > 3) {
+        nextList.shift();
+      }
+      return { notifications: nextList };
+    });
+
     setTimeout(() => {
       set((state) => ({
         notifications: state.notifications.filter((n) => n.id !== id)

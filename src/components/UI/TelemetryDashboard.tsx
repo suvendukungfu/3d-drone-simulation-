@@ -202,7 +202,7 @@ export function TelemetryDashboard({
       
       {/* Toast Notification Stack */}
       {notifications.length > 0 && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col gap-2 items-center">
+        <div className="desktop-notifications-stack absolute top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col gap-2 items-center">
           {notifications.map((n) => {
             let bg = 'bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-100 shadow-md';
             let icon = <Info className="w-4 h-4 text-blue-500 dark:text-blue-400" />;
