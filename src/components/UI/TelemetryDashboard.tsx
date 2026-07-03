@@ -431,24 +431,7 @@ export function TelemetryDashboard({
         </div>
       </div>
 
-      {/* 2. DYNAMIC SCREEN WARNING FLASHER (CENTER SCREEN) */}
-      <div className="flex-1 flex flex-col justify-center items-center pointer-events-none">
-        {warnings.length > 0 && (
-          <div className="space-y-2.5 flex flex-col items-center">
-            {warnings.map((warn) => (
-              <div 
-                key={warn} 
-                className="bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-900 px-4 py-2 md:px-6 md:py-3 rounded-xl md:rounded-2xl flex items-center gap-2 md:gap-3 shadow-[0_10px_30px_rgba(239,68,68,0.1)] animate-pulse"
-              >
-                <ShieldAlert className="w-4 h-4 md:w-6 md:h-6 text-red-655 dark:text-red-400" />
-                <span className="text-xs md:text-sm font-bold text-red-800 dark:text-red-300 font-mono tracking-widest uppercase">
-                  ALERT: {warn}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+
       {/* Collapsible Digital Twin AppLink Panel */}
       {!isClosedSimulation && (
         <div 
