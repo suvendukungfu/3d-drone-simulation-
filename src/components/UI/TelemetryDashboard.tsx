@@ -37,7 +37,6 @@ export function TelemetryDashboard({
   onFlip
 }: TelemetryDashboardProps) {
   const telemetry = useDroneStore((state) => state.telemetry);
-  const warnings = useDroneStore((state) => state.warnings);
   const flightEnvironment = useDroneStore((state) => state.flightEnvironment);
   const showTelemetryDashboard = useDroneStore((state) => state.showTelemetryDashboard);
   const closedEnvs = ['room', 'lab', 'classroom', 'warehouse'];
