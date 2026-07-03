@@ -47,8 +47,7 @@ export interface BatterySnapshot {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-/** Nominal capacity of a PlutoX 1S LiHV pouch cell (mAh) */
-const CAPACITY_MAH = 550;
+
 
 /** Fully charged LiHV voltage */
 const FULL_VOLTAGE = 4.35;
@@ -136,7 +135,7 @@ export class BatteryModel {
    * @param dt            - Frame delta time in seconds.
    * @returns             - Full BatterySnapshot for this frame.
    */
-  public update(motorCommands: number[], isArmed: boolean, dt: number): BatterySnapshot {
+  public update(motorCommands: number[], isArmed: boolean, _dt: number): BatterySnapshot {
     // ── 1. Estimate current draw ─────────────────────────────────────────────
     let currentA = 0;
     if (isArmed) {
