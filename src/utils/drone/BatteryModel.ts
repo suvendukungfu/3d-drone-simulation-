@@ -145,10 +145,9 @@ export class BatteryModel {
     }
 
     // ── 2. Integrate charge (Coulomb counting) ───────────────────────────────
-    // Coulomb counting: integrate mAh consumed and derive SoC
-    const deltaAh = currentA * (dt / 3600); // seconds → hours
-    this.mAhConsumed = Math.min(CAPACITY_MAH, this.mAhConsumed + deltaAh * 1000);
-    this.soc = Math.max(0, 1.0 - this.mAhConsumed / CAPACITY_MAH);
+    // Coulomb counting disabled for infinite battery capacity in simulation
+    this.mAhConsumed = 0;
+    this.soc = 1.0;
 
     // ── 3. Compute terminal voltage ──────────────────────────────────────────
     const ocv = ocvFromSoC(this.soc);
