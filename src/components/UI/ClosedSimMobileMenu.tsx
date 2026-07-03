@@ -591,6 +591,13 @@ export function ClosedSimMobileMenu({
     }
   }, [telemetry?.isArmed, isLandingActive, hasTakenOff, orchestrator]);
 
+  // Senior Developer Quality: Auto-close the menu drawer when the drone is armed to clean up cockpit clutter
+  useEffect(() => {
+    if (telemetry?.isArmed && isOpen) {
+      setIsOpen(false);
+    }
+  }, [telemetry?.isArmed, isOpen]);
+
   const isReady = modelLoadStatus === 'success' && droneSpawnDiagnostics !== null;
 
   // ── Derived Flight State Label ──
@@ -887,7 +894,9 @@ export function ClosedSimMobileMenu({
         <button
           id="closed-sim-menu-btn"
           onClick={() => setIsOpen(true)}
-          className="desktop-only-menu-btn flex fixed top-[max(0.875rem,var(--sat,0.875rem))] left-[max(0.875rem,var(--sal,0.875rem))] z-[60] w-12 h-12 rounded-full bg-slate-950/85 backdrop-blur-md border border-white/10 items-center justify-center text-white shadow-lg hover:border-blue-500/50 hover:bg-slate-900 active:scale-90 transition-all duration-300 touch-manipulation group animate-pulse-cyan"
+          className={`desktop-only-menu-btn flex fixed top-[max(0.875rem,var(--sat,0.875rem))] left-[max(0.875rem,var(--sal,0.875rem))] z-[60] w-12 h-12 rounded-full bg-slate-950/85 backdrop-blur-md border border-white/10 items-center justify-center text-white shadow-lg hover:border-blue-500/50 hover:bg-slate-900 active:scale-90 transition-all duration-500 touch-manipulation group animate-pulse-cyan ${
+            telemetry?.isArmed ? 'opacity-0 scale-90 pointer-events-none' : 'opacity-100 scale-100'
+          }`}
           aria-label="Open menu"
         >
           <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-500/10 to-indigo-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -905,7 +914,7 @@ export function ClosedSimMobileMenu({
               let bg = 'bg-slate-900/90 border-white/10 text-white shadow-lg';
               if (n.type === 'success') bg = 'bg-emerald-950/80 border-emerald-500/30 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]';
               else if (n.type === 'warning') bg = 'bg-amber-950/80 border-amber-500/30 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.2)]';
-              else if (n.type === 'error') bg = 'bg-rose-950/80 border-rose-500/30 text-rose-300 shadow-[0_0_15px_rgba(239,68,68,0.2)]';
+              else if (n.type === 'error') bg = 'bg-rose-950/80 border-rose-500/30 text-rose-300 shadow-[0_0_15px_rgba(239,68,68,0.25)]';
               return (
                 <div key={n.id} className={`px-4 py-1.5 border rounded-full text-[10px] font-mono font-bold uppercase tracking-wider backdrop-blur-md transition-all ${bg}`}>
                   {n.text}
@@ -930,7 +939,9 @@ export function ClosedSimMobileMenu({
             {/* Menu Button */}
             <button
               onClick={() => setIsOpen(true)}
-              className="px-3.5 h-9 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 flex items-center justify-center text-[10px] font-bold tracking-widest text-white active:scale-95 transition-all uppercase"
+              className={`px-3.5 h-9 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 flex items-center justify-center text-[10px] font-bold tracking-widest text-white active:scale-95 transition-all duration-500 uppercase ${
+                telemetry?.isArmed ? 'opacity-0 scale-90 pointer-events-none' : 'opacity-100 scale-100'
+              }`}
               aria-label="Open menu"
             >
               Menu
