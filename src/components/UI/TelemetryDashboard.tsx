@@ -140,7 +140,7 @@ export function TelemetryDashboard({
     }
   }, [modelLoadStatus, droneSpawnDiagnostics]);
 
-  const isInitChecking = !(isModelLoaded && isPhysicsInitialized && isDroneSpawned && isCameraLocked && isTelemetryReady);
+  const isInitChecking = false;
 
   const [linkOpen, setLinkOpen] = useState(true);
   const terminalRef = useRef<HTMLDivElement>(null);
