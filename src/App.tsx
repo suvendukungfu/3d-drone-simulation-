@@ -379,7 +379,7 @@ function App() {
       
       {/* 1. IMMERSIVE GLB LOADING PROGRESS BAR */}
       <AnimatePresence>
-        {isLoading && (
+        {isLoading && currentMode === 'flight' && (
           <motion.div
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
