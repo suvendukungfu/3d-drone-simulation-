@@ -133,6 +133,8 @@ export function IntroOverlay() {
     const store = useDroneStore.getState();
     store.setAcademyMode(false);
     if (store.isAcademyOpen) store.toggleAcademy();
+    // Auto-start tutorial on first entry into Closed Simulation
+    store.startTutorial();
   };
 
   const clickedCount = useDroneStore((state) => state.clickedParts?.length || 0);
