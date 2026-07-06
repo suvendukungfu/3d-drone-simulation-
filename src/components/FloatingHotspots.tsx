@@ -7,10 +7,6 @@ import { useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { getComponentIdByMeshName, getCornerIndex } from './PlutoXModel';
 
-const SEARCH_ID_MAP: Record<string, string> = {
-  accelerometer: 'imuSensor',
-  magnetometer: 'flightController',
-};
 
 export function FloatingHotspots() {
   const hoveredComponent = useDroneStore((state) => state.hoveredComponent);
@@ -31,7 +27,7 @@ export function FloatingHotspots() {
       return;
     }
     
-    const searchId = SEARCH_ID_MAP[activeId] || activeId;
+    const searchId = activeId;
     const temp: THREE.Mesh[] = [];
     
     // Ensure world matrices are computed before reading positions
@@ -112,14 +108,6 @@ export function FloatingHotspots() {
           (box.min.z + box.max.z) / 2
         );
 
-        // Apply visual offset separation for sub-sensors sharing reference meshes
-        if (activeId === 'accelerometer') {
-          avgPos.x += 0.12;
-          avgPos.z += 0.08;
-        } else if (activeId === 'magnetometer') {
-          avgPos.x += 0.12;
-          avgPos.z -= 0.12;
-        }
       }
     }
 

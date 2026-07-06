@@ -9,11 +9,6 @@ import { FloatingHotspots } from './FloatingHotspots';
 
 const PlutoAnatomyExploded = lazy(() => import('./PlutoAnatomyExploded').then(m => ({ default: m.PlutoAnatomyExploded })));
 
-const SEARCH_ID_MAP: Record<string, string> = {
-  accelerometer: 'imuSensor',
-  magnetometer: 'flightController',
-};
-
 interface CameraControllerProps {
   controlsRef: React.MutableRefObject<any>;
   vrEye?: 'left' | 'right';
@@ -44,6 +39,20 @@ function CameraController({ controlsRef, vrEye, floorGroupRef }: CameraControlle
   const inspectTargetMeshes = useRef<THREE.Mesh[]>([]);
 
   useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+    
+    const handleStart = () => {
+      isTransitioning.current = false;
+    };
+    
+    controls.addEventListener('start', handleStart);
+    return () => {
+      controls.removeEventListener('start', handleStart);
+    };
+  }, [controlsRef]);
+
+  useEffect(() => {
     if (vrEye === 'right') return;
 
     isTransitioning.current = true;
@@ -52,7 +61,7 @@ function CameraController({ controlsRef, vrEye, floorGroupRef }: CameraControlle
     // Cache component meshes if inspecting
     if (cameraView === 'inspect' && selectedComponent) {
       const temp: THREE.Mesh[] = [];
-      const searchId = SEARCH_ID_MAP[selectedComponent] || selectedComponent;
+      const searchId = selectedComponent;
       
       scene.updateMatrixWorld(true);
       scene.traverse((child) => {

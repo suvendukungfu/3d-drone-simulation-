@@ -10,6 +10,7 @@ export function LearningWorkflow() {
   const learningStatus = useDroneStore((state) => state.learningStatus);
   const resetGuided = useDroneStore((state) => state.resetGuided);
   const setMode = useDroneStore((state) => state.setMode);
+  const retryMessage = useDroneStore((state) => state.retryMessage);
 
   if (currentMode !== 'learning') return null;
 
@@ -60,11 +61,20 @@ export function LearningWorkflow() {
               );
             })}
           </div>
+          {/* Exit Training action button inside checklist */}
+          <div className="pt-3 border-t border-white/10 mt-3">
+            <button
+              onClick={resetGuided}
+              className="w-full py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 active:scale-[0.98] text-[10px] font-extrabold uppercase tracking-widest transition-all duration-200"
+            >
+              Exit Training
+            </button>
+          </div>
         </div>
       )}
 
       {/* Top Banner showing training status */}
-      <div className="w-full flex justify-center mt-20 pointer-events-auto">
+      <div className="w-full flex justify-center mt-20 pointer-events-auto learning-top-banner">
         {learningStatus === 'identifying' && targetComponent && (
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -97,7 +107,7 @@ export function LearningWorkflow() {
       </div>
 
       {/* Guided Info Overlay (bottom center) */}
-      <div className="w-full flex justify-center mt-auto pointer-events-auto">
+      <div className="w-full flex justify-center mt-auto pointer-events-auto learning-clue-overlay">
         <AnimatePresence mode="wait">
           {learningStatus === 'identifying' && targetComponent && (
             <motion.div
@@ -117,7 +127,7 @@ export function LearningWorkflow() {
                 <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1 uppercase tracking-wide">
                   {targetComponent.name}
                 </h4>
-                <p className="text-xs text-slate-650 dark:text-slate-400 leading-relaxed font-light mb-2">
+                <p className="text-xs text-slate-655 dark:text-slate-400 leading-relaxed font-light mb-2">
                   {targetComponent.functionName}
                 </p>
                 <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 text-[11px] font-mono text-slate-500 dark:text-slate-400">
@@ -126,13 +136,18 @@ export function LearningWorkflow() {
               </div>
             </motion.div>
           )}
+        </AnimatePresence>
+      </div>
 
-          {/* Training Finished Overlay */}
+      {/* Training Finished Overlay (centered modal) */}
+      <div className="absolute inset-0 pointer-events-none z-50 flex items-center justify-center p-6">
+        <AnimatePresence>
           {learningStatus === 'completed' && (
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 rounded-3xl w-full max-w-[90vw] sm:w-[580px] shadow-[0_15px_40px_rgba(0,0,0,0.04)] flex flex-col items-center text-center"
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="pointer-events-auto bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8 rounded-3xl w-full max-w-[90vw] sm:w-[580px] shadow-[0_15px_40px_rgba(0,0,0,0.04)] flex flex-col items-center text-center"
             >
               <div className="w-16 h-16 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-4">
                 <Award className="w-10 h-10 animate-bounce" />
@@ -168,6 +183,26 @@ export function LearningWorkflow() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Wrong Selection / Retry Message Alert */}
+      <AnimatePresence>
+        {retryMessage && (
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -20, opacity: 0 }}
+            className="absolute top-48 left-1/2 -translate-x-1/2 z-50 bg-rose-955/95 border border-rose-500/50 p-4 rounded-xl shadow-2xl flex items-center gap-3 w-full max-w-[90vw] sm:w-[400px] pointer-events-auto learning-retry-alert"
+          >
+            <div className="p-2 bg-rose-500/20 rounded-lg text-rose-400">
+              <AlertTriangle className="w-5 h-5 animate-bounce" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-xs font-mono font-bold text-rose-300 uppercase tracking-wider">Incorrect Selection</p>
+              <p className="text-[11px] text-slate-300 mt-0.5 font-sans leading-relaxed">{retryMessage}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

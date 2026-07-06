@@ -63,9 +63,6 @@ export function getComponentIdByMeshName(meshName: string): string | null {
   if (name.includes('tdqfn')) {
     return 'barometer';
   }
-  if (name.includes('cstne')) {
-    return 'gyroscope';
-  }
   
   // Structural frame
   if (name.includes('frame') || name.includes('chassis') || name.includes('plate') || name.includes('carbon') || name.includes('landing pad') || name.includes('damper')) {
@@ -358,13 +355,18 @@ export function PlutoXModel({ isFlightMode = false, onLoad, modelPath = '/models
     // 2. High-performance material updates, glows, and propeller/motor casing spins
     meshCache.forEach(({ mesh, materials, componentId, motorKey, cornerIndex }) => {
       const isHovered = componentId && hoveredComponent === componentId;
+      const wrongComponentClicked = useDroneStore.getState().wrongComponentClicked;
+      const isWrong = componentId && wrongComponentClicked === componentId;
       const isSelected = componentId && selectedComponent === componentId;
       const isRunning = motorKey && activeMotors[motorKey];
 
       materials.forEach(({ mat, originalOpacity, originalTransparent, originalEmissive }) => {
         // A. Emissive glows
         if (mat.emissive) {
-          if (isHovered) {
+          if (isWrong) {
+            mat.emissive.setHex(0xFF3333); // Red wrong selection glow
+            mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 1.8, delta * 12);
+          } else if (isHovered) {
             mat.emissive.setHex(0x00A3FF); // Cyan hover glow
             mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 0.8, delta * 12);
           } else if (isSelected) {

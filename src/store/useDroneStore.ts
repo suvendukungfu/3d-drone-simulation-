@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { sound } from '../utils/soundController';
 import { TelemetryData } from '../utils/drone/types';
+import { droneComponents } from '../data/droneComponents';
 
 const syncHashFromState = (mode: string, missionIndex: number, isAcademyMode: boolean) => {
   if (typeof window === 'undefined') return;
@@ -188,6 +189,8 @@ interface DroneState {
   completedIdentifiers: string[];
   guidedQuestions: string[];
   learningStatus: 'idle' | 'identifying' | 'completed';
+  wrongComponentClicked: string | null;
+  retryMessage: string | null;
 
   // --- FLIGHT SIMULATOR MODE STATES ---
   flightCameraView: FlightCameraView;
@@ -380,6 +383,8 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   completedIdentifiers: getLocalStorageCompletedIdentifiers(),
   guidedQuestions: GUIDED_QUESTIONS,
   learningStatus: getLocalStorageLearningStatus(),
+  wrongComponentClicked: null,
+  retryMessage: null,
 
   // --- FLIGHT SIMULATOR INITIAL STATE ---
   flightCameraView: 'chase',
@@ -666,7 +671,9 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       completedIdentifiers: [],
       selectedComponent: null,
       isolationMode: false,
-      isExploded: false
+      isExploded: false,
+      wrongComponentClicked: null,
+      retryMessage: null
     });
   },
 
@@ -689,6 +696,8 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       set({
         completedIdentifiers: newCompleted,
         selectedComponent: id, 
+        wrongComponentClicked: null,
+        retryMessage: null
       });
 
       setTimeout(() => {
@@ -706,8 +715,21 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       }, 1500);
       
       return true;
+    } else {
+      set({
+        wrongComponentClicked: id,
+        retryMessage: `Incorrect selection. That's the ${droneComponents[id]?.name || id}. Try again!`
+      });
+      setTimeout(() => {
+        set((state) => {
+          if (state.wrongComponentClicked === id) {
+            return { wrongComponentClicked: null, retryMessage: null };
+          }
+          return {};
+        });
+      }, 2500);
+      return false;
     }
-    return false;
   },
 
   nextGuidedStep: () => {
@@ -730,7 +752,9 @@ export const useDroneStore = create<DroneState>((set, get) => ({
       completedIdentifiers: [],
       learningStatus: 'idle',
       currentMode: 'explore',
-      selectedComponent: null
+      selectedComponent: null,
+      wrongComponentClicked: null,
+      retryMessage: null
     });
   },
 

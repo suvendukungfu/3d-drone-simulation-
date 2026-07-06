@@ -27,7 +27,9 @@ import {
   Video,
   RotateCcw,
   HelpCircle,
+  MessageSquare,
 } from 'lucide-react';
+import { FeedbackForm } from './FeedbackForm';
 
 interface ClosedSimMobileMenuProps {
   onReset: () => void;
@@ -507,6 +509,7 @@ export function ClosedSimMobileMenu({
   orchestrator,
 }: ClosedSimMobileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   // Auto-hide States
@@ -678,13 +681,6 @@ export function ClosedSimMobileMenu({
   const getVoltage = (pct: number) => {
     const min = 9.9; const max = 12.6;
     return (min + (max - min) * (pct / 100)).toFixed(1);
-  };
-
-  const get1SVoltage = (pct: number) => {
-    if (pct === 87) return '3.93';
-    if (pct === 91) return '4.10';
-    const min = 3.3; const max = 4.2;
-    return (min + (max - min) * (pct / 100)).toFixed(2);
   };
 
   const getBattColor = (pct: number) =>
@@ -978,22 +974,6 @@ export function ClosedSimMobileMenu({
           <div className="flex items-center gap-3.5">
             <Wifi className={`w-4 h-4 ${controlsAvailable ? 'text-cyan-400' : 'text-white/30'}`} />
             
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/8">
-              <div className="relative w-5 h-2.5 border border-white/30 rounded-sm p-0.5 flex items-center">
-                <div
-                  className={`h-full rounded-2xs ${
-                    controlsAvailable ? 'bg-emerald-500' : 'bg-white/20'
-                  }`}
-                  style={{ width: controlsAvailable ? `${telemetry?.battery ?? 0}%` : '20%' }}
-                />
-                <div className="absolute right-[-2.5px] top-[2px] w-[2px] h-[4px] bg-white/30 rounded-r-2xs" />
-              </div>
-              <span className="text-[10px] font-mono font-bold text-white/70 tabular-nums">
-                {controlsAvailable && telemetry
-                  ? `${get1SVoltage(telemetry.battery)}V | ${telemetry.battery}%`
-                  : '-- V'}
-              </span>
-            </div>
             <Navigation className={`w-4 h-4 rotate-45 ${controlsAvailable ? 'text-cyan-400' : 'text-white/30'}`} />
           </div>
         </div>
@@ -1106,30 +1086,28 @@ export function ClosedSimMobileMenu({
                 Reset Sess
               </button>
             ) : (
-              telemetry?.isArmed && (stateLabel === 'ARMED' || stateLabel === 'MOTOR IDLE' || stateLabel === 'IN FLIGHT') && (
-                <button
-                  onClick={() => {
-                    if (hasTakenOff) {
-                      onLand?.();
-                    } else {
-                      onTakeoff?.();
-                    }
-                  }}
-                  disabled={isLandingActive}
-                  className={`pluto-action-button pluto-interactive ${
-                    hasTakenOff ? 'land' : 'takeoff'
-                  }`}
-                >
-                  {isLandingActive ? 'Landing...' : hasTakenOff ? 'Land' : 'Take Off'}
-                </button>
-              )
+              <button
+                onClick={() => {
+                  if (hasTakenOff) {
+                    onLand?.();
+                  } else {
+                    onTakeoff?.();
+                  }
+                }}
+                disabled={!telemetry?.isArmed || isLandingActive}
+                className={`pluto-action-button pluto-interactive ${
+                  hasTakenOff ? 'land' : 'takeoff'
+                } ${!telemetry?.isArmed ? 'opacity-40 cursor-not-allowed bg-slate-800 text-slate-400 border-slate-700' : ''}`}
+              >
+                {isLandingActive ? 'Landing...' : hasTakenOff ? 'Land' : 'Take Off'}
+              </button>
             )}
           </div>
         </div>
 
         {/* 4. FLOATING ACTION BUTTONS SIDEBAR (Auto-hides) */}
-        <div className={`absolute right-[max(16px,env(safe-area-inset-right))] top-[max(64px,calc(56px+env(safe-area-inset-top,0px)))] flex flex-col gap-2.5 pluto-sidebar-transition ${
-          isNavbarVisible ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-16 opacity-0 pointer-events-none'
+        <div className={`absolute right-[max(16px,env(safe-area-inset-right))] top-[max(64px,calc(56px+env(safe-area-inset-top,0px)))] flex flex-col landscape:flex-row gap-2.5 pluto-sidebar-transition ${
+          isNavbarVisible ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-16 landscape:translate-y-[-16px] opacity-0 pointer-events-none'
         }`}>
           {/* Flip Direct action */}
           {hasTakenOff && (
@@ -1148,7 +1126,7 @@ export function ClosedSimMobileMenu({
               </button>
               
               {showFlipDirections && (
-                <div className="absolute right-12 top-0 flex items-center gap-1.5 bg-slate-950/90 border border-white/10 rounded-xl p-1.5 backdrop-blur-md z-50">
+                <div className="absolute right-12 top-0 landscape:right-0 landscape:top-12 flex items-center landscape:flex-col gap-1.5 bg-slate-950/90 border border-white/10 rounded-xl p-1.5 backdrop-blur-md z-50">
                   {[
                     { dir: 'left', label: '◀' },
                     { dir: 'front', label: '▲' },
@@ -1497,6 +1475,14 @@ export function ClosedSimMobileMenu({
                         close();
                       }}
                     />
+                    <ActionBtn
+                      icon={<MessageSquare className="w-3.5 h-3.5" />}
+                      label="Submit Feedback"
+                      onClick={() => {
+                        setIsFeedbackOpen(true);
+                        close();
+                      }}
+                    />
                     {onRecenterCamera && (
                       <ActionBtn
                         icon={<Camera className="w-3.5 h-3.5" />}
@@ -1692,7 +1678,12 @@ export function ClosedSimMobileMenu({
                   <button
                     onClick={() => {
                       setPostLandingActive(false);
-                      onTakeoff?.(); // Or just arm depending on implementation, but user said 'Continue Flight (re-arm)'
+                      if (!telemetry?.isArmed) {
+                        onArm?.();
+                      }
+                      setTimeout(() => {
+                        onTakeoff?.();
+                      }, 100);
                     }}
                     className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-colors text-sm shadow-[0_0_15px_rgba(37,99,235,0.4)]"
                   >
@@ -1713,6 +1704,7 @@ export function ClosedSimMobileMenu({
           </div>
         )}
       </AnimatePresence>
+      <FeedbackForm isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
     </>
   );
 }

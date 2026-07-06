@@ -262,8 +262,11 @@ export class SimulatorOrchestrator {
     this.controller.isAltHoldActive = true; // start in Alt Hold mode
     this.input.reset();
     
-    // Level the drone frame upon arming
-    this.state.quaternion.set(0, 0, 0, 1);
+    // Level the drone frame upon arming (preserve yaw/heading)
+    const eulerArm = new THREE.Euler().setFromQuaternion(this.state.quaternion, 'YXZ');
+    eulerArm.x = 0;
+    eulerArm.z = 0;
+    this.state.quaternion.setFromEuler(eulerArm);
     this.state.angularVelocity.set(0, 0, 0);
     
     // Set altitude lock to current barometer altitude
@@ -672,11 +675,14 @@ export class SimulatorOrchestrator {
       if (isCloseToGround || hitGroundCollision || hitGroundRays) {
         this.disarm();
         
-        // Return to disarmed on ground
+        // Return to disarmed on ground (preserve yaw)
         this.state.position.y = this.physics.environmentBounds.minY;
         this.state.velocity.set(0, 0, 0);
         this.state.angularVelocity.set(0, 0, 0);
-        this.state.quaternion.set(0, 0, 0, 1);
+        const eulerTouchdown = new THREE.Euler().setFromQuaternion(this.state.quaternion, 'YXZ');
+        eulerTouchdown.x = 0;
+        eulerTouchdown.z = 0;
+        this.state.quaternion.setFromEuler(eulerTouchdown);
       }
     }
 
@@ -689,7 +695,10 @@ export class SimulatorOrchestrator {
         this.state.position.y = this.physics.environmentBounds.minY;
         this.state.velocity.set(0, 0, 0);
         this.state.angularVelocity.set(0, 0, 0);
-        this.state.quaternion.set(0, 0, 0, 1);
+        const eulerManual = new THREE.Euler().setFromQuaternion(this.state.quaternion, 'YXZ');
+        eulerManual.x = 0;
+        eulerManual.z = 0;
+        this.state.quaternion.setFromEuler(eulerManual);
         
         const store = useDroneStore.getState() as any;
         if (store.addNotification) {
@@ -852,7 +861,10 @@ export class SimulatorOrchestrator {
       this.state.position.z = this.armPosition.z;
       this.state.velocity.x = 0;
       this.state.velocity.z = 0;
-      this.state.quaternion.set(0, 0, 0, 1);
+      const eulerLock = new THREE.Euler().setFromQuaternion(this.state.quaternion, 'YXZ');
+      eulerLock.x = 0;
+      eulerLock.z = 0;
+      this.state.quaternion.setFromEuler(eulerLock);
       this.state.angularVelocity.set(0, 0, 0);
       
       if (!isClimbing) {

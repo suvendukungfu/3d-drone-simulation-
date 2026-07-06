@@ -1,7 +1,8 @@
+import { useState, useEffect } from 'react';
 import { useDroneStore } from '../../store/useDroneStore';
 import { droneComponents } from '../../data/droneComponents';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Info, ShieldAlert, Wrench, Activity, HelpCircle } from 'lucide-react';
+import { X, Info, ShieldAlert, Wrench, Activity, HelpCircle, ChevronDown } from 'lucide-react';
 
 export function ComponentInfoPanel() {
   const selectedComponent = useDroneStore((state) => state.selectedComponent);
@@ -9,6 +10,14 @@ export function ComponentInfoPanel() {
   const selectComponent = useDroneStore((state) => state.selectComponent);
 
   const componentData = selectedComponent ? droneComponents[selectedComponent] : null;
+
+  const [expandedSection, setExpandedSection] = useState<'function' | 'principle' | 'role' | 'safety' | 'maintenance' | null>('function');
+
+  useEffect(() => {
+    if (selectedComponent) {
+      setExpandedSection('function');
+    }
+  }, [selectedComponent]);
 
   // Don't show this detailed side panel in learning mode (the learning module HUD will handle it)
   const isVisible = selectedComponent && currentMode !== 'learning';
@@ -42,61 +51,151 @@ export function ComponentInfoPanel() {
           </div>
 
           {/* Details Scroll Area */}
-          <div className="flex-1 overflow-y-auto my-6 pr-2 space-y-5 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+          <div className="flex-1 overflow-y-auto my-6 pr-2 space-y-3.5 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
             
-            {/* Function / Description */}
-            <div className="bg-slate-900/40 border border-slate-800/60 p-4 rounded-xl">
-              <div className="flex items-center gap-2 text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1.5">
-                <Info className="w-4 h-4" />
-                <span>Primary Function</span>
-              </div>
-              <p className="text-sm text-slate-300 leading-relaxed">
-                {componentData.functionName}
-              </p>
+            {/* Accordion Item: Function */}
+            <div className="border border-slate-800/80 rounded-xl overflow-hidden bg-slate-900/40">
+              <button
+                type="button"
+                onClick={() => setExpandedSection(expandedSection === 'function' ? null : 'function')}
+                className="w-full flex justify-between items-center p-4 text-xs font-bold text-blue-400 uppercase tracking-wider hover:bg-slate-800/20 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Info className="w-4 h-4" />
+                  <span>Primary Function</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-205 ${expandedSection === 'function' ? 'rotate-180 text-blue-400' : ''}`} />
+              </button>
+              <AnimatePresence initial={false}>
+                {expandedSection === 'function' && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                  >
+                    <div className="p-4 pt-0 text-sm text-slate-300 leading-relaxed border-t border-slate-950/20">
+                      {componentData.functionName}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            {/* Working Principle */}
-            <div className="space-y-1.5">
-              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <HelpCircle className="w-4 h-4 text-slate-500" />
-                Working Principle
-              </h3>
-              <p className="text-sm text-slate-300 leading-relaxed font-light">
-                {componentData.workingPrinciple}
-              </p>
+            {/* Accordion Item: Working Principle */}
+            <div className="border border-slate-800/80 rounded-xl overflow-hidden bg-slate-900/20">
+              <button
+                type="button"
+                onClick={() => setExpandedSection(expandedSection === 'principle' ? null : 'principle')}
+                className="w-full flex justify-between items-center p-4 text-xs font-bold text-slate-400 uppercase tracking-wider hover:bg-slate-800/20 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <HelpCircle className="w-4 h-4" />
+                  <span>Working Principle</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-205 ${expandedSection === 'principle' ? 'rotate-180 text-slate-400' : ''}`} />
+              </button>
+              <AnimatePresence initial={false}>
+                {expandedSection === 'principle' && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                  >
+                    <div className="p-4 pt-0 text-sm text-slate-300 leading-relaxed border-t border-slate-950/20 font-light">
+                      {componentData.workingPrinciple}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            {/* Role During Flight */}
-            <div className="space-y-1.5">
-              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Activity className="w-4 h-4 text-slate-500" />
-                Role During Flight
-              </h3>
-              <p className="text-sm text-slate-300 leading-relaxed font-light">
-                {componentData.flightRole}
-              </p>
+            {/* Accordion Item: Role During Flight */}
+            <div className="border border-slate-800/80 rounded-xl overflow-hidden bg-slate-900/20">
+              <button
+                type="button"
+                onClick={() => setExpandedSection(expandedSection === 'role' ? null : 'role')}
+                className="w-full flex justify-between items-center p-4 text-xs font-bold text-slate-400 uppercase tracking-wider hover:bg-slate-800/20 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Activity className="w-4 h-4" />
+                  <span>Role During Flight</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-205 ${expandedSection === 'role' ? 'rotate-180 text-slate-400' : ''}`} />
+              </button>
+              <AnimatePresence initial={false}>
+                {expandedSection === 'role' && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                  >
+                    <div className="p-4 pt-0 text-sm text-slate-300 leading-relaxed border-t border-slate-950/20 font-light">
+                      {componentData.flightRole}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            {/* Safety Guidelines */}
-            <div className="bg-amber-950/20 border border-amber-900/30 p-4 rounded-xl">
-              <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 uppercase tracking-wider mb-1.5">
-                <ShieldAlert className="w-4 h-4" />
-                <span>Safety Guidelines</span>
-              </div>
-              <p className="text-xs text-amber-200/80 leading-relaxed">
-                {componentData.safetyNotes}
-              </p>
+            {/* Accordion Item: Safety Guidelines */}
+            <div className="border border-amber-900/30 rounded-xl overflow-hidden bg-amber-950/10">
+              <button
+                type="button"
+                onClick={() => setExpandedSection(expandedSection === 'safety' ? null : 'safety')}
+                className="w-full flex justify-between items-center p-4 text-xs font-bold text-amber-400 uppercase tracking-wider hover:bg-amber-900/10 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Safety Guidelines</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-205 ${expandedSection === 'safety' ? 'rotate-180 text-amber-400' : ''}`} />
+              </button>
+              <AnimatePresence initial={false}>
+                {expandedSection === 'safety' && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                  >
+                    <div className="p-4 pt-0 text-xs text-amber-200/80 leading-relaxed border-t border-amber-900/10">
+                      {componentData.safetyNotes}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            {/* Maintenance & Inspections */}
-            <div className="bg-emerald-950/20 border border-emerald-900/30 p-4 rounded-xl">
-              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-1.5">
-                <Wrench className="w-4 h-4" />
-                <span>Maintenance Profile</span>
-              </div>
-              <p className="text-xs text-emerald-200/80 leading-relaxed">
-                {componentData.maintenanceNotes}
-              </p>
+            {/* Accordion Item: Maintenance Profile */}
+            <div className="border border-emerald-900/30 rounded-xl overflow-hidden bg-emerald-950/10">
+              <button
+                type="button"
+                onClick={() => setExpandedSection(expandedSection === 'maintenance' ? null : 'maintenance')}
+                className="w-full flex justify-between items-center p-4 text-xs font-bold text-emerald-400 uppercase tracking-wider hover:bg-emerald-900/10 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Wrench className="w-4 h-4" />
+                  <span>Maintenance Profile</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-205 ${expandedSection === 'maintenance' ? 'rotate-180 text-emerald-400' : ''}`} />
+              </button>
+              <AnimatePresence initial={false}>
+                {expandedSection === 'maintenance' && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                  >
+                    <div className="p-4 pt-0 text-xs text-emerald-200/80 leading-relaxed border-t border-emerald-900/10">
+                      {componentData.maintenanceNotes}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
           </div>

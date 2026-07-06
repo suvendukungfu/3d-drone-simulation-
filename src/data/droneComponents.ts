@@ -69,8 +69,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   motor1: {
     id: 'motor1',
     name: 'Motor B',
-    functionName: 'High-speed brushless DC (BLDC) motor (Front Left) — Propeller B, CCW rotation.',
-    workingPrinciple: 'Uses electromagnetic fields controlled by electronic speed controllers (ESC) to rotate the rotor relative to the stator.',
+    functionName: 'High-speed coreless DC motor (Front Left) — Propeller B, CCW rotation.',
+    workingPrinciple: 'Uses electromagnetic fields controlled by coreless brushed DC commutation to rotate the shaft.',
     flightRole: 'Provides precise torque and RPM adjustments required for attitude stabilization and flight control.',
     safetyNotes: 'Can reach high temperatures during operation. Allow to cool before touching after a flight.',
     maintenanceNotes: 'Check for smooth manual rotation. Clear any metallic particles attracted to the internal neodymium magnets.',
@@ -80,8 +80,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   motor2: {
     id: 'motor2',
     name: 'Motor A',
-    functionName: 'High-speed brushless DC (BLDC) motor (Front Right) — Propeller A, CW rotation.',
-    workingPrinciple: 'Converts electrical energy into mechanical rotation using magnetic field switching.',
+    functionName: 'High-speed coreless DC motor (Front Right) — Propeller A, CW rotation.',
+    workingPrinciple: 'Converts electrical energy into mechanical rotation using coreless brushed magnetic commutation.',
     flightRole: 'Controls the front-right lift sector to regulate pitch and roll dynamics.',
     safetyNotes: 'Disconnect power immediately if motor stalls to prevent overheating and winding damage.',
     maintenanceNotes: 'Listen for bearing noise. Replace motor if excessive vertical shaft play is detected.',
@@ -91,8 +91,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   motor3: {
     id: 'motor3',
     name: 'Motor B',
-    functionName: 'High-speed brushless DC (BLDC) motor (Rear Right) — Propeller B, CCW rotation.',
-    workingPrinciple: 'Driven by high-frequency PWM signals to achieve exact rotational speed.',
+    functionName: 'High-speed coreless DC motor (Rear Right) — Propeller B, CCW rotation.',
+    workingPrinciple: 'Driven by pulse-width modulation (PWM) signals to achieve exact rotational speed.',
     flightRole: 'Controls the rear-right lift sector, balancing diagonal force matrices.',
     safetyNotes: 'Keep loose hair and clothing away from the motor mount area during bench testing.',
     maintenanceNotes: 'Ensure mounting screws are tight and have thread locker applied to prevent backing out due to vibrations.',
@@ -102,8 +102,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   motor4: {
     id: 'motor4',
     name: 'Motor A',
-    functionName: 'High-speed brushless DC (BLDC) motor (Rear Left) — Propeller A, CW rotation.',
-    workingPrinciple: 'Operates synchronously under the ESC command sequence to manage flight dynamics.',
+    functionName: 'High-speed coreless DC motor (Rear Left) — Propeller A, CW rotation.',
+    workingPrinciple: 'Operates synchronously under controller command sequences to manage flight dynamics.',
     flightRole: 'Maintains rear-left stability, controlling roll/pitch adjustments.',
     safetyNotes: 'Never run motors at full throttle without propellers attached to avoid over-revving.',
     maintenanceNotes: 'Check wire insulation for wear or pinching against the carbon frame edges.',
@@ -142,39 +142,6 @@ export const droneComponents: Record<string, DroneComponent> = {
     maintenanceNotes: 'Recalibrate IMU on a perfectly flat, level surface after any heavy impact or firmware update.',
     hotspotPosition: [-0.1, 0.12, 0.05],
     explosionOffset: [-0.25, 0.35, 0.05]
-  },
-  accelerometer: {
-    id: 'accelerometer',
-    name: 'Accelerometer',
-    functionName: 'Measures proper acceleration forces in Gs.',
-    workingPrinciple: 'MEMS capacitive plate structures that shift under acceleration, altering electrical capacitance.',
-    flightRole: 'Allows the flight controller to calculate absolute tilt relative to Earth\'s gravity vector.',
-    safetyNotes: 'Highly sensitive to mechanical vibration; requires dampening to avoid signal clipping.',
-    maintenanceNotes: 'Verify accelerometer readings in GUI config tools show 1G static acceleration when resting level.',
-    hotspotPosition: [0.1, 0.12, 0.05],
-    explosionOffset: [0.25, 0.35, 0.05]
-  },
-  gyroscope: {
-    id: 'gyroscope',
-    name: 'Gyroscope',
-    functionName: 'Measures angular velocity (degrees/sec rotation).',
-    workingPrinciple: 'MEMS vibrating ring structure detecting Coriolis force changes under angular rotation.',
-    flightRole: 'Vital for immediate rate control stabilizing wind gusts and holding precise pilot input angles.',
-    safetyNotes: 'Gyro drift can accumulate over time; flight controllers use accelerometer data to bound this drift.',
-    maintenanceNotes: 'Ensure the chip remains clean and isolated from thermal shock during operation.',
-    hotspotPosition: [-0.1, 0.12, -0.05],
-    explosionOffset: [-0.25, 0.35, -0.05]
-  },
-  magnetometer: {
-    id: 'magnetometer',
-    name: 'Magnetometer (Compass)',
-    functionName: 'Measures Earth\'s magnetic field vector.',
-    workingPrinciple: 'Hall-effect or magneto-resistive elements detecting orientation relative to Magnetic North.',
-    flightRole: 'Provides absolute heading (yaw) reference, essential for GPS waypoints and autopilot navigation.',
-    safetyNotes: 'Keep away from iron screws, motors, and high-current wires that distort local magnetic fields (magnetic deviation).',
-    maintenanceNotes: 'Perform outdoor calibration away from reinforced concrete structures and metal objects.',
-    hotspotPosition: [0.1, 0.12, -0.05],
-    explosionOffset: [0.25, 0.35, -0.05]
   },
   barometer: {
     id: 'barometer',
