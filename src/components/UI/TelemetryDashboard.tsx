@@ -291,7 +291,7 @@ export function TelemetryDashboard({
         {/* Left Side: Diagnostics and Calibration Status */}
         {showTelemetry ? (
           <div className="hidden md:flex flex-col gap-2">
-            <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl flex items-center gap-4 shadow-[0_8px_25px_rgba(0,0,0,0.02)]">
+            <div id="tutorial-telemetry-status" className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3.5 rounded-xl flex items-center gap-4 shadow-[0_8px_25px_rgba(0,0,0,0.02)]">
               <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400">
                 <Cpu className="w-5 h-5" />
               </div>
@@ -381,7 +381,7 @@ export function TelemetryDashboard({
             </div>
 
             {/* Quick flight diagnostics overlay */}
-            <div className="mt-2 px-3 py-1 bg-white/80 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-full text-[9px] font-mono text-slate-500 dark:text-slate-400 shadow-sm">
+            <div id="tutorial-telemetry-speed" className="mt-2 px-3 py-1 bg-white/80 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-full text-[9px] font-mono text-slate-500 dark:text-slate-400 shadow-sm">
               SPEED: {telemetry.speed.toFixed(1)} m/s | V.RATE: {telemetry.verticalSpeed.toFixed(1)} m/s
             </div>
           </div>
@@ -391,7 +391,7 @@ export function TelemetryDashboard({
         <div className="flex flex-col items-end justify-start gap-2 pointer-events-auto">
           {/* Battery Status Panel */}
           {showTelemetry && (
-            <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 rounded-xl flex items-center gap-3.5 shadow-[0_8px_25px_rgba(0,0,0,0.02)]">
+            <div id="tutorial-telemetry-battery" className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-3 rounded-xl flex items-center gap-3.5 shadow-[0_8px_25px_rgba(0,0,0,0.02)]">
               <div className="text-right">
                 <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono tracking-widest uppercase block leading-none mb-1">
                   LIPO BATTERY
@@ -407,7 +407,7 @@ export function TelemetryDashboard({
           )}
 
           {/* Camera View Switcher with Camera Mode Indicator badge */}
-          <div className="desktop-camera-switcher flex flex-col items-end gap-1.5">
+          <div id="tutorial-camera-switcher" className="desktop-camera-switcher flex flex-col items-end gap-1.5">
             <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900 px-3 py-1 rounded-full text-[9px] font-mono font-bold text-blue-600 dark:text-blue-400 shadow-sm uppercase tracking-wider">
               CAM VIEW: {flightCameraView}
             </div>
@@ -466,7 +466,7 @@ export function TelemetryDashboard({
             <div className="flex-1 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-r-xl flex flex-col justify-between shadow-md overflow-hidden">
               <div className="space-y-4 flex flex-col h-full overflow-hidden">
                 {/* Header */}
-                <div className="border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center justify-between">
+                <div id="tutorial-telemetry-signal" className="border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center justify-between">
                   <span className="text-[10px] font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
                     <Activity className="w-3.5 h-3.5 text-blue-500" />
                     Twin AppLink
@@ -603,7 +603,7 @@ export function TelemetryDashboard({
           </div>
 
           {/* Mode selections */}
-          <div className="space-y-2">
+          <div id="tutorial-telemetry-flightmode" className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-655 dark:text-slate-300 font-medium">Altitude Hold (Auto-Level)</span>
               <button 
@@ -622,6 +622,37 @@ export function TelemetryDashboard({
             <div className="flex justify-between text-[11px] font-mono pt-1 text-slate-500 dark:text-slate-450">
               <span>ACTIVE MODE:</span>
               <span className="text-blue-600 dark:text-blue-400 font-bold">{getFlightModeLabel(telemetry.flightMode)}</span>
+            </div>
+
+            {/* Speed Mode Select */}
+            <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+              <span className="text-xs text-slate-655 dark:text-slate-300 font-medium">Speed Mode (Rate)</span>
+              <select 
+                id="tutorial-speed-mode-select"
+                value={useDroneStore.getState().gyroSensitivity}
+                onChange={(e) => useDroneStore.getState().setGyroSensitivity(parseFloat(e.target.value))}
+                className="bg-slate-100 dark:bg-slate-800 text-[10px] font-bold py-1 px-1.5 rounded border border-slate-200 dark:border-slate-700 outline-none text-slate-700 dark:text-slate-300 pointer-events-auto"
+              >
+                <option value="0.8">Low (60%)</option>
+                <option value="1.2">Medium (100%)</option>
+                <option value="1.8">High (150%)</option>
+              </select>
+            </div>
+
+            {/* HeadFree switch */}
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs text-slate-655 dark:text-slate-300 font-medium">HeadFree Mode (J)</span>
+              <button 
+                id="tutorial-headfree-switch"
+                onClick={() => useDroneStore.getState().toggleHeadFree()}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none pointer-events-auto ${
+                  useDroneStore((s) => s.headFree) ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-800'
+                }`}
+              >
+                <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  useDroneStore((s) => s.headFree) ? 'translate-x-4' : 'translate-x-0'
+                }`} />
+              </button>
             </div>
           </div>
 
@@ -672,6 +703,7 @@ export function TelemetryDashboard({
 
           <div className="flex flex-col gap-2 mt-1 border-t border-slate-100 dark:border-slate-800 pt-2.5">
             <button
+              id="tutorial-arm-btn"
               onClick={() => {
                 if (telemetry.isArmed) {
                   onDisarm?.();
@@ -683,7 +715,7 @@ export function TelemetryDashboard({
               className={`py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border w-full ${
                 telemetry.isArmed
                   ? 'bg-red-50 dark:bg-red-950/40 border-red-400 dark:border-red-800 text-red-600 dark:text-red-450 hover:bg-red-600 hover:text-white shadow-sm'
-                  : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 dark:border-emerald-800 text-emerald-700 dark:text-emerald-450 hover:bg-emerald-600 dark:hover:bg-emerald-850 hover:text-white shadow-sm disabled:opacity-40 disabled:hover:bg-slate-50 dark:disabled:hover:bg-slate-950 disabled:hover:text-slate-400 dark:disabled:hover:text-slate-600 disabled:border-slate-200 dark:disabled:border-slate-800 disabled:shadow-none'
+                  : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 dark:border-emerald-800 text-emerald-700 dark:text-emerald-455 hover:bg-emerald-600 dark:hover:bg-emerald-850 hover:text-white shadow-sm disabled:opacity-40 disabled:hover:bg-slate-50 dark:disabled:hover:bg-slate-950 disabled:hover:text-slate-400 dark:disabled:hover:text-slate-600 disabled:border-slate-200 dark:disabled:border-slate-800 disabled:shadow-none'
               }`}
             >
               {telemetry.isArmed ? 'Disarm Drone (Space)' : 'Arm Drone (Space)'}
@@ -694,6 +726,7 @@ export function TelemetryDashboard({
                 <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Flight Commands</div>
                 <div className="grid grid-cols-3 gap-2">
                   <button
+                    id="tutorial-takeoff-btn"
                     onClick={onTakeoff}
                     disabled={hasTakenOff}
                     className={`py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border text-center shadow-sm ${
@@ -706,6 +739,7 @@ export function TelemetryDashboard({
                     Takeoff
                   </button>
                   <button
+                    id="tutorial-land-btn"
                     onClick={onLand}
                     disabled={!hasTakenOff || isLandingActive}
                     className={`py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border text-center shadow-sm ${
@@ -718,6 +752,7 @@ export function TelemetryDashboard({
                     {isLandingActive ? 'Landing' : 'Land'}
                   </button>
                   <button
+                    id="tutorial-flip-btn"
                     onClick={onFlip}
                     disabled={!hasTakenOff || isFlipping}
                     className={`py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border text-center shadow-sm ${
@@ -766,7 +801,7 @@ export function TelemetryDashboard({
           <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex gap-6 items-center hide-on-touch-landscape">
             
             {/* Left Stick: Throttle (Y) and Yaw (X) */}
-            <div className="flex flex-col items-center">
+            <div id="tutorial-left-joystick" className="flex flex-col items-center">
               <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono tracking-wider uppercase mb-1.5">Left Stick (W/S, A/D)</span>
               <div className="w-24 h-24 bg-slate-50 dark:bg-slate-900 rounded-xl relative border border-slate-200 dark:border-slate-800 flex items-center justify-center">
                 {/* Grid axes */}
@@ -793,7 +828,7 @@ export function TelemetryDashboard({
             <div className="w-px h-20 bg-slate-200 dark:bg-slate-800"></div>
 
             {/* Right Stick: Pitch (Y) and Roll (X) */}
-            <div className="flex flex-col items-center">
+            <div id="tutorial-right-joystick" className="flex flex-col items-center">
               <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono tracking-wider uppercase mb-1.5">Right Stick (Arrows)</span>
               <div className="w-24 h-24 bg-slate-50 dark:bg-slate-900 rounded-xl relative border border-slate-200 dark:border-slate-800 flex items-center justify-center">
                 {/* Grid axes */}
@@ -820,7 +855,7 @@ export function TelemetryDashboard({
           <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 p-4 rounded-2xl w-[280px] shadow-[0_8px_25px_rgba(0,0,0,0.02)] flex flex-col gap-3">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
               <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tracking-widest uppercase">Motor Diagnostics</span>
-              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono">
+              <span id="tutorial-telemetry-flighttime" className="text-[9px] text-slate-500 dark:text-slate-400 font-mono">
                 TIME: {telemetry.flightTime}s
               </span>
             </div>
@@ -839,7 +874,7 @@ export function TelemetryDashboard({
               })}
             </div>
 
-            <div className="flex justify-between items-center text-[10px] font-mono pt-1 text-slate-500 dark:text-slate-400">
+            <div id="tutorial-telemetry-altitude" className="flex justify-between items-center text-[10px] font-mono pt-1 text-slate-500 dark:text-slate-400">
               <span>ALTITUDE:</span>
               <span className="text-slate-800 dark:text-slate-200 font-bold">{telemetry.altitude.toFixed(2)}m</span>
             </div>

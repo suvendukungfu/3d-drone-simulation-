@@ -32,6 +32,7 @@ export class PhysicsEngine {
     normal: THREE.Vector3;
     obstacleName: string;
     isWall: boolean;
+    collisionType?: 'body' | 'propeller';
   } | null = null;
   public lastInProximity = false;
   // Drone physical parameters (micro-quadcopter like PlutoX)
@@ -321,14 +322,15 @@ export class PhysicsEngine {
     const proxThreshold = 0.25;
 
     // Helper to register a collision
-    const registerCollision = (speed: number, normal: THREE.Vector3, name: string, isWall: boolean) => {
+    const registerCollision = (speed: number, normal: THREE.Vector3, name: string, isWall: boolean, colType: 'body' | 'propeller' = 'body') => {
       if (!maxCollision || speed > maxCollision.speed) {
         maxCollision = {
           collided: true,
           speed,
           normal: normal.clone(),
           obstacleName: name,
-          isWall
+          isWall,
+          collisionType: colType
         };
       }
     };
@@ -387,13 +389,23 @@ export class PhysicsEngine {
 
     // 1. Ground Collision (Landing pad)
     let groundPen = 0;
+    let groundColType: 'body' | 'propeller' = 'body';
     if (state.position.y < bounds.minY) {
       groundPen = bounds.minY - state.position.y;
     }
-    for (let i = 0; i < 4; i++) {
-      if (worldRotors[i].y < bounds.minY + rotorRadius) {
-        const pen = (bounds.minY + rotorRadius) - worldRotors[i].y;
-        if (pen > groundPen) groundPen = pen;
+    
+    // Only classify as propeller collision if the drone is tilted (pitch/roll > 0.2 rad)
+    const eulerFlatCheck = new THREE.Euler().setFromQuaternion(state.quaternion, 'YXZ');
+    const isFlatCheckTilted = Math.abs(eulerFlatCheck.x) > 0.2 || Math.abs(eulerFlatCheck.z) > 0.2;
+    if (isFlatCheckTilted) {
+      for (let i = 0; i < 4; i++) {
+        if (worldRotors[i].y < bounds.minY + rotorRadius) {
+          const pen = (bounds.minY + rotorRadius) - worldRotors[i].y;
+          if (pen > groundPen) {
+            groundPen = pen;
+            groundColType = 'propeller';
+          }
+        }
       }
     }
     
@@ -406,7 +418,7 @@ export class PhysicsEngine {
         // If landing gently or firmly, damp completely to prevent bouncing
         state.velocity.y = 0;
         if (speed >= 0.5) {
-          registerCollision(speed, new THREE.Vector3(0, 1, 0), 'Ground', false);
+          registerCollision(speed, new THREE.Vector3(0, 1, 0), 'Ground', false, groundColType);
         }
         
         // Ground friction
@@ -426,13 +438,21 @@ export class PhysicsEngine {
 
     // 2. Ceiling boundary
     let ceilPen = 0;
+    let ceilColType: 'body' | 'propeller' = 'body';
     if (state.position.y > bounds.maxY - radius) {
       ceilPen = state.position.y - (bounds.maxY - radius);
     }
-    for (let i = 0; i < 4; i++) {
-      if (worldRotors[i].y > bounds.maxY - rotorRadius) {
-        const pen = worldRotors[i].y - (bounds.maxY - rotorRadius);
-        if (pen > ceilPen) ceilPen = pen;
+    
+    // Only classify as propeller collision if the drone is tilted (pitch/roll > 0.2 rad)
+    if (isFlatCheckTilted) {
+      for (let i = 0; i < 4; i++) {
+        if (worldRotors[i].y > bounds.maxY - rotorRadius) {
+          const pen = worldRotors[i].y - (bounds.maxY - rotorRadius);
+          if (pen > ceilPen) {
+            ceilPen = pen;
+            ceilColType = 'propeller';
+          }
+        }
       }
     }
     
@@ -442,7 +462,7 @@ export class PhysicsEngine {
       if (vn > 0) {
         const speed = vn;
         // Register collision at ALL speeds
-        registerCollision(speed, new THREE.Vector3(0, -1, 0), 'Ceiling', true);
+        registerCollision(speed, new THREE.Vector3(0, -1, 0), 'Ceiling', true, ceilColType);
         if (speed < 0.3) {
           state.velocity.y = 0;
           // Apply sliding friction when scraping the ceiling
@@ -484,6 +504,7 @@ export class PhysicsEngine {
       const centerLimit = isNegativeSide ? wallLimit + radius : wallLimit - radius;
       let pen = 0;
       let isPastWall = false;
+      let colType: 'body' | 'propeller' = 'body';
       
       const centerVal = state.position[axis];
       if (isNegativeSide) {
@@ -508,6 +529,7 @@ export class PhysicsEngine {
             if (rPen > pen) {
               pen = rPen;
               isPastWall = true;
+              colType = 'propeller';
             }
           }
         } else {
@@ -516,6 +538,7 @@ export class PhysicsEngine {
             if (rPen > pen) {
               pen = rPen;
               isPastWall = true;
+              colType = 'propeller';
             }
           }
         }
@@ -531,7 +554,7 @@ export class PhysicsEngine {
         
         if (isApproaching || speed > 0.001) {
           // Register collision at ALL speeds for notification feedback
-          registerCollision(speed, normal, wallName, true);
+          registerCollision(speed, normal, wallName, true, colType);
           
           if (speed < 0.3) {
             // Light contact: zero normal velocity, apply wall sliding friction
@@ -630,6 +653,7 @@ export class PhysicsEngine {
 
       let maxPen = 0;
       let bestCol: any = null;
+      let boxColType: 'body' | 'propeller' = 'body';
 
       const centerCol = this.checkBoxCollision(checkPos, radius, localBox);
       if (centerCol && centerCol.collided) {
@@ -649,6 +673,7 @@ export class PhysicsEngine {
           if (rotorCol.penetration > maxPen) {
             maxPen = rotorCol.penetration;
             bestCol = rotorCol;
+            boxColType = 'propeller';
           }
         }
       }
@@ -665,7 +690,7 @@ export class PhysicsEngine {
         if (vn < 0) {
           const speed = -vn;
           // Register collision at ALL speeds for feedback
-          registerCollision(speed, bestCol.normal, box.label, false);
+          registerCollision(speed, bestCol.normal, box.label, false, boxColType);
           
           if (speed < 0.3) {
             // Gentle sliding contact: damp normal velocity component
@@ -723,6 +748,7 @@ export class PhysicsEngine {
     for (const hoop of hoopObstacles) {
       let maxPen = 0;
       let bestCol: any = null;
+      let hoopColType: 'body' | 'propeller' = 'body';
 
       const centerCol = this.checkHoopCollision(state.position, radius, hoop);
       if (centerCol && centerCol.collided) {
@@ -737,6 +763,7 @@ export class PhysicsEngine {
           if (rotorCol.penetration > maxPen) {
             maxPen = rotorCol.penetration;
             bestCol = rotorCol;
+            hoopColType = 'propeller';
           }
         }
       }
@@ -752,7 +779,7 @@ export class PhysicsEngine {
             const v_n_vec = bestCol.normal.clone().multiplyScalar(vn);
             state.velocity.sub(v_n_vec);
           } else {
-            registerCollision(speed, bestCol.normal, 'Gate Frame', false);
+            registerCollision(speed, bestCol.normal, 'Gate Frame', false, hoopColType);
             applyRebound(bestCol.normal, speed);
           }
         }

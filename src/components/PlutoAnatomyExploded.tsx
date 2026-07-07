@@ -161,7 +161,7 @@ const LABELS: LabelDef[] = [
   // ── Motors ──────────────────────────────────────────────────────────────────
   {
     id: 'motorFL',
-    name: 'Motor B · FL',
+    name: 'M4 · FL',
     spec: '720 kV · 1S · 48 000 RPM · 7 g',
     detail:
       'Brushless DC 4-pole internal rotor. ESC drives via 3-phase PWM at ≤50 kHz. Neodymium magnets.',
@@ -171,7 +171,7 @@ const LABELS: LabelDef[] = [
   },
   {
     id: 'motorFR',
-    name: 'Motor A · FR',
+    name: 'M2 · FR',
     spec: '720 kV · 1S · 48 000 RPM · 7 g',
     detail: 'Phase-reversed wiring relative to M1 for opposing rotation. Identical mechanical spec.',
     category: 'propulsion',
@@ -180,7 +180,7 @@ const LABELS: LabelDef[] = [
   },
   {
     id: 'motorRL',
-    name: 'Motor A · RL',
+    name: 'M3 · RL',
     spec: '720 kV · 1S · 48 000 RPM · 7 g',
     detail: 'RPM differential vs M2 (FR) generates pitch axis moment for forward/backward flight.',
     category: 'propulsion',
@@ -189,7 +189,7 @@ const LABELS: LabelDef[] = [
   },
   {
     id: 'motorRR',
-    name: 'Motor B · RR',
+    name: 'M1 · RR',
     spec: '720 kV · 1S · 48 000 RPM · 7 g',
     detail: 'Motor orientation determined by PCB phase wiring order only.',
     category: 'propulsion',
@@ -713,14 +713,14 @@ export function PlutoAnatomyExploded() {
     const rpmKeys: (keyof typeof motorRPMs)[] = ['motor1', 'motor2', 'motor3', 'motor4'];
     
     // Rotation directions based on Pluto configuration
-    // motor1(FL)=CCW(-), motor2(FR)=CW(+), motor3(RR)=CCW(-), motor4(RL)=CW(+)
-    const directions = { motor1: -1, motor2: 1, motor3: -1, motor4: 1 };
+    // motor1(FL)=CW(+), motor2(FR)=CCW(-), motor3(RR)=CW(+), motor4(RL)=CCW(-)
+    const directions = { motor1: 1, motor2: -1, motor3: 1, motor4: -1 };
     
     rpmKeys.forEach((key) => {
       // Lerp current RPM towards target RPM for smooth spool up/down
       currentRPMs.current[key] = THREE.MathUtils.lerp(currentRPMs.current[key], motorRPMs[key], delta * 4);
       
-      const speed = (currentRPMs.current[key] / 60) * Math.PI * 2 * delta;
+      const speed = (currentRPMs.current[key] / 60) * Math.PI * 2 * delta * 0.02;
       const rotDelta = speed * directions[key];
       
       propRefs.current[key].forEach((mesh) => {

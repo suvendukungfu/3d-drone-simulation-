@@ -5,9 +5,8 @@
 [![Three.js](https://img.shields.io/badge/Three.js-r164+-black?logo=three.js&logoColor=white)](https://threejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2+-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4+-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vercel Status](https://img.shields.io/badge/Vercel-Deployed-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://dronaviation-3d-world.vercel.app)
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://dronaviation-3d-world.vercel.app)
-
+[![Vercel Status](https://img.shields.io/badge/Vercel-Deployed-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://dronaviation-3d-world-nih9egb8w-suvendukungfus-projects.vercel.app)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://dronaviation-3d-world-nih9egb8w-suvendukungfus-projects.vercel.app)
 
 An interactive, high-fidelity 3D hardware simulation and educational training platform for Drona Aviation's **PlutoX (Primus X2)** nano-drone. This application allows students, engineers, and hobbyists to inspect, diagnose, and learn the physics and assembly of quadcopters in an immersive WebGL environment.
 
@@ -16,22 +15,26 @@ An interactive, high-fidelity 3D hardware simulation and educational training pl
 ## 🚀 Key Features
 
 ### 1. Interactive 3D Telemetry Engine
+
 - **High-fidelity 3D Rendering**: Powered by Three.js (`@react-three/fiber` and `@react-three/drei`) with realistic lighting, shadows, and materials.
 - **Exploded View**: Instantly deconstruct the drone assembly to analyze internal routing, stack alignments, and mounting mechanics.
 - **Component Isolation**: Focus on single hardware components (e.g., flight controller, battery, specific motors) by fading out the rest of the chassis.
 - **Floating 3D Hotspots**: Clickable annotations anchored to real 3D coordinates highlighting critical structural zones.
 
 ### 2. STEM & Flight Physics Training
+
 - **Explorer & Training Modes**: Toggle between sandbox exploration and structured, step-by-step training workflows.
 - **Aerodynamic Visualizations**: Overlay rotation direction vectors (CW/CCW) to demonstrate torque-balancing principles.
 - **Educational STEM Insights**: Contextual popups describing lift, thrust, yaw authority, reaction torques, and flight controller PID adjustments.
 
 ### 3. Motor Diagnostic Suite
+
 - **Real-Time Speed Simulator**: Spin up individual brushless motors (FL, FR, RL, RR) with visual blade spinning matching simulated RPM speeds.
 - **Individual/Global Diagnostic Testing**: Test individual motor channels or run a sequenced "Test All" loop to inspect telemetry.
 - **Ambient Audio System**: Dynamically pitches motor hum sound frequencies based on active simulated RPM values.
 
 ### 4. Immersive Viewports
+
 - **Cinematic 360° Free Look**: Auto-hides UI/HUD panels for pure cinematic exploration.
 - **Stereoscopic SBS VR**: Split-screen side-by-side mode suitable for mobile VR headsets.
 
@@ -68,15 +71,15 @@ graph TD
     %% Interactions
     User((User)) -->|Interact| HUD
     User -->|Select Part / Orbit Rotate| Scene
-    
+
     HUD -->|Toggle Motor / Change Mode| ZS
     LWF -->|Proceed Step| ZS
     CIP -->|Close / Select| ZS
-    
+
     ZS -->|Active Motors & RPMs| Props
     ZS -->|Selected / Hovered Part| Model
     ZS -->|Telemetric State (Active Motors, RPMs)| SC
-    
+
     SC -->|Generate dynamic motor hum (variable pitch)| User
     Scene -->|Render viewport update| User
     HUD -->|Read RPM / Status| ZS
@@ -140,17 +143,20 @@ Ensure you have **Node.js (v18 or higher)** installed.
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/suvendukungfu/dronaviation-3d-world.git
    cd dronaviation-3d-world
    ```
 
 2. Install dependencies:
+
    ```bash
    npm install
    ```
 
 3. Run the local development server:
+
    ```bash
    npm run dev
    ```

@@ -109,10 +109,10 @@ export const MISSIONS: MissionDef[] = [
     title: 'Module 4: Motor Mixer Diagnostic (Lab)',
     description: 'Verify CW and CCW motor directions. Run motor diagnostic spins from the sidebar panel to check mixer torque balance.',
     objectives: [
-      'Test spin Motor B (Front-Left CCW)',
-      'Test spin Motor A (Front-Right CW)',
-      'Test spin Motor A (Rear-Left CW)',
-      'Test spin Motor B (Rear-Right CCW)'
+      'Test spin M4 (Front-Left CW)',
+      'Test spin M2 (Front-Right CCW)',
+      'Test spin M3 (Rear-Left CCW)',
+      'Test spin M1 (Rear-Right CW)'
     ],
     checkObjective: (_orchestrator, _currentStep, _state) => {
       const motors = useDroneStore.getState().motorsTested;

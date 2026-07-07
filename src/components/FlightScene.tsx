@@ -8,7 +8,7 @@ import { TelemetryData } from '../utils/drone/types';
 import { EnvironmentManager } from './EnvironmentManager';
 import { PlutoXModel } from './PlutoXModel';
 import { sound } from '../utils/soundController';
-
+import { motion, AnimatePresence } from 'framer-motion';
 import { XCircle } from 'lucide-react';
 
 const isMobileDevice = typeof window !== 'undefined' &&
@@ -76,18 +76,67 @@ interface SimulationLoopProps {
   orchestrator: SimulatorOrchestrator;
   droneGroupRef: React.RefObject<THREE.Group>;
   propellersRef: React.MutableRefObject<THREE.Object3D[]>;
+  propellerGuardsRef: React.MutableRefObject<THREE.Object3D[]>;
   shadowMeshRef: React.RefObject<THREE.Mesh>;
   onTelemetryFrame?: (telemetry: TelemetryData) => void;
 }
 
-function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMeshRef, onTelemetryFrame }: SimulationLoopProps) {
-  const { camera } = useThree();
+function SimulationLoop({ 
+  orchestrator, 
+  droneGroupRef, 
+  propellersRef, 
+  propellerGuardsRef, 
+  shadowMeshRef, 
+  onTelemetryFrame 
+}: SimulationLoopProps) {
+  const { camera, scene } = useThree();
   const flightCameraView = useDroneStore((state) => state.flightCameraView);
   const updateFlightTelemetry = useDroneStore((state) => state.updateFlightTelemetry);
 
 
   // Propeller angles tracker
   const propAngles = useRef([0, 0, 0, 0]);
+  const propVelocitiesRef = useRef<number[]>([0, 0, 0, 0]);
+  const wasCrashedRef = useRef<boolean>(false);
+  const crashParticlesRef = useRef<any[]>([]);
+  const crashLightRef = useRef<THREE.PointLight | null>(null);
+  const flameGeoRef = useRef<THREE.BufferGeometry | null>(null);
+  const smokeGeoRef = useRef<THREE.BufferGeometry | null>(null);
+  const sparkGeoRef = useRef<THREE.BufferGeometry | null>(null);
+  const scorchMarksRef = useRef<any[]>([]);
+  const sootTextureRef = useRef<THREE.CanvasTexture | null>(null);
+
+  // Refs for tracking broken propellers and flying debris on crash
+  const hiddenPropsRef = useRef<THREE.Object3D[]>([]);
+  const hiddenGuardsRef = useRef<THREE.Object3D[]>([]);
+  const debrisRef = useRef<{
+    mesh: THREE.Object3D;
+    velocity: THREE.Vector3;
+    angularVelocity: THREE.Vector3;
+    life: number;
+    maxLife: number;
+  }[]>([]);
+
+  const createSootTexture = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 58);
+      grad.addColorStop(0, 'rgba(12, 12, 12, 0.95)');    // Very dense carbon center
+      grad.addColorStop(0.2, 'rgba(25, 25, 25, 0.85)');
+      grad.addColorStop(0.45, 'rgba(45, 45, 45, 0.55)');
+      grad.addColorStop(0.75, 'rgba(70, 70, 70, 0.2)');   // Carbon dispersion edge
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 128, 128);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    return texture;
+  };
+
   const throttleStoreUpdate = useRef(0);
   const cameraInitialized = useRef(false);
 
@@ -99,6 +148,305 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
   const wasTakenOffRef = useRef(false);
   const gimbalPitchRef = useRef(0);
   const gimbalRollRef = useRef(0);
+
+  // Initialize shared geometries to save memory and reduce GC overhead
+  if (!flameGeoRef.current) {
+    flameGeoRef.current = new THREE.DodecahedronGeometry(0.05);
+  }
+  if (!smokeGeoRef.current) {
+    smokeGeoRef.current = new THREE.SphereGeometry(0.06, 6, 6);
+  }
+  if (!sparkGeoRef.current) {
+    sparkGeoRef.current = new THREE.BoxGeometry(0.01, 0.01, 0.01);
+  }
+
+  // Cleanup resources on unmount
+  useEffect(() => {
+    return () => {
+      if (scene) {
+        if (crashLightRef.current) {
+          scene.remove(crashLightRef.current);
+        }
+        // Remove and dispose of all active particles
+        crashParticlesRef.current.forEach(p => {
+          scene.remove(p.mesh);
+          if (Array.isArray(p.mesh.material)) {
+            p.mesh.material.forEach((m: any) => m.dispose());
+          } else {
+            p.mesh.material.dispose();
+          }
+        });
+        // Remove and dispose of debris
+        debrisRef.current.forEach(d => {
+          scene.remove(d.mesh);
+          d.mesh.traverse(child => {
+            if (child instanceof THREE.Mesh && child.material) {
+              const mats = Array.isArray(child.material) ? child.material : [child.material];
+              mats.forEach((m: any) => m.dispose());
+            }
+          });
+        });
+        // Remove and dispose of all scorch marks
+        scorchMarksRef.current.forEach(sm => {
+          scene.remove(sm.mesh);
+          sm.mesh.geometry.dispose();
+          if (Array.isArray(sm.mesh.material)) {
+            sm.mesh.material.forEach((m: any) => m.dispose());
+          } else {
+            sm.mesh.material.dispose();
+          }
+        });
+        if (sootTextureRef.current) {
+          sootTextureRef.current.dispose();
+          sootTextureRef.current = null;
+        }
+      }
+      flameGeoRef.current?.dispose();
+      smokeGeoRef.current?.dispose();
+      sparkGeoRef.current?.dispose();
+    };
+  }, [scene]);
+
+  // Spawns a physical propeller debris that flies off the drone with independent physics
+  const spawnPropellerDebris = (position: THREE.Vector3) => {
+    if (!scene || !propellersRef.current || propellersRef.current.length === 0) return;
+
+    const crashCol = orchestrator.lastCrashCollision;
+    const normal = crashCol ? crashCol.normal.clone() : new THREE.Vector3(0, 1, 0);
+
+    // Impact point on the drone's edge in the direction of the obstacle (which is opposite to the normal vector)
+    const impactPoint = position.clone().addScaledVector(normal, -0.08);
+
+    // Find the closest propeller to this impact point
+    let closestProp: THREE.Object3D | null = null;
+    let minDistance = Infinity;
+
+    propellersRef.current.forEach((prop) => {
+      // Skip if already hidden/broken
+      if (!prop.visible) return;
+
+      const propWorldPos = new THREE.Vector3();
+      prop.getWorldPosition(propWorldPos);
+      const dist = propWorldPos.distanceTo(impactPoint);
+
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestProp = prop;
+      }
+    });
+
+    if (closestProp) {
+      const propWorldPos = new THREE.Vector3();
+      (closestProp as THREE.Object3D).getWorldPosition(propWorldPos);
+      const propWorldQuat = new THREE.Quaternion();
+      (closestProp as THREE.Object3D).getWorldQuaternion(propWorldQuat);
+
+      // 1. Hide the original propeller mesh
+      (closestProp as THREE.Object3D).visible = false;
+      hiddenPropsRef.current.push(closestProp);
+
+      // 2. Clone it to create a flying debris mesh
+      const debrisMesh = (closestProp as THREE.Object3D).clone();
+      
+      // Make sure the materials are cloned so we can fade it out without affecting the main model
+      debrisMesh.traverse((child) => {
+        if (child instanceof THREE.Mesh && child.material) {
+          if (Array.isArray(child.material)) {
+            child.material = child.material.map(m => m.clone());
+          } else {
+            child.material = child.material.clone();
+          }
+        }
+      });
+
+      debrisMesh.position.copy(propWorldPos);
+      debrisMesh.quaternion.copy(propWorldQuat);
+      scene.add(debrisMesh);
+
+      // 3. Debris physics parameters
+      const outboundSpeed = 1.5 + Math.random() * 2.5;
+      const velocity = normal.clone().multiplyScalar(outboundSpeed);
+      velocity.y += 1.5 + Math.random() * 1.5; // upward bounce
+
+      // Add a portion of the drone's velocity
+      const droneVel = orchestrator.getPhysicsState().velocity;
+      if (droneVel) {
+        velocity.addScaledVector(droneVel, 0.4);
+      }
+
+      const angularVelocity = new THREE.Vector3(
+        (Math.random() - 0.5) * 25.0,
+        (Math.random() - 0.5) * 25.0,
+        (Math.random() - 0.5) * 25.0
+      );
+
+      debrisRef.current.push({
+        mesh: debrisMesh,
+        velocity,
+        angularVelocity,
+        life: 0,
+        maxLife: 2.0 + Math.random() * 1.0 // lasts 2-3 seconds
+      });
+
+      // 4. Also find and break off the corresponding propeller guard (spatially closest to this propeller)
+      if (propellerGuardsRef.current && propellerGuardsRef.current.length > 0) {
+        let closestGuard: THREE.Object3D | null = null;
+        let minGuardDist = Infinity;
+
+        propellerGuardsRef.current.forEach((guard) => {
+          if (!guard.visible) return;
+          const guardWorldPos = new THREE.Vector3();
+          guard.getWorldPosition(guardWorldPos);
+          const dist = guardWorldPos.distanceTo(propWorldPos);
+
+          if (dist < minGuardDist) {
+            minGuardDist = dist;
+            closestGuard = guard;
+          }
+        });
+
+        if (closestGuard) {
+          // Hide the original guard mesh
+          (closestGuard as THREE.Object3D).visible = false;
+          hiddenGuardsRef.current.push(closestGuard);
+
+          // Clone it for flying debris
+          const guardDebrisMesh = (closestGuard as THREE.Object3D).clone();
+
+          // Clone materials for fade out
+          guardDebrisMesh.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.material) {
+              if (Array.isArray(child.material)) {
+                child.material = child.material.map(m => m.clone());
+              } else {
+                child.material = child.material.clone();
+              }
+            }
+          });
+
+          const guardWorldPos = new THREE.Vector3();
+          (closestGuard as THREE.Object3D).getWorldPosition(guardWorldPos);
+          const guardWorldQuat = new THREE.Quaternion();
+          (closestGuard as THREE.Object3D).getWorldQuaternion(guardWorldQuat);
+
+          guardDebrisMesh.position.copy(guardWorldPos);
+          guardDebrisMesh.quaternion.copy(guardWorldQuat);
+          scene.add(guardDebrisMesh);
+
+          // Launch physical debris in similar outward direction with randomized pop/spin
+          const guardOutboundSpeed = 1.0 + Math.random() * 2.0;
+          const guardVelocity = normal.clone().multiplyScalar(guardOutboundSpeed);
+          guardVelocity.y += 1.5 + Math.random() * 2.0; // pop upwards
+
+          if (droneVel) {
+            guardVelocity.addScaledVector(droneVel, 0.4);
+          }
+
+          const guardAngularVel = new THREE.Vector3(
+            (Math.random() - 0.5) * 20.0,
+            (Math.random() - 0.5) * 20.0,
+            (Math.random() - 0.5) * 20.0
+          );
+
+          debrisRef.current.push({
+            mesh: guardDebrisMesh,
+            velocity: guardVelocity,
+            angularVelocity: guardAngularVel,
+            life: 0,
+            maxLife: 2.0 + Math.random() * 1.0
+          });
+        }
+      }
+    }
+  };
+
+  // Spawns a burst of spark/embers on physical collision
+  const spawnCrashParticles = (position: THREE.Vector3) => {
+    if (!scene) return;
+
+    // Create a dynamic dark soot/scorch decal at the impact point (wall or floor)
+    // Read from persisted crash collision data (survives physics tick clearing)
+    const crashCol = orchestrator.lastCrashCollision;
+    const normal = crashCol ? crashCol.normal.clone() : new THREE.Vector3(0, 1, 0);
+    
+    // Contact point on wall surface = droneCenter - normal * (droneRadius - zFightingBias)
+    // droneRadius is 0.08, zFightingBias is 0.003, offset is -0.077 along normal vector.
+    const scorchPos = position.clone().addScaledVector(normal, -0.077);
+
+    const speed = crashCol ? crashCol.speed : 1.5;
+    // Scale blast mark size dynamically with collision impact speed (higher speed = larger mark)
+    const baseRadius = 0.15 + Math.min(0.25, speed * 0.05);
+    const scorchGeo = new THREE.CircleGeometry(baseRadius + Math.random() * 0.05, 32);
+    
+    if (!sootTextureRef.current) {
+      sootTextureRef.current = createSootTexture();
+    }
+    const scorchMat = new THREE.MeshBasicMaterial({
+      map: sootTextureRef.current,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false
+    });
+    const mesh = new THREE.Mesh(scorchGeo, scorchMat);
+    mesh.position.copy(scorchPos);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+    scene.add(mesh);
+
+    scorchMarksRef.current.push({
+      mesh,
+      life: 0,
+      maxLife: 6.0 + Math.random() * 4.0,
+      fading: false
+    });
+
+    // 1. Spawn Ember Sparks (high velocity, affected by gravity)
+    const sparkCount = 35;
+    for (let i = 0; i < sparkCount; i++) {
+      const material = new THREE.MeshBasicMaterial({
+        color: 0xffaa00,
+        transparent: true,
+        opacity: 1.0
+      });
+      const mesh = new THREE.Mesh(sparkGeoRef.current!, material);
+      mesh.position.copy(position);
+
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      const speed = 1.0 + Math.random() * 3.0;
+      const velocity = new THREE.Vector3(
+        Math.sin(phi) * Math.cos(theta),
+        Math.sin(phi) * Math.sin(theta),
+        Math.cos(phi)
+      ).multiplyScalar(speed);
+
+      velocity.y += 0.8; // Upward bias
+
+      scene.add(mesh);
+      crashParticlesRef.current.push({
+        mesh,
+        velocity,
+        type: 'spark',
+        life: 0,
+        maxLife: 0.6 + Math.random() * 0.8,
+        initialScale: 0.5 + Math.random() * 0.8,
+        drag: 0.99
+      });
+    }
+  };
+
+  // Clears all active crash particles and disposes materials
+  const clearAllCrashParticles = () => {
+    if (!scene) return;
+    crashParticlesRef.current.forEach(p => {
+      scene.remove(p.mesh);
+      if (Array.isArray(p.mesh.material)) {
+        p.mesh.material.forEach((m: any) => m.dispose());
+      } else {
+        p.mesh.material.dispose();
+      }
+    });
+    crashParticlesRef.current = [];
+  };
 
   // Sync physics bounds to match selected environment
   const envType = useDroneStore((state) => state.flightEnvironment);
@@ -189,14 +537,16 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
     const warnings = orchestrator.getWarnings();
 
     // 2. Play/Adjust motor sounds based on state
-    if (telemetry.isArmed && !telemetry.calibrationActive && orchestrator.motorsStarted) {
+    if (telemetry.isArmed && !telemetry.calibrationActive && orchestrator.motorsStarted && !orchestrator.getIsCrashed()) {
       motorCmds.forEach((cmd, idx) => {
         const motorKey = `motor${idx + 1}` as any;
         sound.startMotorSound(motorKey);
         sound.updateMotorPitch(motorKey, 15000 + cmd * 33000);
       });
     } else {
-      sound.stopAllMotors();
+      if (!orchestrator.getIsCrashed()) {
+        sound.stopAllMotors();
+      }
     }
 
     // 3. Sync visual drone model position & orientation (using interpolated state for smoothness)
@@ -205,16 +555,202 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
       droneGroupRef.current.quaternion.copy(renderState.quaternion);
     }
 
+    // Trigger visual crash impact animation on crash
+    const isCurrentlyCrashed = orchestrator.getIsCrashed();
+    if (isCurrentlyCrashed) {
+      if (!wasCrashedRef.current) {
+        // Initial sparks burst
+        spawnCrashParticles(renderState.position);
+        // Break off the closest propeller
+        spawnPropellerDebris(renderState.position);
+        wasCrashedRef.current = true;
+      }
+    } else {
+      if (wasCrashedRef.current) {
+        // Clean up remaining particles
+        clearAllCrashParticles();
+        // Restore all broken propellers to visible
+        hiddenPropsRef.current.forEach((prop) => {
+          prop.visible = true;
+        });
+        hiddenPropsRef.current = [];
+        // Restore all broken propeller guards to visible
+        hiddenGuardsRef.current.forEach((guard) => {
+          guard.visible = true;
+        });
+        hiddenGuardsRef.current = [];
+        // Clean up flying debris from scene
+        debrisRef.current.forEach((d) => {
+          scene.remove(d.mesh);
+        });
+        debrisRef.current = [];
+        
+        // Trigger gradual fading for active scorch marks on reset
+        scorchMarksRef.current.forEach(sm => {
+          sm.fading = true;
+        });
+        wasCrashedRef.current = false;
+      }
+    }
+
+    // Update active fire, smoke, and spark particles
+    if (crashParticlesRef.current.length > 0) {
+      const alive: any[] = [];
+      crashParticlesRef.current.forEach(p => {
+        p.life += delta;
+        const ratio = p.life / p.maxLife;
+
+        if (ratio < 1.0) {
+          // Apply velocity and drag
+          p.velocity.multiplyScalar(p.drag);
+
+          if (p.type === 'spark') {
+            // Embers drop under gravity
+            p.velocity.y -= 9.81 * delta;
+          } else if (p.type === 'flame') {
+            // Flames rise
+            p.velocity.y += 0.5 * delta;
+          } else if (p.type === 'smoke') {
+            // Smoke rises slowly
+            p.velocity.y += 0.2 * delta;
+          }
+
+          p.mesh.position.addScaledVector(p.velocity, delta);
+
+          // Animate Scale
+          let scale = p.initialScale;
+          if (p.type === 'flame') {
+            // Grow then shrink
+            scale = p.initialScale * Math.sin(ratio * Math.PI);
+          } else if (p.type === 'smoke') {
+            // Expand continuously
+            scale = p.initialScale * (1.0 + ratio * 2.5);
+          } else if (p.type === 'spark') {
+            // Shrink slowly
+            scale = p.initialScale * (1.0 - ratio * 0.5);
+          }
+          p.mesh.scale.setScalar(scale);
+
+          // Animate color/opacity
+          const mat = p.mesh.material as THREE.MeshBasicMaterial;
+          if (p.type === 'flame') {
+            const color = new THREE.Color();
+            if (ratio < 0.3) {
+              color.lerpColors(new THREE.Color(0xffdd44), new THREE.Color(0xff7700), ratio / 0.3);
+            } else {
+              color.lerpColors(new THREE.Color(0xff7700), new THREE.Color(0xcc2200), (ratio - 0.3) / 0.7);
+            }
+            mat.color.copy(color);
+            mat.opacity = (1.0 - ratio) * 0.9;
+          } else if (p.type === 'smoke') {
+            mat.opacity = Math.max(0, (1.0 - ratio) * 0.6);
+          } else if (p.type === 'spark') {
+            mat.opacity = 1.0 - ratio;
+          }
+
+          p.mesh.rotation.x += 1.5 * delta;
+          p.mesh.rotation.y += 1.0 * delta;
+
+          alive.push(p);
+        } else {
+          scene.remove(p.mesh);
+          if (Array.isArray(p.mesh.material)) {
+            p.mesh.material.forEach((m: any) => m.dispose());
+          } else {
+            p.mesh.material.dispose();
+          }
+        }
+      });
+      crashParticlesRef.current = alive;
+    }
+
+    // Update flying debris (broken parts)
+    if (debrisRef.current.length > 0) {
+      const aliveDebris: any[] = [];
+      debrisRef.current.forEach((debris) => {
+        // Apply gravity
+        debris.velocity.y -= 9.81 * delta;
+        // Update position
+        debris.mesh.position.addScaledVector(debris.velocity, delta);
+        // Spin
+        debris.mesh.rotation.x += debris.angularVelocity.x * delta;
+        debris.mesh.rotation.y += debris.angularVelocity.y * delta;
+        debris.mesh.rotation.z += debris.angularVelocity.z * delta;
+        // Fade out
+        debris.life += delta;
+        const progress = Math.min(1.0, debris.life / debris.maxLife);
+        const alpha = Math.max(0, 1.0 - progress);
+        
+        debris.mesh.traverse((child) => {
+          if (child instanceof THREE.Mesh && child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach((m) => {
+              m.transparent = true;
+              m.opacity = alpha;
+            });
+          }
+        });
+
+        if (debris.life < debris.maxLife) {
+          aliveDebris.push(debris);
+        } else {
+          scene.remove(debris.mesh);
+          debris.mesh.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.material) {
+              const mats = Array.isArray(child.material) ? child.material : [child.material];
+              mats.forEach((m: any) => m.dispose());
+            }
+          });
+        }
+      });
+      debrisRef.current = aliveDebris;
+    }
+
+    // Update and fade active scorch marks (soot decals)
+    if (scorchMarksRef.current.length > 0) {
+      const aliveMarks: any[] = [];
+      scorchMarksRef.current.forEach(sm => {
+        if (sm.fading) {
+          sm.life += delta;
+          const ratio = sm.life / sm.maxLife;
+          if (ratio < 1.0) {
+            (sm.mesh.material as THREE.MeshBasicMaterial).opacity = 0.75 * (1.0 - ratio);
+            aliveMarks.push(sm);
+          } else {
+            scene.remove(sm.mesh);
+            sm.mesh.geometry.dispose();
+            if (Array.isArray(sm.mesh.material)) {
+              sm.mesh.material.forEach((m: any) => m.dispose());
+            } else {
+              sm.mesh.material.dispose();
+            }
+          }
+        } else {
+          aliveMarks.push(sm);
+        }
+      });
+      scorchMarksRef.current = aliveMarks;
+    }
+
     // 4. Spin propeller meshes in real-time
     if (propellersRef.current.length > 0) {
       propellersRef.current.forEach((mesh, index) => {
-        if (mesh && telemetry.isArmed && orchestrator.motorsStarted) {
+        if (mesh) {
           const direction = (index === 0 || index === 3) ? -1 : 1;
-          const speed = 15000 + motorCmds[index] * 33000;
-          const angleDelta = (speed / 60) * Math.PI * 2 * delta * 0.012;
-
-          propAngles.current[index] += direction * angleDelta;
-          mesh.rotation.z = propAngles.current[index];
+          
+          let targetSpeed = 0;
+          if (telemetry.isArmed && orchestrator.motorsStarted && !orchestrator.getIsCrashed()) {
+            targetSpeed = 15000 + motorCmds[index] * 33000;
+          }
+          
+          const lerpFactor = targetSpeed > propVelocitiesRef.current[index] ? 0.25 : 0.04;
+          propVelocitiesRef.current[index] = THREE.MathUtils.lerp(propVelocitiesRef.current[index], targetSpeed, lerpFactor);
+          
+          if (propVelocitiesRef.current[index] > 10) {
+            const angleDelta = (propVelocitiesRef.current[index] / 60) * Math.PI * 2 * delta * 0.012;
+            propAngles.current[index] += direction * angleDelta;
+            mesh.rotation.z = propAngles.current[index];
+          }
         }
       });
     }
@@ -344,6 +880,17 @@ function SimulationLoop({ orchestrator, droneGroupRef, propellersRef, shadowMesh
       }
     }
 
+    // Apply camera shake if active
+    const shake = orchestrator.getCameraShake?.() ?? 0;
+    if (shake > 0.001) {
+      const shakeOffset = new THREE.Vector3(
+        (Math.random() - 0.5) * shake,
+        (Math.random() - 0.5) * shake,
+        (Math.random() - 0.5) * shake
+      );
+      camera.position.add(shakeOffset);
+    }
+
     // 6. Throttled update to Zustand store to avoid re-rendering layout at 60Hz
     throttleStoreUpdate.current++;
     if (throttleStoreUpdate.current >= (isMobileDevice ? 6 : 4)) { // ~15Hz updates (10Hz on mobile)
@@ -380,6 +927,8 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
   const theme = useDroneStore((state) => state.theme);
   const isDark = theme === 'dark';
   const envType = useDroneStore((state) => state.flightEnvironment);
+  const telemetry = useDroneStore((state) => state.telemetry);
+  const isCrashed = telemetry?.sensorError || orchestrator.getIsCrashed();
 
   // Dynamic fog config for realistic spatial depth and infinite horizon blending
   const getFogConfig = () => {
@@ -403,6 +952,7 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
 
   // Cache reference meshes to props
   const propellersRef = useRef<THREE.Object3D[]>([]);
+  const propellerGuardsRef = useRef<THREE.Object3D[]>([]);
 
   // Declarative state for visual scale and offsets of the drone model
   const [modelTransform, setModelTransform] = useState<{
@@ -572,6 +1122,29 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
       });
 
       propellersRef.current = props;
+
+      // ---- PROPELLER GUARD COLLECTION ----
+      const guardList: THREE.Object3D[] = [];
+      scene.traverse((child) => {
+        const nameLower = child.name.toLowerCase();
+        if (nameLower.includes('porpguard') || nameLower.includes('guard')) {
+          guardList.push(child);
+        }
+      });
+
+      // Filter out descendant/child nodes so we only target top-level groups
+      const topGuards = guardList.filter((node) => {
+        let parent = node.parent;
+        while (parent) {
+          if (guardList.includes(parent)) {
+            return false;
+          }
+          parent = parent.parent;
+        }
+        return true;
+      });
+
+      propellerGuardsRef.current = topGuards;
     } catch (err: any) {
       useDroneStore.getState().setModelLoadStatus('failed', err.message || 'Error processing PlutoX model');
     }
@@ -617,6 +1190,33 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
 
   return (
     <div className={`w-full h-full relative select-none ${isDark ? 'bg-[#02040a]' : 'bg-[#F8FAFC]'}`}>
+      {/* FPV Video Loss Glitch Overlay */}
+      <AnimatePresence>
+        {flightCameraView === 'fpv' && isCrashed && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fpv-crash-overlay pointer-events-none"
+          >
+            <div className="fpv-noise-container" />
+            <div className="fpv-static-lines" />
+            <div className="flex flex-col items-center gap-1 z-10 select-none">
+              <span className="text-[10px] font-mono text-rose-500 tracking-[0.25em] font-black uppercase bg-rose-500/10 border border-rose-500/30 px-3 py-1 rounded-full animate-pulse">
+                FPV LINK LOST
+              </span>
+              <span className="text-[9px] font-mono text-white/50 tracking-wider font-bold mt-2">
+                REASON: UNEXPECTED COLLISION IMPACT
+              </span>
+              <span className="text-[9px] font-mono text-white/40 tracking-wider">
+                VIDEO TRANSMISSION: OFFLINE (NO SIGNAL)
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Canvas
         shadows={!isMobileDevice}
         camera={{ position: [0, 1.5, -2], fov: 50 }}
@@ -695,6 +1295,7 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
           orchestrator={orchestrator}
           droneGroupRef={droneGroupRef}
           propellersRef={propellersRef}
+          propellerGuardsRef={propellerGuardsRef}
           shadowMeshRef={shadowMeshRef}
           onTelemetryFrame={onTelemetryFrame}
         />

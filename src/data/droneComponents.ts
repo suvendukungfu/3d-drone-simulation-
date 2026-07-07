@@ -68,8 +68,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   },
   motor1: {
     id: 'motor1',
-    name: 'Motor B',
-    functionName: 'High-speed coreless DC motor (Front Left) — Propeller B, CCW rotation.',
+    name: 'M4',
+    functionName: 'High-speed coreless DC motor (Front Left) — M4, CW rotation.',
     workingPrinciple: 'Uses electromagnetic fields controlled by coreless brushed DC commutation to rotate the shaft.',
     flightRole: 'Provides precise torque and RPM adjustments required for attitude stabilization and flight control.',
     safetyNotes: 'Can reach high temperatures during operation. Allow to cool before touching after a flight.',
@@ -79,8 +79,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   },
   motor2: {
     id: 'motor2',
-    name: 'Motor A',
-    functionName: 'High-speed coreless DC motor (Front Right) — Propeller A, CW rotation.',
+    name: 'M2',
+    functionName: 'High-speed coreless DC motor (Front Right) — M2, CCW rotation.',
     workingPrinciple: 'Converts electrical energy into mechanical rotation using coreless brushed magnetic commutation.',
     flightRole: 'Controls the front-right lift sector to regulate pitch and roll dynamics.',
     safetyNotes: 'Disconnect power immediately if motor stalls to prevent overheating and winding damage.',
@@ -90,8 +90,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   },
   motor3: {
     id: 'motor3',
-    name: 'Motor B',
-    functionName: 'High-speed coreless DC motor (Rear Right) — Propeller B, CCW rotation.',
+    name: 'M1',
+    functionName: 'High-speed coreless DC motor (Rear Right) — M1, CW rotation.',
     workingPrinciple: 'Driven by pulse-width modulation (PWM) signals to achieve exact rotational speed.',
     flightRole: 'Controls the rear-right lift sector, balancing diagonal force matrices.',
     safetyNotes: 'Keep loose hair and clothing away from the motor mount area during bench testing.',
@@ -101,8 +101,8 @@ export const droneComponents: Record<string, DroneComponent> = {
   },
   motor4: {
     id: 'motor4',
-    name: 'Motor A',
-    functionName: 'High-speed coreless DC motor (Rear Left) — Propeller A, CW rotation.',
+    name: 'M3',
+    functionName: 'High-speed coreless DC motor (Rear Left) — M3, CCW rotation.',
     workingPrinciple: 'Operates synchronously under controller command sequences to manage flight dynamics.',
     flightRole: 'Maintains rear-left stability, controlling roll/pitch adjustments.',
     safetyNotes: 'Never run motors at full throttle without propellers attached to avoid over-revving.',

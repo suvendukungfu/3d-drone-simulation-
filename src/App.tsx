@@ -269,21 +269,15 @@ function App() {
     };
   }, [currentMode]);
 
-  // Fullscreen immersive mode (hide navbar) during flight, restore after landing/disarm
+  // Immersive mode (hide navbar/sidebar layout) during flight, restore after landing/disarm
   useEffect(() => {
     if (currentMode === 'flight') {
       const isFlying = orchestratorState.hasTakenOff;
       const store = useDroneStore.getState();
       if (isFlying && !store.immersiveMode) {
         store.setImmersiveMode(true);
-        if (document.documentElement.requestFullscreen) {
-          document.documentElement.requestFullscreen().catch(() => {});
-        }
       } else if (!isFlying && store.immersiveMode) {
         store.setImmersiveMode(false);
-        if (document.fullscreenElement && document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        }
       }
     }
   }, [currentMode, orchestratorState.hasTakenOff]);
@@ -339,6 +333,7 @@ function App() {
 
   const handleResetSimulator = () => {
     if (orchestratorRef.current) {
+      if (orchestratorRef.current.getIsCrashTumbling?.()) return;
       // Clear failure flags first so keyboard input is unblocked
       useDroneStore.getState().setDroneInitFailed(false);
       useDroneStore.getState().setModelLoadStatus('loading');
@@ -740,8 +735,12 @@ function App() {
                       {(['motor1', 'motor2', 'motor3', 'motor4'] as const).map((id, index) => {
                         const active = activeMotors[id];
                         const rpm = motorRPMs[id];
-                        const cornerNames = ['FL (CCW)', 'FR (CW)', 'RR (CCW)', 'RL (CW)'];
-                        const motorLetter = (index === 0 || index === 2) ? 'B' : 'A';
+                        const plutoLabels = [
+                          'M4 (FL CW)',
+                          'M2 (FR CCW)',
+                          'M1 (RR CW)',
+                          'M3 (RL CCW)'
+                        ];
                         
                         return (
                            <div key={id} className="anatomy-motor-row">
@@ -756,7 +755,7 @@ function App() {
                                     : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'
                               } ${isTestingSequence && activeTestMotor !== id ? 'opacity-50' : 'opacity-100'}`}
                             >
-                              <span>Motor {motorLetter} ({cornerNames[index]})</span>
+                              <span>{plutoLabels[index]}</span>
                               <span className="text-[9px] font-mono opacity-80">{activeTestMotor === id ? 'TESTING' : active ? 'RUNNING' : 'STOPPED'}</span>
                             </button>
                             {active && (
@@ -923,7 +922,7 @@ function App() {
         </AnimatePresence>
 
         {/* DYNAMIC TELEMETRY HUD & DASHBOARD OVERLAY (Visible in Flight mode) */}
-        {currentMode === 'flight' && !isARActive && (
+        {currentMode === 'flight' && !isARActive && !isLoading && (
           <TelemetryDashboard 
             onReset={handleResetSimulator}
             onCalibrate={handleCalibrateSensors}
@@ -940,8 +939,13 @@ function App() {
             onFlip={() => orchestratorRef.current?.toggleFlipArmed()}
           />
         )}
-        {currentMode === 'flight' && !isARActive && (
-          <InteractiveTutorial telemetry={telemetry} stickState={stickState} />
+        {currentMode === 'flight' && !isARActive && !isLoading && (
+          <InteractiveTutorial 
+            telemetry={telemetry} 
+            stickState={stickState} 
+            orchestrator={orchestratorRef.current!}
+            onCheckpointsUpdated={handleCheckpointsUpdated}
+          />
         )}
       </div>      {/* 4. RIGHT SIDEBAR: Avionics Info Inspector (Only in Avionics Lab mode) */}
       <AnimatePresence>
@@ -1000,7 +1004,7 @@ function App() {
                           <strong>Rotation Direction:</strong> {selectedComponent === 'propellerA' ? 'Clockwise (CW)' : 'Counter-Clockwise (CCW)'}
                         </p>
                         <p>
-                          <strong>Torque Balancing:</strong> A quadcopter requires adjacent propellers to rotate in opposite directions. As Motor A spins its blade CW, it exerts an opposite CCW reaction torque on the chassis. By spinning Motor B CCW, its reaction torque balances out, preventing the drone from spinning uncontrollably.
+                          <strong>Torque Balancing:</strong> A quadcopter requires adjacent propellers to rotate in opposite directions. As the CW motors (M4/M1) spin their blades CW, they exert an opposite CCW reaction torque on the chassis. By spinning the CCW motors (M2/M3) CCW, their reaction torque balances out, preventing the drone from spinning uncontrollably.
                         </p>
                         <p>
                           <strong>Yaw Authority:</strong> To turn left or right (yaw), the flight controller speeds up the CW pair while slowing down the CCW pair. The net imbalance in reactive torque rotates the drone without changing overall altitude.
@@ -1270,10 +1274,10 @@ function App() {
       </AnimatePresence>
 
       {/* 8. VIRTUAL JOYSTICKS FOR MOBILE DEVICES */}
-      <VirtualJoysticks orchestrator={orchestratorRef.current!} />
+      {!isLoading && <VirtualJoysticks orchestrator={orchestratorRef.current!} />}
 
       {/* PLUTO CONTROLLER MOBILE MENU (Closed Simulation only, mobile only) */}
-      {currentMode === 'flight' && !isARActive && (
+      {currentMode === 'flight' && !isARActive && !isLoading && (
         <ClosedSimMobileMenu
           onReset={handleResetSimulator}
           onToggleAltHold={handleToggleAltHold}

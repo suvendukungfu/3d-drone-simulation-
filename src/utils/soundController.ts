@@ -336,34 +336,119 @@ class SoundController {
     }
   }
 
-  playCrash() {
+  playHit(severity: 'soft' | 'medium' | 'severe') {
     try {
       this.initCtx();
       if (!this.ctx) return;
-      const bufferSize = this.ctx.sampleRate * 0.5; // 0.5 seconds of noise
-      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.1));
+      
+      if (severity === 'soft') {
+        // High frequency soft tap
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(300, this.ctx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.06);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.06);
+      } else if (severity === 'medium') {
+        // Duller, lower frequency thud with short noise
+        const bufferSize = this.ctx.sampleRate * 0.15; // 0.15 seconds
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.03));
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 400; // lower frequency thud
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.15);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+      } else {
+        // Severe crash ("boom" effect)
+        const bufferSize = this.ctx.sampleRate * 0.8; // 0.8 seconds
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.18));
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 250; // bassy boom
+        
+        // Add a low oscillator boom too
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(100, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.4);
+        
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.6, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.6);
+        
+        noise.connect(filter);
+        filter.connect(gain);
+        osc.connect(gain);
+        
+        gain.connect(this.ctx.destination);
+        noise.start();
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.6);
       }
-      
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = buffer;
-      
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.value = 1000;
-      
-      const gain = this.ctx.createGain();
-      gain.gain.value = 0.5;
-      
-      noise.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.ctx.destination);
-      
-      noise.start();
     } catch (e) {
       // Ignore
+    }
+  }
+
+  playCrash() {
+    this.playHit('severe');
+  }
+
+  fadeMotorsOnCrash() {
+    try {
+      this.initCtx();
+      if (!this.ctx) return;
+      
+      Object.keys(this.motorSources).forEach((motorId) => {
+        const active = this.motorSources[motorId];
+        if (!active || !this.ctx) return;
+        
+        const source = active.source;
+        const gainNode = active.gainNode;
+        const filter = active.biquadFilter;
+        
+        // Gradually slide playback rate (pitch) and volume to zero over 1.2 seconds to simulate wind-down
+        gainNode.gain.setValueAtTime(gainNode.gain.value, this.ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 1.2);
+        
+        source.playbackRate.setValueAtTime(source.playbackRate.value, this.ctx.currentTime);
+        source.playbackRate.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.2);
+        
+        setTimeout(() => {
+          try {
+            source.stop();
+            source.disconnect();
+            filter.disconnect();
+            gainNode.disconnect();
+          } catch (err) {}
+        }, 1300);
+        
+        delete this.motorSources[motorId];
+      });
+    } catch (e) {
+      // Fail silently
     }
   }
 

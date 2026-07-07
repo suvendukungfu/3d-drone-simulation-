@@ -1,220 +1,158 @@
-import { useEffect, useState } from 'react';
+import { TutorialProvider, useTutorial } from './tutorial/TutorialContext';
+import { TutorialOverlay } from './tutorial/TutorialOverlay';
+import { CoachBubble } from './tutorial/CoachBubble';
+import { ObjectiveTracker } from './tutorial/ObjectiveTracker';
+import { HintEngine } from './tutorial/HintEngine';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useDroneStore } from '../../store/useDroneStore';
-import { 
-  CheckCircle2, ArrowRight, X
-} from 'lucide-react';
+import { Award, Timer, Target, Sparkles, RefreshCw, LogOut } from 'lucide-react';
 
-interface TutorialStepData {
-  title: string;
-  instruction: string;
-  keys: string[];
-  mobileAction: string;
-  trigger: (telemetry: any, stick: any) => boolean;
+interface InteractiveTutorialProps {
+  telemetry: any;
+  stickState: any;
+  orchestrator: any;
+  onCheckpointsUpdated: (cps: any[]) => void;
 }
 
-export function InteractiveTutorial({ telemetry, stickState }: { telemetry: any; stickState: any }) {
-  const isTutorialActive = useDroneStore((state) => state.isTutorialActive);
-  const tutorialStep = useDroneStore((state) => state.tutorialStep);
-  const stopTutorial = useDroneStore((state) => state.stopTutorial);
-  const setTutorialStep = useDroneStore((state) => state.setTutorialStep);
-  
-  const [completedSteps, setCompletedSteps] = useState<boolean[]>(new Array(8).fill(false));
+export function InteractiveTutorial({ 
+  telemetry, 
+  stickState, 
+  orchestrator,
+  onCheckpointsUpdated 
+}: InteractiveTutorialProps) {
+  return (
+    <TutorialProvider
+      telemetry={telemetry}
+      stickState={stickState}
+      orchestrator={orchestrator}
+      onCheckpointsUpdated={onCheckpointsUpdated}
+    >
+      <TutorialSubContainer />
+    </TutorialProvider>
+  );
+}
 
-  const steps: TutorialStepData[] = [
-    {
-      title: "Welcome Pilot!",
-      instruction: "Welcome to the Pluto Flight Academy! Let's learn how to pilot this high-performance nano-drone. Click 'Begin' or press Enter to start.",
-      keys: ["Enter"],
-      mobileAction: "Tap Begin",
-      trigger: () => false // manual next
-    },
-    {
-      title: "1. Arm the Motors",
-      instruction: "Safety first! Arm the flight controller to start the motors. Press the Spacebar or tap the 'ARM' button.",
-      keys: ["Spacebar"],
-      mobileAction: "Tap ARM",
-      trigger: (tel) => tel?.isArmed === true
-    },
-    {
-      title: "2. Launch / Takeoff",
-      instruction: "Great! Let's get airborne. Press 'T' or tap the 'TAKEOFF' button to perform a controlled hover takeoff.",
-      keys: ["T"],
-      mobileAction: "Tap TAKEOFF",
-      trigger: (tel) => tel?.altitude > 0.05
-    },
-    {
-      title: "3. Throttle Climb & Descend",
-      instruction: "Use throttle to climb or descend. Hold 'W' (Climb) or 'S' (Descend) for a second, or push the Left Joystick up/down.",
-      keys: ["W", "S"],
-      mobileAction: "Move Left Stick Up/Down",
-      trigger: (tel, stick) => Math.abs(stick?.throttle - 0.55) > 0.15 || tel?.verticalSpeed > 0.2 || tel?.verticalSpeed < -0.2
-    },
-    {
-      title: "4. Yaw (Rotation)",
-      instruction: "Rotate the heading of the drone. Press 'A' (left rotation) or 'D' (right rotation) or move the Left Joystick left/right.",
-      keys: ["A", "D"],
-      mobileAction: "Move Left Stick Left/Right",
-      trigger: (_tel, stick) => Math.abs(stick?.yaw) > 0.2
-    },
-    {
-      title: "5. Pitch & Roll (Directional Travel)",
-      instruction: "Fly in any direction using Pitch (forward/back) and Roll (sideways). Use the keyboard Arrow Keys or move the Right Joystick.",
-      keys: ["Arrow Keys"],
-      mobileAction: "Move Right Stick",
-      trigger: (_tel, stick) => Math.abs(stick?.pitch) > 0.15 || Math.abs(stick?.roll) > 0.15
-    },
-    {
-      title: "6. Landing Complete",
-      instruction: "Bring it down! Hover near the ground and hold 'S' or tap the 'LAND' button until motors return to idle touchdown.",
-      keys: ["L", "S"],
-      mobileAction: "Tap LAND",
-      trigger: (tel) => tel?.altitude < 0.05 && tel?.speed < 0.15
-    },
-    {
-      title: "7. Academy Certification",
-      instruction: "Superb piloting! You have mastered the core controls. Remember: if you crash, press Shift+R to reset instantly.",
-      keys: ["Shift+R"],
-      mobileAction: "Tap Reset Sim",
-      trigger: () => false // manual end
-    }
-  ];
+function TutorialSubContainer() {
+  const { isTutorialActive, currentStep, stopTutorial, restartTutorial, elapsedTime, accuracy, flightScore } = useTutorial();
 
-  // Check triggers to complete steps (does not manage auto-advance timer)
-  useEffect(() => {
-    if (!isTutorialActive || tutorialStep < 1 || tutorialStep > steps.length) return;
-    const currentStepIndex = tutorialStep - 1;
-    const currentStep = steps[currentStepIndex];
-    
-    if (completedSteps[currentStepIndex]) return;
-    
-    if (currentStep.trigger(telemetry, stickState)) {
-      setCompletedSteps((prev) => {
-        const next = [...prev];
-        next[currentStepIndex] = true;
-        return next;
-      });
-    }
-  }, [telemetry, stickState, tutorialStep, isTutorialActive, completedSteps]);
+  if (!isTutorialActive) return null;
 
-  // Handle advancing the step after a delay when it is completed
-  useEffect(() => {
-    if (!isTutorialActive) return;
-    const currentStepIndex = tutorialStep - 1;
-    if (currentStepIndex < 0 || currentStepIndex >= steps.length) return;
-    
-    if (completedSteps[currentStepIndex]) {
-      const timer = setTimeout(() => {
-        if (tutorialStep < steps.length) {
-          setTutorialStep(tutorialStep + 1);
-        }
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
-  }, [completedSteps, tutorialStep, isTutorialActive, steps.length]);
-
-  const currentStepIndex = Math.min(steps.length - 1, Math.max(0, tutorialStep - 1));
-  const currentStep = steps[currentStepIndex];
-  const isLastStep = tutorialStep === steps.length;
-  const isStepCleared = completedSteps[currentStepIndex];
+  const formatTime = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
-    <AnimatePresence>
-      {isTutorialActive && (
-        <div className="interactive-tutorial-wrapper absolute left-1/2 -translate-x-1/2 pointer-events-none z-40 flex justify-center">
-          <motion.div 
-            initial={{ opacity: 0, y: -30 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -30 }}
-            transition={{ duration: 0.3 }}
-            className="interactive-tutorial-panel bg-slate-950/85 backdrop-blur-xl border border-blue-500/35 rounded-2xl p-5 shadow-[0_12px_40px_rgba(59,130,246,0.18)] pointer-events-auto"
+    <>
+      {/* ── Spotlight and Backdrop ── */}
+      <TutorialOverlay />
+
+      {/* ── SMART COACH ONBOARDING CARD ── */}
+      {currentStep.id !== 'COMPLETE' && <CoachBubble />}
+
+      {/* ── PERSISTENT FLIGHT OBJECTIVE HUD ── */}
+      <ObjectiveTracker />
+
+      {/* ── ADAPTIVE HELP ENGINE ── */}
+      <HintEngine />
+
+      {/* ── COMPLETION CELEBRATION MODAL ── */}
+      <AnimatePresence>
+        {currentStep.id === 'COMPLETE' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 pointer-events-auto"
           >
-            <div className="flex justify-between items-start gap-4">
-              <div className="flex items-center gap-2">
-                <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-                </span>
-                <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-blue-400">
-                  Interactive Tutorial (Step {tutorialStep} of {steps.length})
-                </h4>
+            <motion.div
+              initial={{ scale: 0.9, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 30 }}
+              transition={{ duration: 0.4, type: 'spring', bounce: 0.2 }}
+              className="bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-amber-500/30 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-[0_20px_50px_rgba(245,158,11,0.15)] text-white flex flex-col items-center text-center gap-6"
+            >
+              {/* Confetti / Sparkles effect */}
+              <div className="relative">
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1], rotate: [0, 15, -15, 0] }}
+                  transition={{ repeat: Infinity, duration: 3 }}
+                  className="w-20 h-20 bg-amber-500/10 rounded-full border-2 border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_30px_rgba(245,158,11,0.2)]"
+                >
+                  <Award className="w-10 h-10" />
+                </motion.div>
+                <Sparkles className="absolute -top-1 -right-1 w-5 h-5 text-amber-300 animate-pulse" />
+                <Sparkles className="absolute -bottom-1 -left-1 w-4 h-4 text-amber-400 animate-ping" />
               </div>
-              <button 
-                onClick={stopTutorial} 
-                className="text-slate-400 hover:text-white transition p-0.5 rounded-lg hover:bg-white/5"
-                title="Exit Tutorial"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <div className="mt-3">
-              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
-                {currentStep.title}
-                {isStepCleared && (
-                  <motion.span 
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="text-emerald-400"
-                  >
-                    <CheckCircle2 className="w-4 h-4 fill-emerald-500/10" />
-                  </motion.span>
-                )}
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed mt-1.5">
-                {currentStep.instruction}
+              {/* Title & Badge */}
+              <div className="space-y-1.5">
+                <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider text-amber-400">
+                  Academy Certified!
+                </h2>
+                <div className="text-[9px] font-mono font-bold tracking-widest text-slate-400 uppercase bg-slate-950 border border-white/5 px-3 py-1 rounded-full inline-block">
+                  FAA COMPLIANT REMOTE PILOT
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-350 leading-relaxed px-2">
+                Congratulations Pilot! You have completed the Drona Flight Academy checkride. Your skills are officially certified for autonomous simulation zones.
               </p>
-            </div>
 
-            {/* Action / Keyboard hints */}
-            <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-3.5 border-t border-white/5">
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-mono uppercase tracking-wider text-slate-500">Controls:</span>
-                <div className="flex gap-1.5 items-center">
-                  {currentStep.keys.map((k) => (
-                    <kbd key={k} className="px-2 py-0.5 rounded bg-white/10 text-white border border-white/10 text-[9px] font-mono font-bold shadow-sm">
-                      {k}
-                    </kbd>
-                  ))}
-                  <span className="text-[10px] text-slate-455 font-medium font-mono">/</span>
-                  <span className="text-[10px] text-slate-400 font-medium font-mono">
-                    {currentStep.mobileAction}
+              {/* Score / Metrics breakdown */}
+              <div className="grid grid-cols-3 gap-2.5 w-full mt-2 text-left">
+                <div className="bg-slate-900 border border-white/5 p-3 rounded-2xl flex flex-col gap-0.5 shadow-inner">
+                  <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                    <Timer className="w-3 h-3 text-blue-400" />
+                    Time
+                  </span>
+                  <span className="text-sm font-extrabold text-slate-100 font-mono tabular-nums">
+                    {formatTime(elapsedTime)}
+                  </span>
+                </div>
+                <div className="bg-slate-900 border border-white/5 p-3 rounded-2xl flex flex-col gap-0.5 shadow-inner">
+                  <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                    <Target className="w-3 h-3 text-emerald-400" />
+                    Accuracy
+                  </span>
+                  <span className="text-sm font-extrabold text-emerald-400 font-mono tabular-nums">
+                    {accuracy}%
+                  </span>
+                </div>
+                <div className="bg-slate-900 border border-white/5 p-3 rounded-2xl flex flex-col gap-0.5 shadow-inner">
+                  <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    Score
+                  </span>
+                  <span className="text-sm font-extrabold text-amber-400 font-mono tabular-nums">
+                    {flightScore}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                {(tutorialStep === 1 || isLastStep || isStepCleared) ? (
-                  <button
-                    onClick={() => {
-                      if (isLastStep) {
-                        stopTutorial();
-                      } else {
-                        setTutorialStep(tutorialStep + 1);
-                      }
-                    }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition ${
-                      isStepCleared 
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white'
-                    }`}
-                  >
-                    {tutorialStep === 1 ? "Begin" : isLastStep ? "Finish" : "Next"}
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setTutorialStep(tutorialStep + 1)}
-                    className="text-slate-500 hover:text-slate-300 text-[10px] font-bold uppercase tracking-wider transition"
-                  >
-                    Skip Step
-                  </button>
-                )}
+              {/* Action buttons */}
+              <div className="flex gap-3 w-full border-t border-white/10 pt-5 mt-2">
+                <button
+                  onClick={restartTutorial}
+                  className="flex-1 py-2.5 rounded-xl border border-white/10 text-xs font-black uppercase tracking-wider text-slate-300 hover:text-white hover:bg-white/5 transition flex items-center justify-center gap-1.5"
+                  aria-label="Replay academy flight tutorial checkride"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Replay
+                </button>
+                <button
+                  onClick={stopTutorial}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-xs font-black uppercase tracking-wider text-slate-950 transition flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/10"
+                  aria-label="Finish and close academy certification dialog"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Finish
+                </button>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

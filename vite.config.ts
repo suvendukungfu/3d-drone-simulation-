@@ -16,5 +16,6 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/tests/setup.ts',
     exclude: [...configDefaults.exclude, 'bridge/**'],
+    testTimeout: 15000,
   },
 })

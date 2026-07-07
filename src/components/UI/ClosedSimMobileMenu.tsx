@@ -934,6 +934,7 @@ export function ClosedSimMobileMenu({
             </button>
             {/* Menu Button */}
             <button
+              id="tutorial-mobile-menu-btn"
               onClick={() => setIsOpen(true)}
               className={`px-3.5 h-9 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 flex items-center justify-center text-[10px] font-bold tracking-widest text-white active:scale-95 transition-all duration-500 uppercase ${
                 telemetry?.isArmed ? 'opacity-0 scale-90 pointer-events-none' : 'opacity-100 scale-100'
@@ -989,7 +990,7 @@ export function ClosedSimMobileMenu({
 
         {/* 3. ERGONOMIC RC CORNER JOYSTICKS & CONTROLS */}
         {/* Left Joystick positioned bottom-left */}
-        <div className="absolute bottom-5 left-[max(20px,env(safe-area-inset-left))] z-30">
+        <div id="tutorial-left-joystick" className="absolute bottom-5 left-[max(20px,env(safe-area-inset-left))] z-30">
           <PlutoJoystick
             side="left"
             onChange={handleLeftStickChange}
@@ -1007,7 +1008,7 @@ export function ClosedSimMobileMenu({
         </div>
 
         {/* Right Joystick positioned bottom-right */}
-        <div className="absolute bottom-5 right-[max(20px,env(safe-area-inset-right))] z-30">
+        <div id="tutorial-right-joystick" className="absolute bottom-5 right-[max(20px,env(safe-area-inset-right))] z-30">
           <PlutoJoystick
             side="right"
             onChange={handleRightStickChange}
@@ -1048,7 +1049,7 @@ export function ClosedSimMobileMenu({
           <div className="pluto-bottom-bar select-none">
             {/* ARM Switch */}
             {controlsAvailable && stateLabel !== 'CRASHED' && (
-              <div className="pluto-arm-toggle pluto-interactive flex items-center justify-between">
+              <div id="tutorial-arm-btn" className="pluto-arm-toggle pluto-interactive flex items-center justify-between">
                 <span className="text-[8px] font-black text-white/55 tracking-wider uppercase">
                   ARM
                 </span>
@@ -1087,6 +1088,7 @@ export function ClosedSimMobileMenu({
               </button>
             ) : (
               <button
+                id={hasTakenOff ? "tutorial-land-btn" : "tutorial-takeoff-btn"}
                 onClick={() => {
                   if (hasTakenOff) {
                     onLand?.();
