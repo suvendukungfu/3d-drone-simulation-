@@ -923,11 +923,15 @@ export function ClosedSimMobileMenu({
                     }
                     handleTriggerFlipDirection('back');
                   }}
-                  className={`w-14 h-14 rounded-full border flex items-center justify-center text-[10px] font-bold uppercase tracking-wider pluto-interactive transition-all duration-300 ${
+                  className={`w-14 h-14 rounded-full border flex items-center justify-center text-[10px] font-black uppercase tracking-wider pluto-interactive transition-all duration-300 ${
                     isFlipEnabled 
-                      ? 'bg-white/15 text-white border-white/40 shadow-[0_0_15px_rgba(255,255,255,0.15)] animate-pulse active:bg-white/25 active:scale-95' 
-                      : 'bg-white/5 text-white/30 border-white/10 cursor-not-allowed'
+                      ? 'bg-white/30 border-white/60 shadow-[0_0_15px_rgba(255,255,255,0.2)] animate-pulse active:bg-white/45 active:scale-95' 
+                      : 'bg-white/10 border-white/20 cursor-not-allowed'
                   }`}
+                  style={{
+                    color: '#000000',
+                    textShadow: '-1px -1px 0 #ffffff, 1px -1px 0 #ffffff, -1px 1px 0 #ffffff, 1px 1px 0 #ffffff, 0px 0px 3px rgba(255, 255, 255, 0.8)'
+                  }}
                 >
                   Flip
                 </button>
