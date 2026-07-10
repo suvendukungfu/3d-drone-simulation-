@@ -220,7 +220,6 @@ function SimulationLoop({
     const normal = crashCol ? crashCol.normal.clone() : new THREE.Vector3(0, 1, 0);
     const droneVel = orchestrator.getPhysicsState().velocity;
 
-    const isWallCol = crashCol ? crashCol.isWall : false;
     const forceDir = new THREE.Vector3().copy(normal).negate().normalize();
     
     // Obtain drone's current world position
@@ -643,6 +642,10 @@ function SimulationLoop({
         // Instantly stop remaining propellers from spinning
         propVelocitiesRef.current = [0, 0, 0, 0];
       }
+    }
+
+    if (state.gl.domElement) {
+      state.gl.domElement.style.filter = isSlowMo ? 'blur(0.6px)' : 'none';
     }
 
     if (shouldRestore || forceReset) {
@@ -1350,7 +1353,7 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
   }
 
   return (
-    <div className={`w-full h-full relative select-none ${isDark ? 'bg-[#02040a]' : 'bg-[#F8FAFC]'} ${isSlowMo ? 'motion-blur-active' : ''}`}>
+    <div className={`w-full h-full relative select-none ${isDark ? 'bg-[#02040a]' : 'bg-[#F8FAFC]'}`}>
       {/* FPV Video Loss Glitch Overlay */}
       <AnimatePresence>
         {flightCameraView === 'fpv' && isCrashed && (
