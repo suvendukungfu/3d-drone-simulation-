@@ -936,22 +936,12 @@ function SimulationLoop({
         .addScaledVector(up, 0.045);
       camera.position.copy(targetCamPos);
 
-      // 2-axis stabilized FPV camera gimbal
-      const euler = new THREE.Euler().setFromQuaternion(droneQuat, 'YXZ');
-      const droneYaw = euler.y;
-      
-      const targetGimbalPitch = euler.x * 0.15; // 85% stabilized pitch
-      const targetGimbalRoll = euler.z * 0.10;  // 90% stabilized roll
-      
-      gimbalPitchRef.current += (targetGimbalPitch - gimbalPitchRef.current) * delta * 5.0;
-      gimbalRollRef.current += (targetGimbalRoll - gimbalRollRef.current) * delta * 5.0;
-      
-      const gimbalYaw = droneYaw + Math.PI; // point camera forward
-      const gimbalQuat = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(gimbalPitchRef.current, gimbalYaw, gimbalRollRef.current, 'YXZ')
+      // Direct drone orientation sync (with 180-degree yaw offset to point camera forward)
+      const baseQuat = droneQuat.clone().multiply(
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)
       );
       
-      const cameraQuat = gimbalQuat.multiply(offsetQuat);
+      const cameraQuat = baseQuat.multiply(offsetQuat);
       camera.quaternion.copy(cameraQuat);
       cameraInitialized.current = true;
     }
