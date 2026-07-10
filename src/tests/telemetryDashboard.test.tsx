@@ -28,7 +28,7 @@ describe('TelemetryDashboard Component Tests', () => {
     });
   });
 
-  test('Does not render flight control buttons (Takeoff, Land, Flip) when drone is disarmed', () => {
+  test('Does not render flight control buttons (Takeoff, Land) when drone is disarmed', () => {
     render(
       <TelemetryDashboard
         onReset={() => {}}
@@ -40,10 +40,9 @@ describe('TelemetryDashboard Component Tests', () => {
 
     expect(screen.queryByRole('button', { name: /Takeoff/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Land/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Flip/i })).not.toBeInTheDocument();
   });
 
-  test('Renders and triggers Takeoff, Land, and Flip buttons when armed', () => {
+  test('Renders and triggers Takeoff and Land buttons when armed', () => {
     useDroneStore.setState({
       telemetry: {
         ...useDroneStore.getState().telemetry,
@@ -53,7 +52,6 @@ describe('TelemetryDashboard Component Tests', () => {
 
     const onTakeoffSpy = vi.fn();
     const onLandSpy = vi.fn();
-    const onFlipSpy = vi.fn();
 
     render(
       <TelemetryDashboard
@@ -63,11 +61,8 @@ describe('TelemetryDashboard Component Tests', () => {
         stickState={defaultStickState}
         hasTakenOff={false}
         isLandingActive={false}
-        isFlipArmed={false}
-        isFlipping={false}
         onTakeoff={onTakeoffSpy}
         onLand={onLandSpy}
-        onFlip={onFlipSpy}
       />
     );
 
@@ -78,14 +73,12 @@ describe('TelemetryDashboard Component Tests', () => {
     fireEvent.click(takeoffBtn);
     expect(onTakeoffSpy).toHaveBeenCalledTimes(1);
 
-    // Land and Flip should be disabled
+    // Land should be disabled
     const landBtn = screen.getByRole('button', { name: /Land/i });
-    const flipBtn = screen.getByRole('button', { name: /Flip/i });
     expect(landBtn).toBeDisabled();
-    expect(flipBtn).toBeDisabled();
   });
 
-  test('Enables and triggers Land and Flip buttons when airborne (hasTakenOff=true)', () => {
+  test('Enables and triggers Land button when airborne (hasTakenOff=true)', () => {
     useDroneStore.setState({
       telemetry: {
         ...useDroneStore.getState().telemetry,
@@ -95,7 +88,6 @@ describe('TelemetryDashboard Component Tests', () => {
 
     const onTakeoffSpy = vi.fn();
     const onLandSpy = vi.fn();
-    const onFlipSpy = vi.fn();
 
     render(
       <TelemetryDashboard
@@ -105,11 +97,8 @@ describe('TelemetryDashboard Component Tests', () => {
         stickState={defaultStickState}
         hasTakenOff={true}
         isLandingActive={false}
-        isFlipArmed={false}
-        isFlipping={false}
         onTakeoff={onTakeoffSpy}
         onLand={onLandSpy}
-        onFlip={onFlipSpy}
       />
     );
 
@@ -122,11 +111,5 @@ describe('TelemetryDashboard Component Tests', () => {
     expect(landBtn).not.toBeDisabled();
     fireEvent.click(landBtn);
     expect(onLandSpy).toHaveBeenCalledTimes(1);
-
-    // Flip should be enabled and triggerable
-    const flipBtn = screen.getByRole('button', { name: /Flip/i });
-    expect(flipBtn).not.toBeDisabled();
-    fireEvent.click(flipBtn);
-    expect(onFlipSpy).toHaveBeenCalledTimes(1);
   });
 });

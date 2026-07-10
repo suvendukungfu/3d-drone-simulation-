@@ -15,11 +15,8 @@ interface TelemetryDashboardProps {
   onDisarm?: () => void;
   hasTakenOff?: boolean;
   isLandingActive?: boolean;
-  isFlipArmed?: boolean;
-  isFlipping?: boolean;
   onTakeoff?: () => void;
   onLand?: () => void;
-  onFlip?: () => void;
 }
 
 export function TelemetryDashboard({
@@ -31,11 +28,8 @@ export function TelemetryDashboard({
   onDisarm,
   hasTakenOff = false,
   isLandingActive = false,
-  isFlipArmed = false,
-  isFlipping = false,
   onTakeoff,
-  onLand,
-  onFlip
+  onLand
 }: TelemetryDashboardProps) {
   const telemetry = useDroneStore((state) => state.telemetry);
   const flightEnvironment = useDroneStore((state) => state.flightEnvironment);
