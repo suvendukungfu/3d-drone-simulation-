@@ -1088,6 +1088,11 @@ body.mobile-menu-open .virtual-joysticks {
   50% { opacity: 0.65; }
 }
 
+.motion-blur-active canvas {
+  filter: blur(0.6px);
+  transition: filter 0.08s ease-out;
+}
+
 
 
 

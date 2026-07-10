@@ -234,12 +234,10 @@ function SimulationLoop({
         const propWorldPos = new THREE.Vector3();
         prop.getWorldPosition(propWorldPos);
 
-        // Side selective check: only detach if on the impact side for wall collisions
-        if (isWallCol) {
-          const offset = propWorldPos.clone().sub(droneWorldPos);
-          const dot = offset.dot(forceDir);
-          if (dot < 0.05) return; // Keep intact
-        }
+        // Side selective check: only detach if on the impact side
+        const offset = propWorldPos.clone().sub(droneWorldPos);
+        const dot = offset.dot(forceDir);
+        if (dot < 0.0) return; // Keep intact
 
         // Save original parent & local transform
         if (!prop.userData.originalParent) {
@@ -295,12 +293,10 @@ function SimulationLoop({
         const guardWorldPos = new THREE.Vector3();
         guard.getWorldPosition(guardWorldPos);
 
-        // Side selective check: only detach if on the impact side for wall collisions
-        if (isWallCol) {
-          const offset = guardWorldPos.clone().sub(droneWorldPos);
-          const dot = offset.dot(forceDir);
-          if (dot < 0.05) return; // Keep intact
-        }
+        // Side selective check: only detach if on the impact side
+        const offset = guardWorldPos.clone().sub(droneWorldPos);
+        const dot = offset.dot(forceDir);
+        if (dot < 0.0) return; // Keep intact
 
         // Save original parent & local transform
         if (!guard.userData.originalParent) {
@@ -421,6 +417,93 @@ function SimulationLoop({
         drag: 0.99
       });
     }
+
+    // 2. Spawn slow rising Smoke
+    const smokeCount = 15;
+    for (let i = 0; i < smokeCount; i++) {
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x555555,
+        transparent: true,
+        opacity: 0.5
+      });
+      const mesh = new THREE.Mesh(smokeGeoRef.current!, material);
+      mesh.position.copy(position).add(new THREE.Vector3(
+        (Math.random() - 0.5) * 0.05,
+        (Math.random() - 0.5) * 0.05,
+        (Math.random() - 0.5) * 0.05
+      ));
+
+      const theta = Math.random() * Math.PI * 2;
+      const velocitySpeed = 0.15 + Math.random() * 0.3;
+      const velocity = new THREE.Vector3(
+        Math.cos(theta),
+        1.5 + Math.random() * 1.5,
+        Math.sin(theta)
+      ).normalize().multiplyScalar(velocitySpeed);
+
+      scene.add(mesh);
+      crashParticlesRef.current.push({
+        mesh,
+        velocity,
+        type: 'smoke',
+        life: 0,
+        maxLife: 1.0 + Math.random() * 0.8,
+        initialScale: 0.8 + Math.random() * 1.2,
+        drag: 0.98
+      });
+    }
+
+    // 3. Spawn small grey plastic debris
+    const debrisCount = 10;
+    for (let i = 0; i < debrisCount; i++) {
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x222222,
+        transparent: true,
+        opacity: 0.95
+      });
+      const mesh = new THREE.Mesh(flameGeoRef.current!, material);
+      mesh.position.copy(position);
+
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      const velocitySpeed = 0.8 + Math.random() * 2.0;
+      const velocity = new THREE.Vector3(
+        Math.sin(phi) * Math.cos(theta),
+        Math.sin(phi) * Math.sin(theta),
+        Math.cos(phi)
+      ).multiplyScalar(velocitySpeed);
+      velocity.y += 0.5;
+
+      scene.add(mesh);
+      crashParticlesRef.current.push({
+        mesh,
+        velocity,
+        type: 'spark',
+        life: 0,
+        maxLife: 0.8 + Math.random() * 0.6,
+        initialScale: 0.4 + Math.random() * 0.6,
+        drag: 0.99
+      });
+    }
+
+    // 4. Short-lived impact flash/glow
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 1.0
+    });
+    const glowMesh = new THREE.Mesh(smokeGeoRef.current!, glowMaterial);
+    glowMesh.position.copy(position);
+    scene.add(glowMesh);
+    crashParticlesRef.current.push({
+      mesh: glowMesh,
+      velocity: new THREE.Vector3(0, 0, 0),
+      type: 'flame',
+      life: 0,
+      maxLife: 0.25,
+      initialScale: 4.5,
+      drag: 1.0
+    });
   };
 
   // Clears all active crash particles and disposes materials
@@ -557,6 +640,8 @@ function SimulationLoop({
         // Break off all propellers and guards
         spawnPropellerDebris(renderState.position);
         wasCrashedRef.current = true;
+        // Instantly stop remaining propellers from spinning
+        propVelocitiesRef.current = [0, 0, 0, 0];
       }
     }
 
@@ -1265,7 +1350,7 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
   }
 
   return (
-    <div className={`w-full h-full relative select-none ${isDark ? 'bg-[#02040a]' : 'bg-[#F8FAFC]'}`}>
+    <div className={`w-full h-full relative select-none ${isDark ? 'bg-[#02040a]' : 'bg-[#F8FAFC]'} ${isSlowMo ? 'motion-blur-active' : ''}`}>
       {/* FPV Video Loss Glitch Overlay */}
       <AnimatePresence>
         {flightCameraView === 'fpv' && isCrashed && (

@@ -94,7 +94,7 @@ export class SimulatorOrchestrator {
   public hasJustReset = false;
   public slowMoActive = false;
   public slowMoTimer = 0.0;
-  public slowMoDuration = 0.8; // seconds
+  public slowMoDuration = 1.0; // seconds
 
   // Persisted collision data for the render frame (survives physics.lastCollision clear)
   public lastCrashCollision: {
@@ -659,7 +659,7 @@ export class SimulatorOrchestrator {
       this.prevState.angularVelocity.copy(this.state.angularVelocity);
     }
 
-    if (this.crashDetected || this.slowMoActive) {
+    if (this.crashDetected) {
       // Freeze simulation state, do not step physics, avoid interpolation jitter
       this.timeAccumulator = 0;
       this.renderState.position.copy(this.state.position);
@@ -675,8 +675,8 @@ export class SimulatorOrchestrator {
       }
     }
 
-    // Interpolate render state (if not crashed/slow-mo)
-    if (!this.crashDetected && !this.slowMoActive) {
+    // Interpolate render state (if not crashed)
+    if (!this.crashDetected) {
       const alpha = this.timeAccumulator / this.fixedTimestep;
       this.renderState.position.lerpVectors(this.prevState.position, this.state.position, alpha);
       this.renderState.quaternion.copy(this.prevState.quaternion).slerp(this.state.quaternion, alpha);

@@ -47,8 +47,8 @@ export function CrashRecoveryOverlay({ onRebuild }: CrashRecoveryOverlayProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.4 }}
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/40 backdrop-blur-md select-none bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.15)_0%,rgba(0,0,0,0.85)_85%)]"
+      transition={{ duration: 0.5 }}
+      className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/30 backdrop-blur-[2.5px] select-none bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.08)_0%,rgba(0,0,0,0.65)_85%)]"
     >
       {/* Visually hidden container for test assertions */}
       <div style={{ display: 'none' }}>
@@ -60,15 +60,18 @@ export function CrashRecoveryOverlay({ onRebuild }: CrashRecoveryOverlayProps) {
 
       {/* Centered CRASHED Title using custom local Pricedown font */}
       <motion.h1
-        initial={{ opacity: 0, scale: 1.05 }}
-        animate={{ opacity: 1, scale: 1.0 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="text-6xl sm:text-8xl md:text-9xl font-black select-none text-center px-4 tracking-[0.08em] uppercase"
+        initial={{ opacity: 0, scale: 0.85, y: -20 }}
+        animate={{ opacity: 1, scale: 1.0, y: 0 }}
+        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        className="text-7xl sm:text-9xl md:text-[10rem] font-extrabold select-none text-center px-4 tracking-[0.18em] uppercase font-sans animate-pulse"
         style={{
           fontFamily: "'Orbitron', 'Bebas Neue', 'Inter', sans-serif",
           color: '#ef4444',
+          WebkitTextStroke: '2px rgba(255, 255, 255, 0.95)',
           textShadow: `
-            0 2px 10px rgba(239, 68, 68, 0.45),
+            0 0 15px rgba(255, 255, 255, 0.7),
+            0 0 30px rgba(239, 68, 68, 0.9),
+            0 0 50px rgba(239, 68, 68, 0.5),
             2px 2px 4px rgba(0, 0, 0, 0.95)
           `,
         }}
