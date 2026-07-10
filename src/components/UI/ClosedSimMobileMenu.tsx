@@ -923,10 +923,10 @@ export function ClosedSimMobileMenu({
                     }
                     handleTriggerFlipDirection('back');
                   }}
-                  className={`w-10 h-10 rounded-full bg-indigo-750 hover:bg-indigo-650 text-white border border-indigo-500/50 flex items-center justify-center text-[8.5px] font-black uppercase tracking-wider pluto-interactive shadow-lg transition-all duration-300 ${
+                  className={`w-14 h-14 rounded-full border flex items-center justify-center text-[10px] font-bold uppercase tracking-wider pluto-interactive transition-all duration-300 ${
                     isFlipEnabled 
-                      ? 'opacity-100 animate-pulse' 
-                      : 'opacity-40 cursor-not-allowed border-slate-600/30'
+                      ? 'bg-white/15 text-white border-white/40 shadow-[0_0_15px_rgba(255,255,255,0.15)] animate-pulse active:bg-white/25 active:scale-95' 
+                      : 'bg-white/5 text-white/30 border-white/10 cursor-not-allowed'
                   }`}
                 >
                   Flip
