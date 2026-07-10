@@ -58,12 +58,12 @@ export function FlightControlsPanel() {
             </div>
           ) : (
             /* Ultra-Compact Expanded Panel */
-            <div className="p-3 flex flex-col gap-2 font-sans text-xs pointer-events-auto">
+            <div className="p-3 flex flex-col gap-2 font-sans text-xs pointer-events-auto" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))' }}>
               {/* Header */}
               <div className="flex items-center justify-between border-b border-white/5 pb-1.5">
                 <div className="flex items-center gap-1.5">
                   <Keyboard className="w-3.5 h-3.5 text-orange-400" />
-                  <span className="text-[10px] text-white font-extrabold uppercase tracking-widest leading-none">
+                  <span className="text-[10px] text-white font-extrabold uppercase tracking-widest leading-none" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
                     Controls Help
                   </span>
                 </div>
@@ -103,16 +103,16 @@ function ControlRow({ label, keys, description }: ControlRowProps) {
   return (
     <div className="flex items-center justify-between gap-1.5 py-0.5 border-b border-white/3 last:border-0 pb-1.5 last:pb-0">
       <div className="flex flex-col min-w-0 flex-1">
-        <span className="text-white/85 font-medium leading-none">{label}</span>
+        <span className="text-white font-semibold leading-none" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.5)' }}>{label}</span>
         {description && (
-          <span className="text-[7.5px] text-white/35 leading-none mt-1 font-mono truncate">{description}</span>
+          <span className="text-[7.5px] text-white/60 leading-none mt-1 font-mono truncate" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>{description}</span>
         )}
       </div>
       <div className="flex items-center gap-0.5 shrink-0 flex-wrap justify-end max-w-[110px]">
         {keys.map((k, i) => (
           <kbd
             key={i}
-            className="px-1 py-0.5 min-w-[14px] h-[14px] flex items-center justify-center bg-white/6 border border-white/10 rounded font-mono text-[8px] font-black text-white/90 shadow-[0_1px_1px_rgba(0,0,0,0.15)]"
+            className="px-1 py-0.5 min-w-[14px] h-[14px] flex items-center justify-center bg-black/50 border border-white/20 rounded font-mono text-[8px] font-black text-white shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
           >
             {k}
           </kbd>
