@@ -764,22 +764,6 @@ export function TelemetryDashboard({
                           <span>Land</span>
                           <span className="text-[7px] opacity-60 mt-0.5 font-mono">[L]</span>
                         </button>
-                        <button
-                          id="tutorial-flip-btn"
-                          onClick={onFlip}
-                          disabled={!hasTakenOff || isFlipping}
-                          className={`py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all border text-center shadow-sm flex flex-col items-center justify-center leading-none ${
-                            !hasTakenOff || isFlipping
-                              ? 'bg-slate-100 dark:bg-slate-900 border-slate-202 dark:border-slate-800 text-slate-400 dark:text-slate-655 cursor-not-allowed shadow-none'
-                              : isFlipArmed
-                                ? 'bg-violet-600 border-violet-500 text-white shadow-[0_0_10px_rgba(139,92,246,0.3)]'
-                                : 'bg-violet-50 dark:bg-violet-950/40 border-violet-400 dark:border-violet-800 text-violet-600 dark:text-violet-400 hover:bg-violet-600 hover:text-white'
-                          }`}
-                          title="Arm Flip mode. Push direction stick to execute flip."
-                        >
-                          <span>{isFlipping ? 'Flipping' : 'Flip'}</span>
-                          <span className="text-[7px] opacity-60 mt-0.5 font-mono">[F]</span>
-                        </button>
                       </div>
                     </div>
                   )}
