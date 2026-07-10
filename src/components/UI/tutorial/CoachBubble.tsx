@@ -13,15 +13,35 @@ const getTitle = (stepId: string) => {
     case 'WELCOME':
       return "Welcome Pilot!";
     case 'MISSION_ARM':
-      return "Step 1: Arm the Motors";
-    case 'MISSION_THROTTLE':
+      return "Step 1: Arm Drone";
+    case 'MISSION_THROTTLE_DOWN':
       return "Step 2: Start Propellers";
+    case 'MISSION_THROTTLE_UP':
+      return "Step 3: Takeoff";
     case 'MISSION_HOVER':
-      return "Step 3: Takeoff & Hover";
+      return "Step 4: Hover for 2 Seconds";
+    case 'MISSION_YAW_LEFT':
+      return "Step 5: Yaw Left";
+    case 'MISSION_YAW_RIGHT':
+      return "Step 6: Yaw Right";
+    case 'MISSION_ROLL_LEFT':
+      return "Step 7: Roll Left";
+    case 'MISSION_ROLL_RIGHT':
+      return "Step 8: Roll Right";
+    case 'MISSION_PITCH_FWD':
+      return "Step 9: Pitch Forward";
+    case 'MISSION_PITCH_BWD':
+      return "Step 10: Pitch Backward";
+    case 'MISSION_FLIP_FWD':
+      return "Step 11: Flip Forward";
+    case 'MISSION_FLIP_BWD':
+      return "Step 12: Flip Backward";
     case 'MISSION_FLY_WAYPOINT':
-      return "Step 4: Checkpoint";
+      return "Step 13: Checkpoint";
     case 'MISSION_LAND':
-      return "Step 5: Land & Disarm";
+      return "Step 14: Manual Landing";
+    case 'MISSION_DISARM':
+      return "Step 15: Disarm Drone";
     default:
       return "";
   }
@@ -33,24 +53,62 @@ const getInstruction = (stepId: string, isMobile: boolean) => {
       return "Let's complete your Drona Academy flight training checkride.";
     case 'MISSION_ARM':
       return isMobile
-        ? "Tap the ARM switch at the bottom of the screen to arm the ESCs."
-        : "To prepare the drone for flight, press the SPACEBAR key to arm the ESCs.";
-    case 'MISSION_THROTTLE':
+        ? "Tap the ARM switch at the bottom of the screen to arm the flight system."
+        : "Press the SPACEBAR to arm the flight system.";
+    case 'MISSION_THROTTLE_DOWN':
       return isMobile
-        ? "Move the left joystick downward to start the propellers."
-        : "Press and hold Throttle Down to start the propellers.";
+        ? "Drag and hold the left joystick downward to start the propellers."
+        : "Hold Throttle Down (S key) to start the propellers.";
+    case 'MISSION_THROTTLE_UP':
+      return isMobile
+        ? "Drag and hold the left joystick upward to take off."
+        : "Push Throttle Up (W key) to take off and climb.";
     case 'MISSION_HOVER':
+      return "Hold a stable hover between 0.5m and 2.5m for 2 consecutive seconds.";
+    case 'MISSION_YAW_LEFT':
       return isMobile
-        ? "After the propellers begin spinning, move the left joystick upward to take off. Hover steadily for 2 consecutive seconds."
-        : "Once the propellers are spinning, press and hold Throttle Up to take off. Hover steadily for 2 consecutive seconds.";
+        ? "Drag the left joystick left to rotate the drone left by 15 degrees."
+        : "Press A to rotate the drone left by 15 degrees.";
+    case 'MISSION_YAW_RIGHT':
+      return isMobile
+        ? "Drag the left joystick right to rotate the drone right by 15 degrees."
+        : "Press D to rotate the drone right by 15 degrees.";
+    case 'MISSION_ROLL_LEFT':
+      return isMobile
+        ? "Drag the right joystick left to roll the drone left by 0.3 meters."
+        : "Press ArrowLeft to roll the drone left by 0.3 meters.";
+    case 'MISSION_ROLL_RIGHT':
+      return isMobile
+        ? "Drag the right joystick right to roll the drone right by 0.3 meters."
+        : "Press ArrowRight to roll the drone right by 0.3 meters.";
+    case 'MISSION_PITCH_FWD':
+      return isMobile
+        ? "Drag the right joystick upward to pitch the drone forward by 0.3 meters."
+        : "Press ArrowUp to pitch the drone forward by 0.3 meters.";
+    case 'MISSION_PITCH_BWD':
+      return isMobile
+        ? "Drag the right joystick downward to pitch the drone backward by 0.3 meters."
+        : "Press ArrowDown to pitch the drone backward by 0.3 meters.";
+    case 'MISSION_FLIP_FWD':
+      return isMobile
+        ? "Tap the FLIP button, then drag the right joystick upward to execute a Forward Flip."
+        : "Press F, then press ArrowUp to execute a Forward Flip.";
+    case 'MISSION_FLIP_BWD':
+      return isMobile
+        ? "Tap the FLIP button, then drag the right joystick downward to execute a Backward Flip."
+        : "Press F, then press ArrowDown to execute a Backward Flip.";
     case 'MISSION_FLY_WAYPOINT':
       return isMobile
-        ? "A blue checkpoint ring has spawned ahead. Deflect the right joystick (Pitch/Roll) and left joystick (Yaw) to navigate through it."
-        : "A blue checkpoint ring has spawned ahead. Use the Arrow keys (Pitch/Roll) and A/D keys (Yaw) to navigate through it.";
+        ? "A blue checkpoint ring has spawned ahead. Use your joysticks to fly through it."
+        : "A blue checkpoint ring has spawned ahead. Use W/S/A/D and Arrow keys to fly through it.";
     case 'MISSION_LAND':
       return isMobile
-        ? "Fly back near the center and tap the LAND button. Once the drone touches down, tap the ARM switch to disarm."
-        : "Fly back near the center and press L to land. Once the drone touches down, press SPACEBAR to disarm.";
+        ? "Fly back near the center and tap the LAND button (or hold left joystick down). Keep the drone armed."
+        : "Fly back near the center and press L (or hold S key) to land safely. Keep the drone armed.";
+    case 'MISSION_DISARM':
+      return isMobile
+        ? "Now that you have landed, tap the ARM switch to disarm the drone and stop the motors."
+        : "Now that you have landed, press the SPACEBAR to disarm the drone and stop the motors.";
     default:
       return "";
   }
@@ -135,8 +193,13 @@ export function CoachBubble() {
 
           {/* Main Info */}
           <div className="flex flex-col gap-1">
-            <h3 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight flex items-center gap-2">
+            <h3 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight flex items-center gap-2 flex-wrap">
               {title}
+              {currentStepIndex > 0 && (
+                <span className="text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded font-mono font-bold">
+                  Step {currentStepIndex} of 15
+                </span>
+              )}
               {currentStep.validationType === 'state' && !isStepCompleted && (
                 <span className="text-[8px] bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider">
                   Auto check
@@ -147,6 +210,26 @@ export function CoachBubble() {
               {instruction}
             </p>
           </div>
+
+          {/* Expected Outcome & Validation Status */}
+          {currentStepIndex > 0 && (
+            <div className="flex flex-col gap-1 bg-slate-50 dark:bg-slate-950/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800 mt-1">
+              <span className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">
+                Expected Outcome:
+              </span>
+              <span className="text-[11px] text-slate-700 dark:text-slate-300 font-medium">
+                {currentStep.expectedOutcome}
+              </span>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-[9px] uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold">
+                  Status:
+                </span>
+                <span className={`text-[10px] font-bold ${isStepCompleted ? 'text-emerald-500' : 'text-amber-500 animate-pulse'}`}>
+                  {isStepCompleted ? 'COMPLETED' : 'WAITING FOR ACTION'}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Hover target progress bar */}
           {currentStep.id === 'MISSION_HOVER' && hoverProgress > 0 && !isStepCompleted && (

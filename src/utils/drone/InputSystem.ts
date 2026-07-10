@@ -266,12 +266,60 @@ export class InputSystem {
     return Math.sign(value) * ((1 - e) * Math.abs(value) + e * Math.pow(Math.abs(value), 3));
   }
   
+  private isKeyAllowedInTutorial(key: string, tutorialStep: number): boolean {
+    switch (tutorialStep) {
+      case 0: // WELCOME
+        return key === 'enter';
+      case 1: // MISSION_ARM
+        return key === ' ';
+      case 2: // MISSION_THROTTLE_DOWN
+        return key === 's';
+      case 3: // MISSION_THROTTLE_UP
+        return key === 'w';
+      case 4: // MISSION_HOVER
+        return key === 'w' || key === 's';
+      case 5: // MISSION_YAW_LEFT
+        return key === 'a' || key === 'w' || key === 's';
+      case 6: // MISSION_YAW_RIGHT
+        return key === 'd' || key === 'w' || key === 's';
+      case 7: // MISSION_ROLL_LEFT
+        return key === 'arrowleft' || key === 'w' || key === 's';
+      case 8: // MISSION_ROLL_RIGHT
+        return key === 'arrowright' || key === 'w' || key === 's';
+      case 9: // MISSION_PITCH_FWD
+        return key === 'arrowup' || key === 'w' || key === 's';
+      case 10: // MISSION_PITCH_BWD
+        return key === 'arrowdown' || key === 'w' || key === 's';
+      case 11: // MISSION_FLIP_FWD
+        return key === 'f' || key === 'arrowup' || key === 'w' || key === 's';
+      case 12: // MISSION_FLIP_BWD
+        return key === 'f' || key === 'arrowdown' || key === 'w' || key === 's';
+      case 13: // MISSION_FLY_WAYPOINT
+        return ['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key);
+      case 14: // MISSION_LAND
+        return key === 'l' || key === 's';
+      case 15: // MISSION_DISARM
+        return key === ' ';
+      default:
+        return true;
+    }
+  }
+  
   private handleKeyDown(e: KeyboardEvent): void {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
       return;
     }
 
     const key = e.key.toLowerCase();
+    
+    // Tutorial Control Locking
+    const storeState = useDroneStore.getState();
+    if (storeState.isTutorialActive) {
+      if (!this.isKeyAllowedInTutorial(key, storeState.tutorialStep)) {
+        // Suppress key press
+        return;
+      }
+    }
     
     // Prevent key repeats
     const wasPressed = this.keys[key];
@@ -372,6 +420,8 @@ export class InputSystem {
     }
 
     const storeState = useDroneStore.getState();
+    const isTutorialActive = storeState.isTutorialActive;
+    const tutorialStep = storeState.tutorialStep;
     const currentGyroPilot = storeState.gyroPilot;
     const gyroSensitivity = storeState.gyroSensitivity || 1.2;
 
@@ -545,6 +595,87 @@ export class InputSystem {
       }
     }
     
+    // Tutorial control locking filter
+    if (isTutorialActive) {
+      switch (tutorialStep) {
+        case 1: // MISSION_ARM
+          this.stick.throttle = 0.0;
+          this.stick.yaw = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          break;
+        case 2: // MISSION_THROTTLE_DOWN
+          // Only allow throttle down (throttle < 0.15)
+          if (this.stick.throttle > 0.15) {
+            this.stick.throttle = 0.0;
+          }
+          this.stick.yaw = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          break;
+        case 3: // MISSION_THROTTLE_UP
+          this.stick.yaw = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          break;
+        case 4: // MISSION_HOVER
+          this.stick.yaw = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          break;
+        case 5: // MISSION_YAW_LEFT
+          if (this.stick.yaw > 0.0) this.stick.yaw = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          break;
+        case 6: // MISSION_YAW_RIGHT
+          if (this.stick.yaw < 0.0) this.stick.yaw = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          break;
+        case 7: // MISSION_ROLL_LEFT
+          if (this.stick.roll > 0.0) this.stick.roll = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.yaw = 0.0;
+          break;
+        case 8: // MISSION_ROLL_RIGHT
+          if (this.stick.roll < 0.0) this.stick.roll = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.yaw = 0.0;
+          break;
+        case 9: // MISSION_PITCH_FWD
+          if (this.stick.pitch < 0.0) this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          this.stick.yaw = 0.0;
+          break;
+        case 10: // MISSION_PITCH_BWD
+          if (this.stick.pitch > 0.0) this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          this.stick.yaw = 0.0;
+          break;
+        case 11: // MISSION_FLIP_FWD
+        case 12: // MISSION_FLIP_BWD
+          this.stick.yaw = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          break;
+        case 14: // MISSION_LAND
+          if (this.stick.throttle > 0.55) {
+            this.stick.throttle = 0.55;
+          }
+          this.stick.yaw = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          break;
+        case 15: // MISSION_DISARM
+          this.stick.throttle = 0.0;
+          this.stick.yaw = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          break;
+      }
+    }
+
     // ── Clamp values for safety ─────────────────────────────────────
     this.stick.throttle = Math.max(0.0, Math.min(1.0, this.stick.throttle));
     this.stick.yaw = Math.max(-1.0, Math.min(1.0, this.stick.yaw));

@@ -874,9 +874,11 @@ export class SimulatorOrchestrator {
       const isCloseToGround = altitude <= 0.04 || this.state.position.y <= this.physics.environmentBounds.minY + 0.04;
       
       if (isCloseToGround || hitGroundCollision || hitGroundRays) {
-        this.disarm();
+        this.isLandingActive = false;
+        this.controller.isLandingActive = false;
+        this.hasTakenOff = false;
         
-        // Return to disarmed on ground (preserve yaw)
+        // Return to armed idle on ground (preserve yaw)
         this.state.position.y = this.physics.environmentBounds.minY;
         this.state.velocity.set(0, 0, 0);
         this.state.angularVelocity.set(0, 0, 0);
@@ -884,6 +886,11 @@ export class SimulatorOrchestrator {
         eulerTouchdown.x = 0;
         eulerTouchdown.z = 0;
         this.state.quaternion.setFromEuler(eulerTouchdown);
+
+        const store = useDroneStore.getState() as any;
+        if (store.addNotification) {
+          store.addNotification('Touchdown: Motors Idle', 'success');
+        }
       }
     }
 
