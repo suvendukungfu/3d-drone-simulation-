@@ -58,18 +58,19 @@ export function FlightControlsPanel() {
             </div>
           ) : (
             /* Ultra-Compact Expanded Panel */
-            <div className="p-3 flex flex-col gap-2 font-sans text-xs pointer-events-auto" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))' }}>
+            <div className="p-3 flex flex-col gap-2 font-sans text-xs pointer-events-auto">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-white/5 pb-1.5">
+              <div className="flex items-center justify-between pb-1.5">
                 <div className="flex items-center gap-1.5">
                   <Keyboard className="w-3.5 h-3.5 text-orange-400" />
-                  <span className="text-[10px] text-white font-extrabold uppercase tracking-widest leading-none" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
+                  <span className="text-[10px] text-white font-extrabold uppercase tracking-widest leading-none" style={{ WebkitTextStroke: '1.2px black', paintOrder: 'stroke fill' }}>
                     Controls Help
                   </span>
                 </div>
                 <button
                   onClick={toggleCollapse}
-                  className="flex items-center gap-1 text-[8.5px] text-white/40 hover:text-white/80 font-mono tracking-wider transition-colors cursor-pointer"
+                  className="flex items-center gap-1 text-[8.5px] text-white hover:text-white font-mono font-bold tracking-wider transition-colors cursor-pointer"
+                  style={{ WebkitTextStroke: '0.8px black', paintOrder: 'stroke fill' }}
                 >
                   <EyeOff className="w-3 h-3" />
                   <span>HIDE</span>
@@ -101,18 +102,18 @@ interface ControlRowProps {
 
 function ControlRow({ label, keys, description }: ControlRowProps) {
   return (
-    <div className="flex items-center justify-between gap-1.5 py-0.5 border-b border-white/3 last:border-0 pb-1.5 last:pb-0">
+    <div className="flex items-center justify-between gap-1.5 py-0.5 pb-1.5 last:pb-0">
       <div className="flex flex-col min-w-0 flex-1">
-        <span className="text-white font-semibold leading-none" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.5)' }}>{label}</span>
+        <span className="text-white font-bold leading-none" style={{ WebkitTextStroke: '1px black', paintOrder: 'stroke fill' }}>{label}</span>
         {description && (
-          <span className="text-[7.5px] text-white/60 leading-none mt-1 font-mono truncate" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>{description}</span>
+          <span className="text-[7.5px] text-white leading-none mt-1 font-mono font-bold truncate" style={{ WebkitTextStroke: '0.6px black', paintOrder: 'stroke fill' }}>{description}</span>
         )}
       </div>
       <div className="flex items-center gap-0.5 shrink-0 flex-wrap justify-end max-w-[110px]">
         {keys.map((k, i) => (
           <kbd
             key={i}
-            className="px-1 py-0.5 min-w-[14px] h-[14px] flex items-center justify-center bg-black/50 border border-white/20 rounded font-mono text-[8px] font-black text-white shadow-[0_1px_3px_rgba(0,0,0,0.5)]"
+            className="px-1 py-0.5 min-w-[14px] h-[14px] flex items-center justify-center bg-white border-2 border-black rounded font-mono text-[8px] font-black text-black"
           >
             {k}
           </kbd>
