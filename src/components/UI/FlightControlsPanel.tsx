@@ -58,7 +58,7 @@ export function FlightControlsPanel() {
             </div>
           ) : (
             /* Ultra-Compact Expanded Panel */
-            <div className="pluto-glass p-3 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-white/8 bg-slate-950/35 flex flex-col gap-2 font-sans text-xs pointer-events-auto">
+            <div className="p-3 flex flex-col gap-2 font-sans text-xs pointer-events-auto">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-white/5 pb-1.5">
                 <div className="flex items-center gap-1.5">
