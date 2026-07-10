@@ -144,8 +144,6 @@ function SimulationLoop({
   const mouseOffset = useRef({ yaw: 0, pitch: 0 });
   const smoothYawRef = useRef<number | null>(null);
   const wasTakenOffRef = useRef(false);
-  const gimbalPitchRef = useRef(0);
-  const gimbalRollRef = useRef(0);
 
   // ── Pre-allocated scratch vectors for chase camera (zero-alloc hot path) ──
   const _camForward = useRef(new THREE.Vector3());
