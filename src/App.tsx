@@ -1,5 +1,4 @@
 import { useRef, useEffect, useState, useCallback, lazy, Suspense } from 'react';
-import { TelemetryDashboard } from './components/UI/TelemetryDashboard';
 import { ClosedSimMobileMenu } from './components/UI/ClosedSimMobileMenu';
 import { TrainingMissionSystem } from './components/UI/TrainingMissionSystem';
 import { useDroneStore } from './store/useDroneStore';
@@ -7,6 +6,8 @@ import { IntroOverlay } from './components/UI/IntroOverlay';
 import VirtualJoysticks from './components/UI/VirtualJoysticks';
 import { LearningWorkflow } from './components/UI/LearningWorkflow';
 import { InteractiveTutorial } from './components/UI/InteractiveTutorial';
+import { CrashRecoveryOverlay } from './components/UI/CrashRecoveryOverlay';
+import { FlightControlsPanel } from './components/UI/FlightControlsPanel';
 import { droneComponents } from './data/droneComponents';
 import { SimulatorOrchestrator } from './utils/drone/SimulatorOrchestrator';
 import { PlutoBridgeClient } from './utils/drone/PlutoBridgeClient';
@@ -94,6 +95,7 @@ function App() {
   const isAcademyMode = useDroneStore((state) => state.isAcademyMode);
   const isARActive = useDroneStore((state) => state.isARActive);
   const telemetry = useDroneStore((state) => state.telemetry);
+  const warnings = useDroneStore((state) => state.warnings);
 
   const hoverComponent = useDroneStore((state) => state.hoverComponent);
   const selectComponent = useDroneStore((state) => state.selectComponent);
@@ -333,7 +335,9 @@ function App() {
 
   const handleResetSimulator = () => {
     if (orchestratorRef.current) {
-      if (orchestratorRef.current.getIsCrashTumbling?.()) return;
+      if (orchestratorRef.current.getIsCrashTumbling?.()) {
+        orchestratorRef.current.crashSequenceActive = false;
+      }
       // Clear failure flags first so keyboard input is unblocked
       useDroneStore.getState().setDroneInitFailed(false);
       useDroneStore.getState().setModelLoadStatus('loading');
@@ -921,24 +925,7 @@ function App() {
           )}
         </AnimatePresence>
 
-        {/* DYNAMIC TELEMETRY HUD & DASHBOARD OVERLAY (Visible in Flight mode) */}
-        {currentMode === 'flight' && !isARActive && !isLoading && (
-          <TelemetryDashboard 
-            onReset={handleResetSimulator}
-            onCalibrate={handleCalibrateSensors}
-            onToggleAltHold={handleToggleAltHold}
-            stickState={stickState}
-            onArm={() => orchestratorRef.current?.arm()}
-            onDisarm={() => orchestratorRef.current?.disarm()}
-            hasTakenOff={orchestratorState.hasTakenOff}
-            isLandingActive={orchestratorState.isLandingActive}
-            isFlipArmed={orchestratorState.isFlipArmed}
-            isFlipping={orchestratorState.isFlipping}
-            onTakeoff={() => orchestratorRef.current?.triggerAutoTakeoff()}
-            onLand={() => orchestratorRef.current?.triggerLanding()}
-            onFlip={() => orchestratorRef.current?.toggleFlipArmed()}
-          />
-        )}
+
         {currentMode === 'flight' && !isARActive && !isLoading && (
           <InteractiveTutorial 
             telemetry={telemetry} 
@@ -946,6 +933,9 @@ function App() {
             orchestrator={orchestratorRef.current!}
             onCheckpointsUpdated={handleCheckpointsUpdated}
           />
+        )}
+        {currentMode === 'flight' && !isARActive && !isLoading && (
+          <FlightControlsPanel />
         )}
       </div>      {/* 4. RIGHT SIDEBAR: Avionics Info Inspector (Only in Avionics Lab mode) */}
       <AnimatePresence>
@@ -1280,6 +1270,7 @@ function App() {
       {currentMode === 'flight' && !isARActive && !isLoading && (
         <ClosedSimMobileMenu
           onReset={handleResetSimulator}
+          onCalibrate={handleCalibrateSensors}
           onToggleAltHold={handleToggleAltHold}
           stickState={stickState}
           onArm={() => orchestratorRef.current?.arm()}
@@ -1290,9 +1281,14 @@ function App() {
           isFlipping={orchestratorState.isFlipping}
           onTakeoff={() => orchestratorRef.current?.triggerAutoTakeoff()}
           onLand={() => orchestratorRef.current?.triggerLanding()}
-          onFlip={() => orchestratorRef.current?.toggleFlipArmed()}
+          onFlip={() => orchestratorRef.current?.triggerDirectForwardFlip()}
           orchestrator={orchestratorRef.current!}
         />
+      )}
+
+      {/* Crash recovery overlay at root level so it covers all joysticks/HUD elements */}
+      {currentMode === 'flight' && !isARActive && !isLoading && warnings.includes('CRASH DETECTED') && (
+        <CrashRecoveryOverlay onRebuild={handleResetSimulator} />
       )}
 
       {/* 9. PORTRAIT ORIENTATION LOCK OVERLAY FOR MOBILE/TABLET FLIGHT SIMULATOR */}

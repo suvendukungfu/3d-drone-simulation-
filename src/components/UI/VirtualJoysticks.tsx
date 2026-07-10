@@ -84,22 +84,57 @@ const Joystick = ({ side, onChange, label, disabled }: JoystickProps) => {
       </span>
       <div
         ref={containerRef}
-        className={`joystick-container w-28 h-28 bg-slate-900/70 dark:bg-slate-950/80 border-2 border-slate-700/60 rounded-full relative flex items-center justify-center backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.5)] touch-none transition-opacity ${disabled ? 'opacity-40 select-none' : ''}`}
+        className={`pluto-joystick-outer ${disabled ? 'opacity-40 select-none' : ''}`}
         onMouseDown={handleMove}
         onMouseMove={(e) => e.buttons === 1 && handleMove(e)}
         onMouseUp={handleEnd}
         onMouseLeave={handleEnd}
         onTouchStart={handleMove}
       >
-        {/* Crosshair guidelines */}
-        <div className="absolute top-0 bottom-0 w-[1px] bg-slate-700/30" />
-        <div className="absolute left-0 right-0 h-[1px] bg-slate-700/30" />
-        
-        {/* Joystick Handle */}
+        {/* Vector Outer Ring, Guidelines, and Cardinal Indicators */}
+        <svg className="absolute w-full h-full pointer-events-none" viewBox="0 0 100 100" style={{ overflow: 'visible' }}>
+          {/* Clean solid outer guide ring */}
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#8a94a6" strokeWidth="3" />
+
+          {/* Specific Side Decorations */}
+          {side === 'left' ? (
+            <>
+              {/* Throttle Chevrons (Top & Bottom) */}
+              <path d="M 40,21 L 50,14 L 60,21" fill="none" stroke="#8a94a6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M 40,27 L 50,20 L 60,27" fill="none" stroke="#8a94a6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+              <path d="M 40,79 L 50,86 L 60,79" fill="none" stroke="#8a94a6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M 40,73 L 50,80 L 60,73" fill="none" stroke="#8a94a6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+              {/* Yaw curved arrows (Left & Right) */}
+              <path d="M 30,52 A 6.5,6.5 0 0,0 23,47" fill="none" stroke="#8a94a6" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M 27,44 L 23,47 L 24,52" fill="none" stroke="#8a94a6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+
+              <path d="M 70,52 A 6.5,6.5 0 0,1 77,47" fill="none" stroke="#8a94a6" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M 73,44 L 77,47 L 76,52" fill="none" stroke="#8a94a6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            </>
+          ) : (
+            <>
+              {/* 4 outward-pointing triangles (cardinals) */}
+              <polygon points="50,2 45,8 55,8" fill="#8a94a6" />
+              <polygon points="50,98 45,92 55,92" fill="#8a94a6" />
+              <polygon points="2,50 8,45 8,55" fill="#8a94a6" />
+              <polygon points="98,50 92,45 92,55" fill="#8a94a6" />
+            </>
+          )}
+        </svg>
+
+        {/* Joystick Handle Wrapper */}
         <div
           ref={stickRef}
-          className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full shadow-[0_0_15px_rgba(37,99,235,0.5)] border border-blue-300 absolute transition-transform duration-75 ease-out"
-        />
+          className="pluto-joystick-handle-wrapper"
+          style={{ transition: 'transform 0.08s ease-out' }}
+        >
+          {/* White control knob with the thick orange-pink gradient border */}
+          <div className="pluto-joystick-handle-gradient-ring">
+            <div className="pluto-joystick-handle-white-knob" />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -107,13 +142,8 @@ const Joystick = ({ side, onChange, label, disabled }: JoystickProps) => {
 
 export default function VirtualJoysticks({ orchestrator }: { orchestrator?: SimulatorOrchestrator }) {
   const currentMode = useDroneStore((state) => state.currentMode);
-  const showControlsOverlay = useDroneStore((state) => state.showControlsOverlay);
   const updateStickInputTested = useDroneStore((state) => state.updateStickInputTested);
   const gyroPilot = useDroneStore((state) => state.gyroPilot);
-  const flightEnvironment = useDroneStore((state) => state.flightEnvironment);
-
-  const closedEnvs = ['room', 'lab', 'classroom', 'warehouse'] as const;
-  const isClosedSim = closedEnvs.includes(flightEnvironment as any);
 
   const isARActive = useDroneStore((state) => state.isARActive);
 
@@ -126,7 +156,11 @@ export default function VirtualJoysticks({ orchestrator }: { orchestrator?: Simu
     };
   }, [orchestrator]);
 
-  if (currentMode !== 'flight' || !showControlsOverlay || isClosedSim || isARActive) return null;
+  const flightEnvironment = useDroneStore((state) => state.flightEnvironment);
+  const closedEnvs = ['room', 'lab', 'classroom', 'warehouse'] as const;
+  const isClosedSim = closedEnvs.includes(flightEnvironment as any);
+
+  if (currentMode !== 'flight' || isARActive || isClosedSim) return null;
 
   const handleLeftStick = (nx: number, ny: number) => {
     leftStick.current = { x: nx, y: ny };

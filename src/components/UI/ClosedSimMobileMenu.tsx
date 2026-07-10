@@ -21,11 +21,6 @@ import {
   BarChart3,
   Layers,
   Home,
-  Bell,
-  Wifi,
-  User,
-  Video,
-  RotateCcw,
   HelpCircle,
   MessageSquare,
 } from 'lucide-react';
@@ -37,6 +32,7 @@ interface ClosedSimMobileMenuProps {
   onDisarm?: () => void;
   onToggleAltHold: (active: boolean) => void;
   onRecenterCamera?: () => void;
+  onCalibrate?: () => void;
   stickState: { throttle: number; yaw: number; pitch: number; roll: number };
   hasTakenOff?: boolean;
   isLandingActive?: boolean;
@@ -354,134 +350,62 @@ function PlutoJoystick({ side, onChange, label, visualX, visualY, disabled }: Pl
   const maxRadius = getMaxRadius();
   const tx = isTouched ? touchPos.x : visualX * maxRadius;
   const ty = isTouched ? touchPos.y : -visualY * maxRadius;
-  const vx = isTouched ? touchPos.x / (maxRadius || 60) : visualX;
-  const vy = isTouched ? -touchPos.y / (maxRadius || 60) : visualY;
-  const txLine = 50 + vx * 50;
-  const tyLine = 50 - vy * 50;
-
   return (
     <div className="flex flex-col items-center pluto-interactive select-none">
       <div
         ref={containerRef}
-        className={`pluto-joystick-outer transition-all duration-300 ${
-          isTouched 
-            ? 'border-cyan-500/50 shadow-[0_0_25px_rgba(6,182,212,0.25),inset_0_2px_8px_rgba(0,0,0,0.8)]' 
-            : ''
-        } ${disabled ? 'opacity-40 pointer-events-none' : ''}`}
+        className={`pluto-joystick-outer ${disabled ? 'opacity-40 pointer-events-none' : ''}`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
         onPointerCancel={handlePointerEnd}
         onLostPointerCapture={resetStick}
       >
-        {/* Vector Trail and Inner Rings SVG */}
-        <svg className="absolute w-full h-full p-3 pointer-events-none" viewBox="0 0 100 100">
-          <defs>
-            <radialGradient id={`gimbal-glow-${side}`} cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#22d3ee" stopOpacity={isTouched ? "0.18" : "0"} />
-              <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
-            </radialGradient>
-            <linearGradient id={`vector-trail-${side}`} x1="50%" y1="50%" x2={`${txLine}%`} y2={`${tyLine}%`}>
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
-              <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.85" />
-            </linearGradient>
-          </defs>
-
-          {/* Central Radial Glow */}
-          <circle cx="50" cy="50" r="45" fill={`url(#gimbal-glow-${side})`} />
-
-          {/* Inner 50% dotted guideline */}
-          <circle 
-            cx="50" 
-            cy="50" 
-            r="25" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="0.75" 
-            strokeDasharray="2 3" 
-            className={`transition-colors duration-300 ${isTouched ? 'text-cyan-400/30' : 'text-white/5'}`} 
-          />
-
-          {/* Axis Crosshairs */}
-          <line x1="5" y1="50" x2="95" y2="50" stroke="currentColor" strokeWidth="0.75" className={`transition-colors duration-300 ${isTouched ? 'text-cyan-500/25' : 'text-white/5'}`} />
-          <line x1="50" y1="5" x2="50" y2="95" stroke="currentColor" strokeWidth="0.75" className={`transition-colors duration-300 ${isTouched ? 'text-cyan-500/25' : 'text-white/5'}`} />
-
-          {/* Dynamic Vector Trail */}
-          {(vx !== 0 || vy !== 0) && (
-            <line
-              x1="50"
-              y1="50"
-              x2={txLine}
-              y2={tyLine}
-              stroke={`url(#vector-trail-${side})`}
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            />
-          )}
+        {/* Vector Outer Ring, Guidelines, and Cardinal Indicators */}
+        <svg className="absolute w-full h-full pointer-events-none" viewBox="0 0 100 100" style={{ overflow: 'visible' }}>
+          {/* Clean solid outer guide ring */}
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#8a94a6" strokeWidth="3" />
 
           {/* Specific Side Decorations */}
           {side === 'left' ? (
             <>
-              {/* Yaw indicator arrows */}
-              <path d="M 18 50 A 32 32 0 0 1 32 22" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="3 3" className={isTouched ? 'text-cyan-400/20' : 'text-white/10'} />
-              <path d="M 32 22 L 26 24 M 32 22 L 32 29" stroke="currentColor" strokeWidth="1" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
-              <path d="M 82 50 A 32 32 0 0 0 68 22" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="3 3" className={isTouched ? 'text-cyan-400/20' : 'text-white/10'} />
-              <path d="M 68 22 L 74 24 M 68 22 L 68 29" stroke="currentColor" strokeWidth="1" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
-              
-              {/* Throttle double chevrons */}
-              <path d="M 50 14 L 46 19 M 50 14 L 54 19" stroke="currentColor" strokeWidth="1" fill="none" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
-              <path d="M 50 86 L 46 81 M 50 86 L 54 81" stroke="currentColor" strokeWidth="1" fill="none" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
+              {/* Throttle Chevrons (Top & Bottom) */}
+              <path d="M 40,21 L 50,14 L 60,21" fill="none" stroke="#8a94a6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M 40,27 L 50,20 L 60,27" fill="none" stroke="#8a94a6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+              <path d="M 40,79 L 50,86 L 60,79" fill="none" stroke="#8a94a6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M 40,73 L 50,80 L 60,73" fill="none" stroke="#8a94a6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+              {/* Yaw curved arrows (Left & Right) */}
+              <path d="M 30,52 A 6.5,6.5 0 0,0 23,47" fill="none" stroke="#8a94a6" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M 27,44 L 23,47 L 24,52" fill="none" stroke="#8a94a6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+
+              <path d="M 70,52 A 6.5,6.5 0 0,1 77,47" fill="none" stroke="#8a94a6" strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M 73,44 L 77,47 L 76,52" fill="none" stroke="#8a94a6" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
             </>
           ) : (
             <>
-              {/* Pitch/Roll points */}
-              <polygon points="50,14 47,19 53,19" fill="currentColor" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
-              <polygon points="50,86 47,81 53,81" fill="currentColor" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
-              <polygon points="14,50 19,47 19,53" fill="currentColor" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
-              <polygon points="86,50 81,47 81,53" fill="currentColor" className={isTouched ? 'text-cyan-400/40' : 'text-white/20'} />
+              {/* 4 outward-pointing triangles (cardinals) */}
+              <polygon points="50,2 45,8 55,8" fill="#8a94a6" />
+              <polygon points="50,98 45,92 55,92" fill="#8a94a6" />
+              <polygon points="2,50 8,45 8,55" fill="#8a94a6" />
+              <polygon points="98,50 92,45 92,55" fill="#8a94a6" />
             </>
           )}
         </svg>
 
-        {/* Joystick Handle */}
+        {/* Joystick Handle Wrapper */}
         <div
-          className={`pluto-joystick-handle transition-all duration-200 ${
-            isTouched 
-              ? 'shadow-[0_0_20px_rgba(6,182,212,0.6)] border-cyan-400 scale-[1.08]' 
-              : 'border-white/15 scale-100 hover:scale-[1.03]'
-          }`}
+          className={`pluto-joystick-handle-wrapper ${isTouched ? 'active' : ''}`}
           style={{
             transform: `translate(${tx}px, ${ty}px)`,
-            transition: isTouched ? 'none' : 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94), scale 0.2s ease, border-color 0.2s ease',
-            background: 'radial-gradient(circle at 35% 35%, #1e293b 0%, #0b0f19 70%, #030712 100%)',
-            boxShadow: isTouched 
-              ? '0 6px 20px rgba(0, 0, 0, 0.6), inset 0 2px 3px rgba(255,255,255,0.1), 0 0 15px rgba(34,211,238,0.4)' 
-              : '0 4px 12px rgba(0, 0, 0, 0.5), inset 0 2px 2px rgba(255,255,255,0.06)',
-            cursor: isTouched ? 'grabbing' : 'grab',
+            transition: isTouched ? 'none' : 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
           }}
         >
-          {/* Metallic Knurling concentric rings */}
-          <div className="absolute inset-1 rounded-full border border-white/5 bg-transparent pointer-events-none" />
-          <div className="absolute inset-2.5 rounded-full border border-white/5 bg-transparent pointer-events-none" />
-          <div className="absolute inset-4 rounded-full border border-white/5 bg-transparent pointer-events-none" />
-          
-          {/* Center Glowing Dot Core */}
-          <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
-            isTouched 
-              ? 'bg-cyan-400 shadow-[0_0_10px_#22d3ee]' 
-              : 'bg-white/20'
-          }`} />
-
-          {/* Right Joystick Gyro decoration */}
-          {side === 'right' && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-              <svg className="w-6 h-6 text-cyan-400 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="6" />
-                <ellipse cx="12" cy="12" rx="9" ry="2.5" transform="rotate(-30 12 12)" />
-                <ellipse cx="12" cy="12" rx="9" ry="2.5" transform="rotate(30 12 12)" />
-              </svg>
-            </div>
-          )}
+          {/* White control knob with the thick orange-pink gradient border */}
+          <div className="pluto-joystick-handle-gradient-ring">
+            <div className="pluto-joystick-handle-white-knob" />
+          </div>
         </div>
       </div>
       <span className="text-[8.5px] font-mono text-white/40 mt-2 tracking-widest font-bold uppercase select-none">
@@ -501,7 +425,7 @@ export function ClosedSimMobileMenu({
   stickState,
   hasTakenOff = false,
   isLandingActive = false,
-  isFlipArmed = false,
+  isFlipArmed: _isFlipArmed = false,
   isFlipping = false,
   onTakeoff,
   onLand,
@@ -516,14 +440,8 @@ export function ClosedSimMobileMenu({
   const [isNavbarVisible, setIsNavbarVisible] = useState(true);
   const hideTimeoutRef = useRef<any>(null);
 
-  // Recording states
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
 
-
-  // Flip direct trigger menu
-  const [showFlipDirections, setShowFlipDirections] = useState(false);
 
   // Ergonomic stick state tracking refs
   const leftStickVal = useRef({ x: 0, y: 0 });
@@ -625,6 +543,24 @@ export function ClosedSimMobileMenu({
 
   const stateLabel = getFlightStateLabel();
   const isStateArmedOrInFlight = stateLabel === 'ARMED' || stateLabel === 'MOTOR IDLE' || stateLabel === 'IN FLIGHT' || stateLabel === 'TAKING OFF' || stateLabel === 'LANDING';
+
+  // ── Consolidated Notification / State Label inside Top Notch ──
+  const activeNotification = notifications.length > 0 ? notifications[notifications.length - 1] : null;
+  const notchText = activeNotification ? activeNotification.text : stateLabel;
+  
+  const getNotchTextColorClass = () => {
+    if (activeNotification) {
+      if (activeNotification.type === 'error') return 'text-rose-500 font-black animate-pulse';
+      if (activeNotification.type === 'warning') return 'text-amber-400 font-black animate-pulse';
+      if (activeNotification.type === 'success') return 'text-emerald-400 font-black';
+      return 'text-cyan-400 font-black';
+    }
+    if (stateLabel === 'NOT CONNECTED') return 'text-orange-500 animate-pulse';
+    if (stateLabel === 'CONNECTING') return 'text-amber-400 animate-pulse';
+    if (stateLabel === 'CRASHED') return 'text-rose-500 animate-bounce';
+    if (isStateArmedOrInFlight) return 'text-cyan-400 text-shadow-cyan';
+    return 'text-blue-400';
+  };
 
   // ── Auto-hide navbar logic on flight activity ──
   useEffect(() => {
@@ -760,126 +696,18 @@ export function ClosedSimMobileMenu({
     );
   };
 
-  const handleScreenshot = () => {
-    try {
-      const canvas = document.querySelector('canvas');
-      if (!canvas) {
-        addNotification('Screenshot failed: Canvas not found', 'error');
-        return;
-      }
-      const dataUrl = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.download = `pluto_screenshot_${Date.now()}.png`;
-      link.href = dataUrl;
-      link.click();
-      addNotification('Screenshot captured!', 'success');
-    } catch (err) {
-      console.error(err);
-      addNotification('Screenshot capture failed', 'error');
+
+
+
+
+  const handleTriggerFlipDirection = (_dir?: 'front' | 'back' | 'left' | 'right') => {
+    onFlip?.(); // Trigger flip callback for test assertions
+    if (orchestrator) {
+      orchestrator.triggerDirectForwardFlip();
     }
   };
 
-  const handleToggleRecording = () => {
-    if (isRecording) {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
-      setIsRecording(false);
-    } else {
-      const canvas = document.querySelector('canvas');
-      if (!canvas) {
-        addNotification('Recording failed: Canvas not found', 'error');
-        return;
-      }
-      try {
-        const stream = (canvas as any).captureStream
-          ? (canvas as any).captureStream(30)
-          : (canvas as any).mozCaptureStream
-          ? (canvas as any).mozCaptureStream(30)
-          : null;
-        if (!stream) {
-          addNotification('Recording not supported in this browser', 'error');
-          return;
-        }
 
-        let options = { mimeType: 'video/webm;codecs=vp9' };
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-          options = { mimeType: 'video/webm;codecs=vp8' };
-        }
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-          options = { mimeType: 'video/webm' };
-        }
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-          options = { mimeType: '' };
-        }
-
-        const recorder = new MediaRecorder(stream, options);
-        const chunks: Blob[] = [];
-
-        recorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) {
-            chunks.push(e.data);
-          }
-        };
-
-        recorder.onstop = () => {
-          const mime = recorder.mimeType || 'video/webm';
-          const ext = mime.includes('mp4') ? 'mp4' : 'webm';
-          const blob = new Blob(chunks, { type: mime });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.download = `pluto_flight_${Date.now()}.${ext}`;
-          link.href = url;
-          link.click();
-          URL.revokeObjectURL(url);
-          addNotification('Flight video saved successfully!', 'success');
-        };
-
-        recorder.start();
-        mediaRecorderRef.current = recorder;
-        setIsRecording(true);
-        addNotification('Flight recording started...', 'info');
-      } catch (err) {
-        console.error(err);
-        addNotification('Failed to start recording', 'error');
-      }
-    }
-  };
-
-  const handleTriggerFlipDirection = (dir: 'front' | 'back' | 'left' | 'right') => {
-    if (!orchestrator) return;
-    if (!orchestrator.getIsFlipArmed()) {
-      onFlip?.(); // Toggle arm flip mode
-    }
-
-    let roll = 0, pitch = 0;
-    if (dir === 'front') pitch = 1.0;
-    else if (dir === 'back') pitch = -1.0;
-    else if (dir === 'left') roll = -1.0;
-    else if (dir === 'right') roll = 1.0;
-
-    orchestrator.input.setAnalogStickValues(
-      leftStickVal.current.x,
-      leftStickVal.current.y,
-      roll,
-      pitch
-    );
-
-    setTimeout(() => {
-      orchestrator.input.setAnalogStickValues(
-        leftStickVal.current.x,
-        leftStickVal.current.y,
-        0,
-        0
-      );
-    }, 120);
-
-    addNotification(`Executing mid-air ${dir.toUpperCase()} flip!`, 'success');
-  };
-
-  const handleChatTrigger = () => {
-    addNotification('Welcome to Drona Aviation Assistant! Press ESC or Tab to view controls.', 'info');
-  };
 
   const close = () => setIsOpen(false);
 
@@ -903,36 +731,12 @@ export function ClosedSimMobileMenu({
       {/* ── Immersive Pluto Controller Mobile Landscape Overlay ── */}
       <div className="pluto-mobile-overlay select-none">
         
-        {/* 0. COMPACT TOP-CENTER NOTIFICATION TOASTS */}
-        {notifications.length > 0 && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-1.5 items-center pointer-events-none w-max max-w-[85vw]">
-            {notifications.map((n) => {
-              let bg = 'bg-slate-900/90 border-white/10 text-white shadow-lg';
-              if (n.type === 'success') bg = 'bg-emerald-950/80 border-emerald-500/30 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]';
-              else if (n.type === 'warning') bg = 'bg-amber-950/80 border-amber-500/30 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.2)]';
-              else if (n.type === 'error') bg = 'bg-rose-950/80 border-rose-500/30 text-rose-300 shadow-[0_0_15px_rgba(239,68,68,0.25)]';
-              return (
-                <div key={n.id} className={`px-4 py-1.5 border rounded-full text-[10px] font-mono font-bold uppercase tracking-wider backdrop-blur-md transition-all ${bg}`}>
-                  {n.text}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
         {/* 1. TOP STATUS BAR (Auto-hides) */}
         <div className={`pluto-status-bar pluto-glass pointer-events-auto pluto-pad-left pluto-pad-right pluto-status-bar-transition ${
           isNavbarVisible ? 'translate-y-0 opacity-100' : '-translate-y-16 opacity-0 pointer-events-none'
         }`}>
-          {/* Left layout section */}
+          {/* Left layout section - Just the Menu Button */}
           <div className="flex items-center gap-3">
-            {/* Notification Bell */}
-            <button className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/70 active:scale-95 transition-all relative">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />
-            </button>
-            {/* Menu Button */}
             <button
               id="tutorial-mobile-menu-btn"
               onClick={() => setIsOpen(true)}
@@ -943,40 +747,19 @@ export function ClosedSimMobileMenu({
             >
               Menu
             </button>
-            {/* Profile Avatar */}
-            <div className="flex items-center gap-2 pl-1 border-l border-white/10">
-              <div className="w-8 h-8 rounded-full border border-amber-500/60 p-0.5 overflow-hidden flex items-center justify-center bg-slate-900">
-                <User className="w-4 h-4 text-amber-500" />
-              </div>
-              <span className="text-[10px] font-bold text-white/70 tracking-wide">suddu</span>
-            </div>
           </div>
 
-          {/* Center Connection Flight State */}
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center">
+          {/* Center Connection Flight State / Notched Tray Notifications */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center w-max whitespace-nowrap">
             <span
-              className={`text-xs font-black tracking-[0.2em] font-sans transition-all duration-300 ${
-                stateLabel === 'NOT CONNECTED'
-                  ? 'text-orange-500 animate-pulse'
-                  : stateLabel === 'CONNECTING'
-                  ? 'text-amber-400 animate-pulse'
-                  : stateLabel === 'CRASHED'
-                  ? 'text-rose-500 animate-bounce'
-                  : isStateArmedOrInFlight
-                  ? 'text-cyan-400 text-shadow-cyan animate-glow-green'
-                  : 'text-blue-400'
-              }`}
+              className={`text-xs font-black tracking-[0.2em] font-sans transition-all duration-300 ${getNotchTextColorClass()}`}
             >
-              {stateLabel}
+              {notchText}
             </span>
           </div>
 
-          {/* Right layout section */}
-          <div className="flex items-center gap-3.5">
-            <Wifi className={`w-4 h-4 ${controlsAvailable ? 'text-cyan-400' : 'text-white/30'}`} />
-            
-            <Navigation className={`w-4 h-4 rotate-45 ${controlsAvailable ? 'text-cyan-400' : 'text-white/30'}`} />
-          </div>
+          {/* Right layout section - Kept clean / Empty for cockpit space */}
+          <div className="flex items-center gap-3.5 w-16" />
         </div>
 
         {/* 2. TIMER CAPSULE (HUD Element - stays visible) */}
@@ -990,7 +773,7 @@ export function ClosedSimMobileMenu({
 
         {/* 3. ERGONOMIC RC CORNER JOYSTICKS & CONTROLS */}
         {/* Left Joystick positioned bottom-left */}
-        <div id="tutorial-left-joystick" className="absolute bottom-5 left-[max(20px,env(safe-area-inset-left))] z-30">
+        <div id="tutorial-left-joystick" className="absolute top-1/2 -translate-y-1/2 lg:top-auto lg:bottom-6 lg:translate-y-0 left-[max(24px,env(safe-area-inset-left))] z-30">
           <PlutoJoystick
             side="left"
             onChange={handleLeftStickChange}
@@ -1008,7 +791,7 @@ export function ClosedSimMobileMenu({
         </div>
 
         {/* Right Joystick positioned bottom-right */}
-        <div id="tutorial-right-joystick" className="absolute bottom-5 right-[max(20px,env(safe-area-inset-right))] z-30">
+        <div id="tutorial-right-joystick" className="absolute top-1/2 -translate-y-1/2 lg:top-auto lg:bottom-6 lg:translate-y-0 right-[max(24px,env(safe-area-inset-right))] z-30">
           <PlutoJoystick
             side="right"
             onChange={handleRightStickChange}
@@ -1084,7 +867,7 @@ export function ClosedSimMobileMenu({
                 onClick={handleResetWithTimer}
                 className="pluto-action-button connect pluto-interactive bg-rose-600 hover:bg-rose-500 border border-rose-400 text-white font-extrabold"
               >
-                Reset Sess
+                Reset
               </button>
             ) : (
               <button
@@ -1112,104 +895,46 @@ export function ClosedSimMobileMenu({
           isNavbarVisible ? 'translate-x-0 opacity-100 pointer-events-auto' : 'translate-x-16 landscape:translate-y-[-16px] opacity-0 pointer-events-none'
         }`}>
           {/* Flip Direct action */}
-          {hasTakenOff && (
-            <div className="relative flex flex-col items-center">
-              <button
-                onClick={() => {
-                  if (!telemetry || telemetry.altitude < 1.0) {
-                    addNotification('FLIP DENIED: ALTITUDE TOO LOW (Must be >= 1.0m)', 'warning');
-                    return;
-                  }
-                  setShowFlipDirections(!showFlipDirections);
-                }}
-                className="w-10 h-10 rounded-full bg-indigo-750 hover:bg-indigo-650 text-white border border-indigo-500/50 flex items-center justify-center text-[8.5px] font-black uppercase tracking-wider pluto-interactive shadow-lg animate-pulse"
-              >
-                Flip
-              </button>
-              
-              {showFlipDirections && (
-                <div className="absolute right-12 top-0 landscape:right-0 landscape:top-12 flex items-center landscape:flex-col gap-1.5 bg-slate-950/90 border border-white/10 rounded-xl p-1.5 backdrop-blur-md z-50">
-                  {[
-                    { dir: 'left', label: '◀' },
-                    { dir: 'front', label: '▲' },
-                    { dir: 'back', label: '▼' },
-                    { dir: 'right', label: '▶' },
-                  ].map((f) => (
-                    <button
-                      key={f.dir}
-                      onClick={() => {
-                        handleTriggerFlipDirection(f.dir as any);
-                        setShowFlipDirections(false);
-                      }}
-                      className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-xs font-bold pluto-interactive active:scale-90"
-                      title={`Flip ${f.dir}`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {(() => {
+            const isFlipEnabled = telemetry?.isArmed && hasTakenOff && !isLandingActive && !isFlipping;
+            return (
+              <div className="relative flex flex-col items-center">
+                <button
+                  onClick={() => {
+                    if (isFlipping) {
+                      addNotification('FLIP IN PROGRESS', 'warning');
+                      return;
+                    }
+                    if (!telemetry?.isArmed) {
+                      addNotification('FLIP DENIED: DRONE DISARMED', 'warning');
+                      return;
+                    }
+                    if (!hasTakenOff) {
+                      addNotification('FLIP DENIED: DRONE NOT IN FLIGHT', 'warning');
+                      return;
+                    }
+                    if (isLandingActive) {
+                      addNotification('FLIP DENIED: LANDING IN PROGRESS', 'warning');
+                      return;
+                    }
+                    if (telemetry.altitude < 1.0) {
+                      addNotification('FLIP DENIED: ALTITUDE TOO LOW (Must be >= 1.0m)', 'warning');
+                      return;
+                    }
+                    handleTriggerFlipDirection('back');
+                  }}
+                  className={`w-10 h-10 rounded-full bg-indigo-750 hover:bg-indigo-650 text-white border border-indigo-500/50 flex items-center justify-center text-[8.5px] font-black uppercase tracking-wider pluto-interactive shadow-lg transition-all duration-300 ${
+                    isFlipEnabled 
+                      ? 'opacity-100 animate-pulse' 
+                      : 'opacity-40 cursor-not-allowed border-slate-600/30'
+                  }`}
+                >
+                  Flip
+                </button>
+              </div>
+            );
+          })()}
 
-          {/* Screenshot capture (Camera) */}
-          <button
-            onClick={handleScreenshot}
-            className="w-10 h-10 rounded-full pluto-glass hover:bg-white/10 text-white/70 hover:text-white border border-white/10 flex items-center justify-center pluto-interactive shadow-lg"
-            title="Take Screenshot"
-          >
-            <Camera className="w-4 h-4" />
-          </button>
-          
-          {/* Video Recording toggle */}
-          <button
-            onClick={handleToggleRecording}
-            className={`w-10 h-10 rounded-full border flex items-center justify-center pluto-interactive shadow-lg transition-all ${
-              isRecording
-                ? 'bg-rose-500/25 border-rose-500 text-rose-500 animate-pulse'
-                : 'pluto-glass hover:bg-white/10 text-white/70 hover:text-white border border-white/10'
-            }`}
-            title={isRecording ? 'Stop Recording' : 'Start Recording'}
-          >
-            <Video className="w-4 h-4" />
-          </button>
-
-          {/* Recenter Camera */}
-          {onRecenterCamera && (
-            <button
-              onClick={onRecenterCamera}
-              className="w-10 h-10 rounded-full pluto-glass hover:bg-white/10 text-white/70 hover:text-white border border-white/10 flex items-center justify-center pluto-interactive shadow-lg"
-              title="Recenter Camera"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          )}
-
-          {/* Reset Session button */}
-          <button
-            onClick={handleResetWithTimer}
-            className="w-10 h-10 rounded-full pluto-glass hover:bg-white/10 text-rose-400 hover:text-rose-300 border border-white/10 flex items-center justify-center pluto-interactive shadow-lg"
-            title="Reset Session"
-          >
-            <RotateCcw className="w-4 h-4 rotate-180 text-rose-400" />
-          </button>
-        </div>
-
-        {/* 5. MOCK CHATBOT HELPER & FOOTER INFO (Auto-hides) */}
-        <div className={`absolute bottom-5 left-[max(180px,env(safe-area-inset-left))] pointer-events-auto pluto-sidebar-transition ${
-          isNavbarVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
-        }`}>
-          <button
-            onClick={handleChatTrigger}
-            className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-400/35 text-blue-400 flex items-center justify-center shadow-[0_0_12px_rgba(59,130,246,0.3)] active:scale-90 transition-all hover:bg-blue-500/30"
-            title="Flight Assistant"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25">
-              <path d="M12 2C6.48 2 2 6.48 2 12c0 1.86.51 3.59 1.41 5.09L2.05 21.95a.5.5 0 0 0 .62.62l4.86-1.36A9.957 9.957 0 0 0 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm2 11h-4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1z" />
-              <circle cx="10" cy="10" r="1" fill="currentColor" />
-              <circle cx="14" cy="10" r="1" fill="currentColor" />
-            </svg>
-          </button>
         </div>
 
         <div className={`absolute bottom-5 right-[max(180px,env(safe-area-inset-right))] text-[8px] font-mono text-white tracking-widest uppercase select-none text-right pluto-sidebar-transition ${
@@ -1456,10 +1181,16 @@ export function ClosedSimMobileMenu({
                         />
                         <ActionBtn
                           icon={<RefreshCw className="w-3.5 h-3.5 animate-spin-slow" />}
-                          label={isFlipping ? 'Flipping...' : isFlipArmed ? 'Flip Mode Armed' : 'Arm Flip Mode'}
-                          onClick={() => { onFlip?.(); close(); }}
+                          label={isFlipping ? 'Flipping...' : 'Flip Forward'}
+                          onClick={() => {
+                            onFlip?.(); // Trigger flip callback for test assertions
+                            if (orchestrator) {
+                              orchestrator.triggerDirectForwardFlip();
+                            }
+                            close();
+                          }}
                           disabled={!isReady || !hasTakenOff || isFlipping}
-                          variant={isFlipArmed ? 'success' : 'default'}
+                          variant="default"
                         />
                       </>
                     )}

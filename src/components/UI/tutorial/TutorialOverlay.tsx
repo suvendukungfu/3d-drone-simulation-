@@ -69,10 +69,10 @@ export function TutorialOverlay() {
 
   if (!isTutorialActive) return null;
 
-  // If no rect, darken and blur the entire screen
+  // If no rect, darken and blur the entire screen (Welcome step)
   if (!rect) {
     return (
-      <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-40 pointer-events-auto flex items-center justify-center transition-all duration-500" />
+      <div className="fixed inset-0 bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-sm z-40 pointer-events-auto flex items-center justify-center transition-all duration-500" />
     );
   }
 
@@ -86,27 +86,27 @@ export function TutorialOverlay() {
 
   return (
     <>
-      {/* ── INTERACTION BLOCKING BACKDROP PANELS (with blur) ── */}
+      {/* ── INTERACTION BLOCKING BACKDROP PANELS (optimized for dark mode/mobile visibility) ── */}
       <div 
-        className="fixed top-0 left-0 w-full bg-slate-950/70 backdrop-blur-[3px] z-40 pointer-events-auto transition-all duration-300"
+        className="fixed top-0 left-0 w-full bg-slate-900/10 dark:bg-slate-950/15 backdrop-blur-none md:backdrop-blur-[1.5px] z-40 pointer-events-auto transition-all duration-300"
         style={{ height: topHeight }}
       />
       <div 
-        className="fixed left-0 w-full bg-slate-950/70 backdrop-blur-[3px] z-40 pointer-events-auto transition-all duration-300"
+        className="fixed left-0 w-full bg-slate-900/10 dark:bg-slate-950/15 backdrop-blur-none md:backdrop-blur-[1.5px] z-40 pointer-events-auto transition-all duration-300"
         style={{ top: bottomTop, height: bottomHeight }}
       />
       <div 
-        className="fixed left-0 bg-slate-950/70 backdrop-blur-[3px] z-40 pointer-events-auto transition-all duration-300"
+        className="fixed left-0 bg-slate-900/10 dark:bg-slate-950/15 backdrop-blur-none md:backdrop-blur-[1.5px] z-40 pointer-events-auto transition-all duration-300"
         style={{ top: rect.top, height: rect.height, width: leftWidth }}
       />
       <div 
-        className="fixed bg-slate-950/70 backdrop-blur-[3px] z-40 pointer-events-auto transition-all duration-300"
+        className="fixed bg-slate-900/10 dark:bg-slate-950/15 backdrop-blur-none md:backdrop-blur-[1.5px] z-40 pointer-events-auto transition-all duration-300"
         style={{ top: rect.top, height: rect.height, left: rightLeft, width: rightWidth }}
       />
 
       {/* ── SPOTLIGHT HIGHLIGHT DECORATION (pointer-events-none to click through) ── */}
       <div 
-        className="fixed z-40 pointer-events-none rounded-xl border-2 border-blue-400 shadow-[0_0_25px_rgba(59,130,246,0.6)] transition-all duration-300 ease-out"
+        className="fixed z-40 pointer-events-none rounded-xl border-2 border-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.2)] transition-all duration-300 ease-out"
         style={{
           top: rect.top - 4,
           left: rect.left - 4,
@@ -115,11 +115,11 @@ export function TutorialOverlay() {
         }}
       >
         {/* Pulsing glow ring */}
-        <span className="absolute inset-0 rounded-xl border border-blue-300 animate-ping opacity-60" style={{ animationDuration: '2s' }} />
+        <span className="absolute inset-0 rounded-xl border border-blue-400 animate-ping opacity-50" style={{ animationDuration: '2s' }} />
 
         {/* Pointer Arrow Indicators */}
         <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce">
-          <svg className="w-5 h-5 text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-5 h-5 text-blue-600 drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 13l-7 7-7-7m14-6l-7 7-7-7" />
           </svg>
         </div>

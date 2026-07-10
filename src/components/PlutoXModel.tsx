@@ -123,6 +123,8 @@ export function PlutoXModel({ isFlightMode = false, onLoad, modelPath = '/models
 
     scene.traverse((child) => {
       if (child instanceof THREE.Mesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
         // Clone material so we can highlight/opacity-shift individual meshes
         let materials: {
           mat: THREE.MeshStandardMaterial;

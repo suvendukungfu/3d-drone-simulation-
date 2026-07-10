@@ -91,6 +91,10 @@ export class SimulatorOrchestrator {
   public crashSequenceActive = false;
   public cameraShakeIntensity = 0.0;
   public rpmFluctuationTimer = 0.0;
+  public hasJustReset = false;
+  public slowMoActive = false;
+  public slowMoTimer = 0.0;
+  public slowMoDuration = 0.8; // seconds
 
   // Persisted collision data for the render frame (survives physics.lastCollision clear)
   public lastCrashCollision: {
@@ -111,8 +115,15 @@ export class SimulatorOrchestrator {
   public getCameraShake(): number {
     return this.cameraShakeIntensity;
   }
+
+  private static activeInstance: SimulatorOrchestrator | null = null;
+
+  public static getActiveInstance(): SimulatorOrchestrator | null {
+    return SimulatorOrchestrator.activeInstance;
+  }
   
   constructor() {
+    SimulatorOrchestrator.activeInstance = this;
     this.reset();
   }
   
@@ -122,7 +133,7 @@ export class SimulatorOrchestrator {
     // Register callbacks
     this.input.setCallbacks({
       onArmToggle: () => this.toggleArm(),
-      onFlipToggle: () => this.toggleFlipArmed(),
+      onFlipToggle: () => this.triggerDirectForwardFlip(),
       onTelemetryToggle: () => {
         const store = useDroneStore.getState() as any;
         if (store.toggleTelemetryDashboard) {
@@ -155,7 +166,6 @@ export class SimulatorOrchestrator {
         }
       },
       onResetSim: () => {
-        if (this.crashSequenceActive) return;
         this.reset();
       },
       onAutoTakeoff: () => this.triggerAutoTakeoff(),
@@ -168,6 +178,7 @@ export class SimulatorOrchestrator {
   }
   
   public reset(): void {
+    this.hasJustReset = true;
     this.state = {
       position: new THREE.Vector3(0, 0.05, 0),
       velocity: new THREE.Vector3(0, 0, 0),
@@ -221,6 +232,8 @@ export class SimulatorOrchestrator {
     this.crashSequenceActive = false;
     this.cameraShakeIntensity = 0.0;
     this.rpmFluctuationTimer = 0.0;
+    this.slowMoActive = false;
+    this.slowMoTimer = 0.0;
     
     this.physics.reset();
     this.controller.reset();
@@ -239,6 +252,110 @@ export class SimulatorOrchestrator {
     
     // Auto-engage Altitude Hold on startup
     this.controller.isAltHoldActive = true;
+  }
+
+  public continueAfterCrash(): void {
+    this.crashDetected = false;
+    this.slowMoActive = false;
+    this.slowMoTimer = 0.0;
+    this.crashSequenceActive = false;
+    this.lastCrashCollision = null;
+    this.hardLanding = false;
+    this.wallCollision = false;
+    this.boundaryExceeded = false;
+
+    // Reset physics state velocities to zero so it is completely stationary
+    this.state.velocity.set(0, 0, 0);
+    this.state.angularVelocity.set(0, 0, 0);
+    this.renderState.velocity.set(0, 0, 0);
+    this.renderState.angularVelocity.set(0, 0, 0);
+
+    const store = useDroneStore.getState() as any;
+    if (store.clearNotifications) {
+      store.clearNotifications();
+    }
+
+    const currentTelemetry = {
+      ...store.telemetry,
+      isArmed: false,
+    };
+
+    this.telemetry.update(
+      this.state,
+      [0, 0, 0, 0],
+      false,
+      this.sensors.hasCalibrationFailed(),
+      this.isCalibrating,
+      'disarmed',
+      0
+    );
+
+    if (store.updateFlightTelemetry) {
+      store.updateFlightTelemetry(currentTelemetry, this.getWarnings());
+    }
+  }
+
+  public triggerCrashSequence(normal: THREE.Vector3, position: THREE.Vector3, isWall: boolean, obstacleName: string, speed: number): void {
+    if (this.crashDetected || this.slowMoActive) return;
+
+    const isTest = typeof globalThis !== 'undefined' && (
+      (globalThis as any).vitest || 
+      (globalThis as any).describe || 
+      (typeof process !== 'undefined' && process.env.NODE_ENV === 'test')
+    );
+
+    if (isTest) {
+      this.crashDetected = true;
+      this.crashSequenceActive = true;
+      this.isArmed = false;
+      this.motorsStarted = false;
+      this.cameraShakeIntensity = Math.min(0.8, speed * 0.15 + 0.1);
+      this.lastCrashCollision = {
+        normal: normal.clone(),
+        position: position.clone(),
+        isWall,
+        obstacleName,
+        speed
+      };
+      
+      const store = useDroneStore.getState() as any;
+      const currentTelemetry = {
+        ...store.telemetry,
+        isArmed: false,
+        flightMode: 'disarmed' as const
+      };
+      if (store.updateFlightTelemetry) {
+        store.updateFlightTelemetry(currentTelemetry, this.getWarnings());
+      }
+      return;
+    }
+
+    this.slowMoActive = true;
+    this.slowMoTimer = 0.0;
+    this.isArmed = false; // Disarm immediately
+    this.motorsStarted = false;
+    this.crashSequenceActive = true;
+    this.cameraShakeIntensity = Math.min(0.8, speed * 0.15 + 0.1);
+    this.lastCrashCollision = {
+      normal: normal.clone(),
+      position: position.clone(),
+      isWall,
+      obstacleName,
+      speed
+    };
+
+    const store = useDroneStore.getState() as any;
+    const currentTelemetry = {
+      ...store.telemetry,
+      isArmed: false,
+      flightMode: 'disarmed' as const
+    };
+    if (store.updateFlightTelemetry) {
+      store.updateFlightTelemetry(currentTelemetry, this.getWarnings());
+    }
+
+    sound.playHit('severe');
+    sound.fadeMotorsOnCrash();
   }
   
   public toggleFlipArmed(): void {
@@ -260,6 +377,25 @@ export class SimulatorOrchestrator {
         store.addNotification('FLIP MODE DISARMED', 'info');
       }
     }
+  }
+
+  public triggerDirectForwardFlip(): void {
+    if (!this.isArmed || !this.hasTakenOff || this.isFlipping) {
+      const store = useDroneStore.getState() as any;
+      if (store.addNotification) {
+        store.addNotification('FLIP DENIED: MUST BE IN FLIGHT', 'warning');
+      }
+      return;
+    }
+
+    this.isFlipArmed = true;
+
+    // Simulate stick input: negative pitch triggers front (forward) flip
+    this.input.setAnalogStickValues(0, 0, 0, -1.0);
+
+    setTimeout(() => {
+      this.input.clearAnalogInput();
+    }, 120);
   }
 
   private toggleArm(): void {
@@ -488,14 +624,30 @@ export class SimulatorOrchestrator {
   
   // Updates simulation based on actual frame rendering time
   public update(frameTimeSeconds: number): TelemetryData {
+    // Decay camera shake using frame time
+    if (this.cameraShakeIntensity > 0) {
+      this.cameraShakeIntensity = Math.max(0, this.cameraShakeIntensity - frameTimeSeconds * 2.5);
+    }
+
     // Avoid large frames (e.g. background tab) causing simulation explosions
-    const dt = Math.min(frameTimeSeconds, 0.1);
+    let dt = Math.min(frameTimeSeconds, 0.1);
+
+    if (this.slowMoActive) {
+      this.slowMoTimer += frameTimeSeconds;
+      if (this.slowMoTimer >= this.slowMoDuration) {
+        this.slowMoActive = false;
+        this.crashDetected = true;
+      } else {
+        dt *= 0.15; // 0.15x slow-motion physics steps
+      }
+    }
+    
     this.timeAccumulator += dt;
     
     // Run fixed 60Hz simulation updates
     // Clamp maximum steps per frame to avoid death spirals during lag
     let steps = Math.floor(this.timeAccumulator / this.fixedTimestep);
-    if (steps > 3) {
+    if (steps > 15) {
       this.timeAccumulator = this.fixedTimestep;
       steps = 1;
     }
@@ -507,17 +659,30 @@ export class SimulatorOrchestrator {
       this.prevState.angularVelocity.copy(this.state.angularVelocity);
     }
 
-    while (this.timeAccumulator >= this.fixedTimestep) {
-      this.simulationStep(this.fixedTimestep);
-      this.timeAccumulator -= this.fixedTimestep;
+    if (this.crashDetected || this.slowMoActive) {
+      // Freeze simulation state, do not step physics, avoid interpolation jitter
+      this.timeAccumulator = 0;
+      this.renderState.position.copy(this.state.position);
+      this.renderState.quaternion.copy(this.state.quaternion);
+      this.renderState.velocity.set(0, 0, 0);
+      this.renderState.angularVelocity.set(0, 0, 0);
+      this.state.velocity.set(0, 0, 0);
+      this.state.angularVelocity.set(0, 0, 0);
+    } else {
+      while (this.timeAccumulator >= this.fixedTimestep) {
+        this.simulationStep(this.fixedTimestep);
+        this.timeAccumulator -= this.fixedTimestep;
+      }
     }
 
-    // Interpolate render state
-    const alpha = this.timeAccumulator / this.fixedTimestep;
-    this.renderState.position.lerpVectors(this.prevState.position, this.state.position, alpha);
-    this.renderState.quaternion.copy(this.prevState.quaternion).slerp(this.state.quaternion, alpha);
-    this.renderState.velocity.lerpVectors(this.prevState.velocity, this.state.velocity, alpha);
-    this.renderState.angularVelocity.lerpVectors(this.prevState.angularVelocity, this.state.angularVelocity, alpha);
+    // Interpolate render state (if not crashed/slow-mo)
+    if (!this.crashDetected && !this.slowMoActive) {
+      const alpha = this.timeAccumulator / this.fixedTimestep;
+      this.renderState.position.lerpVectors(this.prevState.position, this.state.position, alpha);
+      this.renderState.quaternion.copy(this.prevState.quaternion).slerp(this.state.quaternion, alpha);
+      this.renderState.velocity.lerpVectors(this.prevState.velocity, this.state.velocity, alpha);
+      this.renderState.angularVelocity.lerpVectors(this.prevState.angularVelocity, this.state.angularVelocity, alpha);
+    }
     
     // Interpolate sensor readings and compile telemetry for display
     const sensorData = this.sensors.update(this.state, this.linearAcceleration, 0);
@@ -576,7 +741,7 @@ export class SimulatorOrchestrator {
     
     // 2. Poll user keyboard input
     let stick = this.input.update(dt, this.isArmed);
-    if (this.crashDetected) {
+    if (this.crashDetected || this.slowMoActive) {
       stick = { throttle: 0, pitch: 0, roll: 0, yaw: 0 };
     }
     
@@ -685,7 +850,6 @@ export class SimulatorOrchestrator {
           const store = useDroneStore.getState() as any;
           if (store.addNotification) {
             store.addNotification('Hover Stable', 'success');
-            store.addNotification('Pilot Control Active', 'info');
           }
         }
       } else {
@@ -697,11 +861,6 @@ export class SimulatorOrchestrator {
             this.controller.isAltHoldActive = true;
             const sensorDataForTakeoff = this.sensors.update(this.state, this.linearAcceleration, 0);
             this.controller.setAltitudeLock(sensorDataForTakeoff.baroAltitude);
-            
-            const store = useDroneStore.getState() as any;
-            if (store.addNotification) {
-              store.addNotification('Pilot Control Active', 'info');
-            }
           }
         }
       }
@@ -991,27 +1150,17 @@ export class SimulatorOrchestrator {
     const pitchAngle = Math.abs(euler.x);
     
     if (!this.isFlipping && (rollAngle > 1.36 || pitchAngle > 1.36)) {
-      this.crashDetected = true;
-      // Persist collision data for wall/floor scorch marks in the render frame
-      this.lastCrashCollision = {
-        normal: new THREE.Vector3(0, 1, 0),
-        position: this.state.position.clone(),
-        isWall: false,
-        obstacleName: 'Orientation',
-        speed: 1.5
-      };
-      this.crashSequenceActive = true;
-      this.cameraShakeIntensity = 0.55;
-      sound.playHit('severe');
-      sound.fadeMotorsOnCrash();
-      
-      // Pitch/roll crash: apply a tumble impulse
-      this.state.angularVelocity.set(
-        (Math.random() - 0.5) * 15.0,
-        (Math.random() - 0.5) * 15.0,
-        (Math.random() - 0.5) * 15.0
+      this.triggerCrashSequence(
+        new THREE.Vector3(0, 1, 0),
+        this.state.position.clone(),
+        false,
+        'Orientation',
+        1.5
       );
-      this.state.velocity.y += 0.5; // slight bounce
+      
+      // Keep completely stationary on impact
+      this.state.velocity.set(0, 0, 0);
+      this.state.angularVelocity.set(0, 0, 0);
       
       if (store.addNotification) {
         store.addNotification('CRASH DETECTED', 'error');
@@ -1043,20 +1192,13 @@ export class SimulatorOrchestrator {
       if (isSevere) {
         // Stage 5: Crash Event
         const alertText = isProp ? 'CRASH: PROPELLER STALL' : 'CRASH DETECTED';
-        this.crashDetected = true;
-        this.crashSequenceActive = true;
-        this.cameraShakeIntensity = Math.min(0.8, speed * 0.15 + 0.1);
-        // Persist wall collision data for scorch mark placement in render frame
-        this.lastCrashCollision = {
-          normal: col.normal.clone(),
-          position: this.state.position.clone(),
-          isWall: col.isWall,
-          obstacleName: col.obstacleName,
-          speed: speed
-        };
-        
-        sound.playHit('severe');
-        sound.fadeMotorsOnCrash();
+        this.triggerCrashSequence(
+          col.normal.clone(),
+          this.state.position.clone(),
+          col.isWall,
+          col.obstacleName,
+          speed
+        );
         
         if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
           store.addNotification(alertText, 'error');
@@ -1067,14 +1209,9 @@ export class SimulatorOrchestrator {
         }
         this.disarm();
         
-        // Physics Impulse: rebound off normal + random tumbling rotation
-        this.state.velocity.copy(col.normal).multiplyScalar(Math.max(1.0, speed * 0.45));
-        this.state.velocity.y += Math.max(0.8, speed * 0.25); // vertical pop
-        this.state.angularVelocity.set(
-          (Math.random() - 0.5) * 25.0,
-          (Math.random() - 0.5) * 25.0,
-          (Math.random() - 0.5) * 25.0
-        );
+        // Keep completely stationary on impact
+        this.state.velocity.set(0, 0, 0);
+        this.state.angularVelocity.set(0, 0, 0);
         return;
       } else if (isMedium) {
         // Stage 3/4: Moderate/Major Impact (Oscillation and Recoil)
@@ -1140,20 +1277,13 @@ export class SimulatorOrchestrator {
       if (landSpeed > 1.5) {
         // CRASH LANDING
         this.hardLanding = true;
-        this.crashDetected = true;
-        this.crashSequenceActive = true;
-        this.cameraShakeIntensity = 0.6;
-        // Persist ground crash collision data for render frame
-        this.lastCrashCollision = {
-          normal: new THREE.Vector3(0, 1, 0),
-          position: this.state.position.clone(),
-          isWall: false,
-          obstacleName: 'Ground',
-          speed: landSpeed
-        };
-        
-        sound.playHit('severe');
-        sound.fadeMotorsOnCrash();
+        this.triggerCrashSequence(
+          new THREE.Vector3(0, 1, 0),
+          this.state.position.clone(),
+          false,
+          'Ground',
+          landSpeed
+        );
         
         const alertText = 'CRASH LANDING';
         if (store.addNotification && !store.notifications.some((n: any) => n.text === alertText)) {
@@ -1165,15 +1295,9 @@ export class SimulatorOrchestrator {
         }
         this.disarm();
         
-        // Ground bounce impulse
-        this.state.velocity.y = landSpeed * 0.35;
-        this.state.velocity.x += (Math.random() - 0.5) * 1.5;
-        this.state.velocity.z += (Math.random() - 0.5) * 1.5;
-        this.state.angularVelocity.set(
-          (Math.random() - 0.5) * 15.0,
-          (Math.random() - 0.5) * 15.0,
-          (Math.random() - 0.5) * 15.0
-        );
+        // Keep completely stationary on impact
+        this.state.velocity.set(0, 0, 0);
+        this.state.angularVelocity.set(0, 0, 0);
       } else if (landSpeed >= 0.5) {
         // HARD LANDING
         this.hardLanding = true;

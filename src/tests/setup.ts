@@ -37,10 +37,10 @@ class AudioContextMock {
     return Promise.resolve();
   }
 }
-vi.stubGlobal('AudioContext', AudioContextMock);
+(global as any).AudioContext = AudioContextMock;
 
 // Mock window.matchMedia
-vi.stubGlobal('matchMedia', vi.fn().mockImplementation(query => ({
+(global as any).matchMedia = vi.fn().mockImplementation(query => ({
   matches: false,
   media: query,
   onchange: null,
@@ -49,7 +49,7 @@ vi.stubGlobal('matchMedia', vi.fn().mockImplementation(query => ({
   addEventListener: vi.fn(),
   removeEventListener: vi.fn(),
   dispatchEvent: vi.fn(),
-})));
+}));
 
 // Mock R3F and Drei
 vi.mock('@react-three/fiber', () => ({
@@ -83,11 +83,29 @@ class ResizeObserverMock {
   unobserve() {}
   disconnect() {}
 }
-vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+(global as any).ResizeObserver = ResizeObserverMock;
 
 // Stub WebGL2RenderingContext to prevent iwer/XR emulator errors in jsdom
-vi.stubGlobal('WebGL2RenderingContext', class WebGL2RenderingContextMock {});
-vi.stubGlobal('WebGLRenderingContext', class WebGLRenderingContextMock {});
+(global as any).WebGL2RenderingContext = class WebGL2RenderingContextMock {};
+(global as any).WebGLRenderingContext = class WebGLRenderingContextMock {};
+
+// Mock global localStorage
+let localStorageStore: Record<string, string> = {};
+const localStorageMock = {
+  getItem: vi.fn((key: string) => localStorageStore[key] || null),
+  setItem: vi.fn((key: string, value: string) => {
+    localStorageStore[key] = value.toString();
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete localStorageStore[key];
+  }),
+  clear: vi.fn(() => {
+    localStorageStore = {};
+  }),
+  length: 0,
+  key: vi.fn(() => null),
+};
+(global as any).localStorage = localStorageMock;
 
 // Mock HTMLCanvasElement.prototype.getContext to return a dummy WebGL context
 const glMock = new Proxy({}, {

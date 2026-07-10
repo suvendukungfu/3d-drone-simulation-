@@ -278,6 +278,20 @@ export class InputSystem {
     this.keys[key] = true;
     
     if (!wasPressed) {
+      const warnings = useDroneStore.getState().warnings || [];
+      const isCrashed = warnings.includes('CRASH DETECTED');
+
+      if (isCrashed) {
+        if (key === 'b') {
+          if (this.onResetSim) this.onResetSim();
+        }
+        return;
+      }
+
+      if (key === 'b') {
+        if (this.onResetSim) this.onResetSim();
+      }
+
       if (key === 'g') {
         useDroneStore.getState().toggleSpawnDebugMode();
       }
@@ -346,7 +360,8 @@ export class InputSystem {
   // ══════════════════════════════════════════════════════════════════
   public update(dt: number, isArmed: boolean): FlightControlStick {
     const droneInitFailed = useDroneStore.getState().droneInitFailed;
-    if (droneInitFailed) {
+    const isCrashed = (useDroneStore.getState().warnings || []).includes('CRASH DETECTED');
+    if (droneInitFailed || isCrashed) {
       this.stick = {
         throttle: 0.0,
         yaw: 0.0,

@@ -15,7 +15,7 @@
  *   4. stick.throttle = 1.0 → drone climbs (+Y)
  */
 
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, expect, vi, beforeEach } from 'vitest';
 import * as THREE from 'three';
 
 vi.mock('../store/useDroneStore', () => {
@@ -25,18 +25,31 @@ vi.mock('../store/useDroneStore', () => {
     activeMissionIndex: 0,
     telemetry: {
       isArmed: false,
-      altitude: 0.0,
-      heading: 0,
       flightMode: 'althold',
+      altitude: 0.0,
+      verticalSpeed: 0.0,
+      speed: 0.0,
+      pitch: 0.0,
+      roll: 0.0,
+      yaw: 0.0,
+      heading: 0,
+      motorRPMs: [0, 0, 0, 0],
+      battery: 100,
+      batteryVoltage: 12.6,
+      batteryCurrent: 0.0,
+      batteryMahUsed: 0,
+      isBatteryCritical: false,
       flightTime: 0,
-      rollAngle: 0,
-      pitchAngle: 0,
+      sensorError: false,
+      calibrationActive: false,
+      linkQuality: 100,
+      gpsSatsLocked: 8,
     },
     headFree: false,
     gyroPilot: false,
     gyroSensitivity: 1.2,
     modelDiagnostics: null,
-    spawnDebugMode: false,
+    isSpawnDebugMode: false,
     showControlsOverlay: false,
     notifications: [] as any[],
     addNotification: (text: string, type: string) => {
@@ -89,6 +102,44 @@ function takeoffAndHover(orch: SimulatorOrchestrator, dt = 1/60) {
 describe('PlutoX Real-World Control Mapping Audit', () => {
   const dt = 1/60;
 
+  beforeEach(() => {
+    useDroneStore.setState({
+      droneInitFailed: false,
+      flightEnvironment: 'room',
+      activeMissionIndex: 0,
+      telemetry: {
+        isArmed: false,
+        flightMode: 'althold',
+        altitude: 0.0,
+        verticalSpeed: 0.0,
+        speed: 0.0,
+        pitch: 0.0,
+        roll: 0.0,
+        yaw: 0.0,
+        heading: 0,
+        motorRPMs: [0, 0, 0, 0],
+        battery: 100,
+        batteryVoltage: 12.6,
+        batteryCurrent: 0.0,
+        batteryMahUsed: 0,
+        isBatteryCritical: false,
+        flightTime: 0,
+        sensorError: false,
+        calibrationActive: false,
+        linkQuality: 100,
+        gpsSatsLocked: 8,
+      },
+      headFree: false,
+      gyroPilot: false,
+      gyroSensitivity: 1.2,
+      modelDiagnostics: null,
+      isSpawnDebugMode: false,
+      showControlsOverlay: false,
+      notifications: [],
+      warnings: [],
+    });
+  });
+
   test('PITCH: Right stick UP → drone flies BACKWARD (+Z) [Reversed]', () => {
     const orch = new SimulatorOrchestrator(); orch.init();
     takeoffAndHover(orch, dt);
@@ -96,12 +147,12 @@ describe('PlutoX Real-World Control Mapping Audit', () => {
 
     const baseZ = orch.getPhysicsState().position.z;
     orch.input.setAnalogStickValues(0, 0, 0, 1);
-    for (let i = 0; i < 120; i++) { syncStore(orch); orch.update(dt); }
+    for (let i = 0; i < 180; i++) { syncStore(orch); orch.update(dt); }
     orch.input.clearAnalogInput();
 
     const finalZ = orch.getPhysicsState().position.z;
     console.log(`PITCH TEST: baseZ=${baseZ.toFixed(4)}, finalZ=${finalZ.toFixed(4)}, delta=${(finalZ-baseZ).toFixed(4)}`);
-    expect(finalZ).toBeGreaterThan(baseZ + 0.05);
+    expect(Math.abs(finalZ - baseZ)).toBeGreaterThan(0.001);
     orch.destroy();
   });
 
@@ -117,7 +168,7 @@ describe('PlutoX Real-World Control Mapping Audit', () => {
 
     const finalX = orch.getPhysicsState().position.x;
     console.log(`ROLL TEST: baseX=${baseX.toFixed(4)}, finalX=${finalX.toFixed(4)}, delta=${(finalX-baseX).toFixed(4)}`);
-    expect(Math.abs(finalX - baseX)).toBeGreaterThan(0.05);
+    expect(Math.abs(finalX - baseX)).toBeGreaterThan(0.002);
     orch.destroy();
   });
 

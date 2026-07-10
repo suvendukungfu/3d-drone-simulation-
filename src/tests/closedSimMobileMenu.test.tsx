@@ -5,23 +5,11 @@ import { useDroneStore } from '../store/useDroneStore';
 
 describe('ClosedSimMobileMenu Component Tests', () => {
   const defaultStickState = { throttle: 0, yaw: 0, pitch: 0, roll: 0 };
+  beforeEach(() => {
+    localStorage.clear();
+  });
 
   beforeEach(() => {
-    // Mock local storage
-    let store: Record<string, string> = {};
-    const localStorageMock = {
-      getItem: (key: string) => store[key] || null,
-      setItem: (key: string, value: string) => {
-        store[key] = value.toString();
-      },
-      clear: () => {
-        store = {};
-      },
-      removeItem: (key: string) => {
-        delete store[key];
-      },
-    };
-    vi.stubGlobal('localStorage', localStorageMock);
 
     // Reset store state (defaulting to Free Flight Closed Simulation)
     useDroneStore.setState({
@@ -233,7 +221,7 @@ describe('ClosedSimMobileMenu Component Tests', () => {
 
     // The rest (Land and Flip) should be disabled since hasTakenOff is false
     const landBtn = screen.getByRole('button', { name: /Land Drone/i });
-    const flipBtn = screen.getByRole('button', { name: /Arm Flip Mode/i });
+    const flipBtn = screen.getByRole('button', { name: /Flip Forward/i });
     expect(landBtn).toBeDisabled();
     expect(flipBtn).toBeDisabled();
   });
@@ -280,7 +268,7 @@ describe('ClosedSimMobileMenu Component Tests', () => {
     expect(onLandSpy).toHaveBeenCalledTimes(1);
 
     // Flip button should be active and triggerable
-    const flipBtn = screen.getByRole('button', { name: /Arm Flip Mode/i });
+    const flipBtn = screen.getByRole('button', { name: /Flip Forward/i });
     expect(flipBtn).not.toBeDisabled();
     fireEvent.click(flipBtn);
     expect(onFlipSpy).toHaveBeenCalledTimes(1);

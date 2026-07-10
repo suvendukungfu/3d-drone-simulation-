@@ -77,7 +77,7 @@ interface SimulationLoopProps {
   droneGroupRef: React.RefObject<THREE.Group>;
   propellersRef: React.MutableRefObject<THREE.Object3D[]>;
   propellerGuardsRef: React.MutableRefObject<THREE.Object3D[]>;
-  shadowMeshRef: React.RefObject<THREE.Mesh>;
+  dirLightRef: React.RefObject<THREE.DirectionalLight>;
   onTelemetryFrame?: (telemetry: TelemetryData) => void;
 }
 
@@ -86,7 +86,7 @@ function SimulationLoop({
   droneGroupRef, 
   propellersRef, 
   propellerGuardsRef, 
-  shadowMeshRef, 
+  dirLightRef,
   onTelemetryFrame 
 }: SimulationLoopProps) {
   const { camera, scene } = useThree();
@@ -107,8 +107,6 @@ function SimulationLoop({
   const sootTextureRef = useRef<THREE.CanvasTexture | null>(null);
 
   // Refs for tracking broken propellers and flying debris on crash
-  const hiddenPropsRef = useRef<THREE.Object3D[]>([]);
-  const hiddenGuardsRef = useRef<THREE.Object3D[]>([]);
   const debrisRef = useRef<{
     mesh: THREE.Object3D;
     velocity: THREE.Vector3;
@@ -148,6 +146,15 @@ function SimulationLoop({
   const wasTakenOffRef = useRef(false);
   const gimbalPitchRef = useRef(0);
   const gimbalRollRef = useRef(0);
+
+  // ── Pre-allocated scratch vectors for chase camera (zero-alloc hot path) ──
+  const _camForward = useRef(new THREE.Vector3());
+  const _camUp = useRef(new THREE.Vector3());
+  const _camLevelFwd = useRef(new THREE.Vector3());
+  const _camBackVec = useRef(new THREE.Vector3());
+  const _camTargetPos = useRef(new THREE.Vector3());
+  const _camLookAt = useRef(new THREE.Vector3());
+  const _camRightVec = useRef(new THREE.Vector3());
 
   // Initialize shared geometries to save memory and reduce GC overhead
   if (!flameGeoRef.current) {
@@ -207,156 +214,140 @@ function SimulationLoop({
     };
   }, [scene]);
 
-  // Spawns a physical propeller debris that flies off the drone with independent physics
+  // Spawns physical propeller & guard debris for ALL corners that fly off the drone and fall to the ground
   const spawnPropellerDebris = (position: THREE.Vector3) => {
-    if (!scene || !propellersRef.current || propellersRef.current.length === 0) return;
+    if (!scene) return;
 
     const crashCol = orchestrator.lastCrashCollision;
     const normal = crashCol ? crashCol.normal.clone() : new THREE.Vector3(0, 1, 0);
+    const droneVel = orchestrator.getPhysicsState().velocity;
 
-    // Impact point on the drone's edge in the direction of the obstacle (which is opposite to the normal vector)
-    const impactPoint = position.clone().addScaledVector(normal, -0.08);
+    const isWallCol = crashCol ? crashCol.isWall : false;
+    const forceDir = new THREE.Vector3().copy(normal).negate().normalize();
+    
+    // Obtain drone's current world position
+    const droneWorldPos = position;
 
-    // Find the closest propeller to this impact point
-    let closestProp: THREE.Object3D | null = null;
-    let minDistance = Infinity;
+    // 1. Process all propellers
+    if (propellersRef.current && propellersRef.current.length > 0) {
+      propellersRef.current.forEach((prop) => {
+        if (prop.parent === scene) return; // already detached
 
-    propellersRef.current.forEach((prop) => {
-      // Skip if already hidden/broken
-      if (!prop.visible) return;
+        const propWorldPos = new THREE.Vector3();
+        prop.getWorldPosition(propWorldPos);
 
-      const propWorldPos = new THREE.Vector3();
-      prop.getWorldPosition(propWorldPos);
-      const dist = propWorldPos.distanceTo(impactPoint);
-
-      if (dist < minDistance) {
-        minDistance = dist;
-        closestProp = prop;
-      }
-    });
-
-    if (closestProp) {
-      const propWorldPos = new THREE.Vector3();
-      (closestProp as THREE.Object3D).getWorldPosition(propWorldPos);
-      const propWorldQuat = new THREE.Quaternion();
-      (closestProp as THREE.Object3D).getWorldQuaternion(propWorldQuat);
-
-      // 1. Hide the original propeller mesh
-      (closestProp as THREE.Object3D).visible = false;
-      hiddenPropsRef.current.push(closestProp);
-
-      // 2. Clone it to create a flying debris mesh
-      const debrisMesh = (closestProp as THREE.Object3D).clone();
-      
-      // Make sure the materials are cloned so we can fade it out without affecting the main model
-      debrisMesh.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.material) {
-          if (Array.isArray(child.material)) {
-            child.material = child.material.map(m => m.clone());
-          } else {
-            child.material = child.material.clone();
-          }
+        // Side selective check: only detach if on the impact side for wall collisions
+        if (isWallCol) {
+          const offset = propWorldPos.clone().sub(droneWorldPos);
+          const dot = offset.dot(forceDir);
+          if (dot < 0.05) return; // Keep intact
         }
-      });
 
-      debrisMesh.position.copy(propWorldPos);
-      debrisMesh.quaternion.copy(propWorldQuat);
-      scene.add(debrisMesh);
+        // Save original parent & local transform
+        if (!prop.userData.originalParent) {
+          prop.userData.originalParent = prop.parent;
+          prop.userData.originalPosition = prop.position.clone();
+          prop.userData.originalRotation = prop.rotation.clone();
+          prop.userData.originalScale = prop.scale.clone();
+        }
 
-      // 3. Debris physics parameters
-      const outboundSpeed = 1.5 + Math.random() * 2.5;
-      const velocity = normal.clone().multiplyScalar(outboundSpeed);
-      velocity.y += 1.5 + Math.random() * 1.5; // upward bounce
+        const propWorldQuat = new THREE.Quaternion();
+        prop.getWorldQuaternion(propWorldQuat);
 
-      // Add a portion of the drone's velocity
-      const droneVel = orchestrator.getPhysicsState().velocity;
-      if (droneVel) {
-        velocity.addScaledVector(droneVel, 0.4);
-      }
+        // Detach
+        if (prop.parent) {
+          prop.parent.remove(prop);
+        }
+        scene.add(prop);
 
-      const angularVelocity = new THREE.Vector3(
-        (Math.random() - 0.5) * 25.0,
-        (Math.random() - 0.5) * 25.0,
-        (Math.random() - 0.5) * 25.0
-      );
+        prop.position.copy(propWorldPos);
+        prop.quaternion.copy(propWorldQuat);
 
-      debrisRef.current.push({
-        mesh: debrisMesh,
-        velocity,
-        angularVelocity,
-        life: 0,
-        maxLife: 2.0 + Math.random() * 1.0 // lasts 2-3 seconds
-      });
+        // Compute physics: fly outward relative to drone center
+        const offsetFromCenter = propWorldPos.clone().sub(position).normalize();
+        const outboundSpeed = 1.0 + Math.random() * 2.0;
+        const velocity = offsetFromCenter.clone().multiplyScalar(outboundSpeed).addScaledVector(normal, 0.5);
+        velocity.y += 1.0 + Math.random() * 1.5; // upward bounce
 
-      // 4. Also find and break off the corresponding propeller guard (spatially closest to this propeller)
-      if (propellerGuardsRef.current && propellerGuardsRef.current.length > 0) {
-        let closestGuard: THREE.Object3D | null = null;
-        let minGuardDist = Infinity;
+        if (droneVel) {
+          velocity.addScaledVector(droneVel, 0.4);
+        }
 
-        propellerGuardsRef.current.forEach((guard) => {
-          if (!guard.visible) return;
-          const guardWorldPos = new THREE.Vector3();
-          guard.getWorldPosition(guardWorldPos);
-          const dist = guardWorldPos.distanceTo(propWorldPos);
+        const angularVelocity = new THREE.Vector3(
+          (Math.random() - 0.5) * 20.0,
+          (Math.random() - 0.5) * 20.0,
+          (Math.random() - 0.5) * 20.0
+        );
 
-          if (dist < minGuardDist) {
-            minGuardDist = dist;
-            closestGuard = guard;
-          }
+        debrisRef.current.push({
+          mesh: prop,
+          velocity,
+          angularVelocity,
+          life: 0,
+          maxLife: 99999
         });
+      });
+    }
 
-        if (closestGuard) {
-          // Hide the original guard mesh
-          (closestGuard as THREE.Object3D).visible = false;
-          hiddenGuardsRef.current.push(closestGuard);
+    // 2. Process all propeller guards
+    if (propellerGuardsRef.current && propellerGuardsRef.current.length > 0) {
+      propellerGuardsRef.current.forEach((guard) => {
+        if (guard.parent === scene) return; // already detached
 
-          // Clone it for flying debris
-          const guardDebrisMesh = (closestGuard as THREE.Object3D).clone();
+        const guardWorldPos = new THREE.Vector3();
+        guard.getWorldPosition(guardWorldPos);
 
-          // Clone materials for fade out
-          guardDebrisMesh.traverse((child) => {
-            if (child instanceof THREE.Mesh && child.material) {
-              if (Array.isArray(child.material)) {
-                child.material = child.material.map(m => m.clone());
-              } else {
-                child.material = child.material.clone();
-              }
-            }
-          });
-
-          const guardWorldPos = new THREE.Vector3();
-          (closestGuard as THREE.Object3D).getWorldPosition(guardWorldPos);
-          const guardWorldQuat = new THREE.Quaternion();
-          (closestGuard as THREE.Object3D).getWorldQuaternion(guardWorldQuat);
-
-          guardDebrisMesh.position.copy(guardWorldPos);
-          guardDebrisMesh.quaternion.copy(guardWorldQuat);
-          scene.add(guardDebrisMesh);
-
-          // Launch physical debris in similar outward direction with randomized pop/spin
-          const guardOutboundSpeed = 1.0 + Math.random() * 2.0;
-          const guardVelocity = normal.clone().multiplyScalar(guardOutboundSpeed);
-          guardVelocity.y += 1.5 + Math.random() * 2.0; // pop upwards
-
-          if (droneVel) {
-            guardVelocity.addScaledVector(droneVel, 0.4);
-          }
-
-          const guardAngularVel = new THREE.Vector3(
-            (Math.random() - 0.5) * 20.0,
-            (Math.random() - 0.5) * 20.0,
-            (Math.random() - 0.5) * 20.0
-          );
-
-          debrisRef.current.push({
-            mesh: guardDebrisMesh,
-            velocity: guardVelocity,
-            angularVelocity: guardAngularVel,
-            life: 0,
-            maxLife: 2.0 + Math.random() * 1.0
-          });
+        // Side selective check: only detach if on the impact side for wall collisions
+        if (isWallCol) {
+          const offset = guardWorldPos.clone().sub(droneWorldPos);
+          const dot = offset.dot(forceDir);
+          if (dot < 0.05) return; // Keep intact
         }
-      }
+
+        // Save original parent & local transform
+        if (!guard.userData.originalParent) {
+          guard.userData.originalParent = guard.parent;
+          guard.userData.originalPosition = guard.position.clone();
+          guard.userData.originalRotation = guard.rotation.clone();
+          guard.userData.originalScale = guard.scale.clone();
+        }
+
+        const guardWorldQuat = new THREE.Quaternion();
+        guard.getWorldQuaternion(guardWorldQuat);
+
+        // Detach
+        if (guard.parent) {
+          guard.parent.remove(guard);
+        }
+        scene.add(guard);
+
+        guard.position.copy(guardWorldPos);
+        guard.quaternion.copy(guardWorldQuat);
+
+        // Physics: fly outwards
+        const offsetFromCenter = guardWorldPos.clone().sub(position).normalize();
+        const outboundSpeed = 0.8 + Math.random() * 1.5;
+        const guardVelocity = offsetFromCenter.clone().multiplyScalar(outboundSpeed).addScaledVector(normal, 0.3);
+        guardVelocity.y += 1.0 + Math.random() * 1.5;
+
+        if (droneVel) {
+          guardVelocity.addScaledVector(droneVel, 0.4);
+        }
+
+        const guardAngularVel = new THREE.Vector3(
+          (Math.random() - 0.5) * 15.0,
+          (Math.random() - 0.5) * 15.0,
+          (Math.random() - 0.5) * 15.0
+        );
+
+        debrisRef.current.push({
+          mesh: guard,
+          velocity: guardVelocity,
+          angularVelocity: guardAngularVel,
+          life: 0,
+          maxLife: 99999
+        });
+      });
     }
   };
 
@@ -557,40 +548,72 @@ function SimulationLoop({
 
     // Trigger visual crash impact animation on crash
     const isCurrentlyCrashed = orchestrator.getIsCrashed();
-    if (isCurrentlyCrashed) {
+    const isSlowMo = (orchestrator as any).slowMoActive;
+    const shouldRestore = wasCrashedRef.current && !(isCurrentlyCrashed || isSlowMo);
+    const forceReset = (orchestrator as any).hasJustReset;
+
+    if (isCurrentlyCrashed || isSlowMo) {
       if (!wasCrashedRef.current) {
         // Initial sparks burst
         spawnCrashParticles(renderState.position);
-        // Break off the closest propeller
+        // Break off all propellers and guards
         spawnPropellerDebris(renderState.position);
         wasCrashedRef.current = true;
       }
-    } else {
-      if (wasCrashedRef.current) {
-        // Clean up remaining particles
-        clearAllCrashParticles();
-        // Restore all broken propellers to visible
-        hiddenPropsRef.current.forEach((prop) => {
+    }
+
+    if (shouldRestore || forceReset) {
+      // Clean up remaining particles
+      clearAllCrashParticles();
+
+      // Ensure all propellers are reattached and restored to original parent and transforms
+      if (propellersRef.current) {
+        propellersRef.current.forEach((prop) => {
           prop.visible = true;
+          if (prop.parent === scene && prop.userData.originalParent) {
+            scene.remove(prop);
+            prop.userData.originalParent.add(prop);
+            prop.position.copy(prop.userData.originalPosition);
+            prop.rotation.copy(prop.userData.originalRotation);
+            prop.scale.copy(prop.userData.originalScale);
+          }
         });
-        hiddenPropsRef.current = [];
-        // Restore all broken propeller guards to visible
-        hiddenGuardsRef.current.forEach((guard) => {
-          guard.visible = true;
-        });
-        hiddenGuardsRef.current = [];
-        // Clean up flying debris from scene
-        debrisRef.current.forEach((d) => {
-          scene.remove(d.mesh);
-        });
-        debrisRef.current = [];
-        
-        // Trigger gradual fading for active scorch marks on reset
-        scorchMarksRef.current.forEach(sm => {
-          sm.fading = true;
-        });
-        wasCrashedRef.current = false;
       }
+
+      // Ensure all guards are reattached and restored to original parent and transforms
+      if (propellerGuardsRef.current) {
+        propellerGuardsRef.current.forEach((guard) => {
+          guard.visible = true;
+          if (guard.parent === scene && guard.userData.originalParent) {
+            scene.remove(guard);
+            guard.userData.originalParent.add(guard);
+            guard.position.copy(guard.userData.originalPosition);
+            guard.rotation.copy(guard.userData.originalRotation);
+            guard.scale.copy(guard.userData.originalScale);
+          }
+        });
+      }
+
+      // Clear the active debris physics list (original meshes have been reattached, no disposal needed)
+      debrisRef.current = [];
+
+      // Clear all scorch marks completely from the scene and dispose resources
+      scorchMarksRef.current.forEach((sm) => {
+        scene.remove(sm.mesh);
+        if (sm.mesh.geometry) sm.mesh.geometry.dispose();
+        if (sm.mesh.material) {
+          const mats = Array.isArray(sm.mesh.material) ? sm.mesh.material : [sm.mesh.material];
+          mats.forEach((m: any) => m.dispose());
+        }
+      });
+      scorchMarksRef.current = [];
+
+      // Reset propeller animation state
+      propVelocitiesRef.current = [0, 0, 0, 0];
+      propAngles.current = [0, 0, 0, 0];
+
+      wasCrashedRef.current = false;
+      (orchestrator as any).hasJustReset = false; // consume reset flag
     }
 
     // Update active fire, smoke, and spark particles
@@ -666,44 +689,42 @@ function SimulationLoop({
 
     // Update flying debris (broken parts)
     if (debrisRef.current.length > 0) {
-      const aliveDebris: any[] = [];
+      // Floor height bound with offset
+      const minY = orchestrator.physics.environmentBounds.minY + 0.01;
       debrisRef.current.forEach((debris) => {
-        // Apply gravity
-        debris.velocity.y -= 9.81 * delta;
-        // Update position
-        debris.mesh.position.addScaledVector(debris.velocity, delta);
-        // Spin
-        debris.mesh.rotation.x += debris.angularVelocity.x * delta;
-        debris.mesh.rotation.y += debris.angularVelocity.y * delta;
-        debris.mesh.rotation.z += debris.angularVelocity.z * delta;
-        // Fade out
-        debris.life += delta;
-        const progress = Math.min(1.0, debris.life / debris.maxLife);
-        const alpha = Math.max(0, 1.0 - progress);
-        
-        debris.mesh.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.material) {
-            const mats = Array.isArray(child.material) ? child.material : [child.material];
-            mats.forEach((m) => {
-              m.transparent = true;
-              m.opacity = alpha;
-            });
-          }
-        });
+        // Only run physics if debris is not fully settled
+        if (debris.velocity.lengthSq() > 0.001 || debris.mesh.position.y > minY) {
+          // Apply gravity
+          debris.velocity.y -= 9.81 * delta;
+          // Update position
+          debris.mesh.position.addScaledVector(debris.velocity, delta);
+          // Spin
+          debris.mesh.rotation.x += debris.angularVelocity.x * delta;
+          debris.mesh.rotation.y += debris.angularVelocity.y * delta;
+          debris.mesh.rotation.z += debris.angularVelocity.z * delta;
 
-        if (debris.life < debris.maxLife) {
-          aliveDebris.push(debris);
-        } else {
-          scene.remove(debris.mesh);
-          debris.mesh.traverse((child) => {
-            if (child instanceof THREE.Mesh && child.material) {
-              const mats = Array.isArray(child.material) ? child.material : [child.material];
-              mats.forEach((m: any) => m.dispose());
+          // Ground bounce collision
+          if (debris.mesh.position.y <= minY) {
+            debris.mesh.position.y = minY;
+            debris.velocity.y = -debris.velocity.y * 0.35; // bounce elasticity
+            debris.velocity.x *= 0.6; // friction
+            debris.velocity.z *= 0.6;
+            debris.angularVelocity.multiplyScalar(0.5);
+
+            // Settle check
+            if (Math.abs(debris.velocity.y) < 0.1 && (debris.velocity.x * debris.velocity.x + debris.velocity.z * debris.velocity.z) < 0.05) {
+              debris.velocity.set(0, 0, 0);
+              debris.angularVelocity.set(0, 0, 0);
+              
+              // Settle flat on the floor
+              const euler = new THREE.Euler().setFromQuaternion(debris.mesh.quaternion, 'YXZ');
+              euler.x = 0;
+              euler.z = 0;
+              debris.mesh.quaternion.setFromEuler(euler);
             }
-          });
+          }
         }
       });
-      debrisRef.current = aliveDebris;
     }
 
     // Update and fade active scorch marks (soot decals)
@@ -739,7 +760,7 @@ function SimulationLoop({
           const direction = (index === 0 || index === 3) ? -1 : 1;
           
           let targetSpeed = 0;
-          if (telemetry.isArmed && orchestrator.motorsStarted && !orchestrator.getIsCrashed()) {
+          if (telemetry.isArmed && orchestrator.motorsStarted && !orchestrator.getIsCrashed() && !(orchestrator as any).slowMoActive) {
             targetSpeed = 15000 + motorCmds[index] * 33000;
           }
           
@@ -755,84 +776,150 @@ function SimulationLoop({
       });
     }
 
-    // 4b. Update floor shadow position & size/opacity
-    if (shadowMeshRef.current) {
-      shadowMeshRef.current.position.set(renderState.position.x, 0.006, renderState.position.z);
-      const height = Math.max(0, renderState.position.y - 0.05);
-      const maxShadowHeight = 4.0;
-      const t = Math.min(1.0, height / maxShadowHeight);
+    // 4b. Realistic dynamic shadow system — follows drone with altitude-based
+    //     frustum scaling, penumbra softening, and tight light tracking.
+    if (dirLightRef.current) {
+      const shadowLight = dirLightRef.current;
+      const droneY = renderState.position.y;
+      const altitude = Math.max(0, droneY - 0.05);
 
-      const opacity = THREE.MathUtils.lerp(0.65, 0.0, t);
-      const scale = THREE.MathUtils.lerp(0.35, 1.2, t);
+      // -- Light position: track closely for sharp near-ground shadows.
+      // Offset is small so the shadow frustum stays tight around the drone.
+      // The light is always slightly above + diagonally offset for a natural angle.
+      const lightOffsetX = 3;
+      const lightOffsetY = Math.max(8, altitude + 6);
+      const lightOffsetZ = 3;
 
-      shadowMeshRef.current.scale.setScalar(scale);
-      const mat = shadowMeshRef.current.material as THREE.MeshBasicMaterial;
-      if (mat) {
-        mat.opacity = opacity;
-      }
+      shadowLight.position.set(
+        renderState.position.x + lightOffsetX,
+        lightOffsetY,
+        renderState.position.z + lightOffsetZ
+      );
+
+      // Target the ground directly below the drone (not the drone itself)
+      // so the shadow stays grounded and doesn't shift away at high angles.
+      shadowLight.target.position.set(
+        renderState.position.x,
+        0,
+        renderState.position.z
+      );
+      shadowLight.target.updateMatrixWorld();
+
+      // -- Dynamic frustum: tight at ground level for maximum texel density,
+      //    gradually widens at altitude so the shadow stays visible.
+      //    Uses smoothstep interpolation for natural visual transitions.
+      const maxShadowHeight = 10.0;
+      const tLinear = Math.min(1.0, altitude / maxShadowHeight);
+      // Smoothstep: 3t² - 2t³ for perceptually smooth transitions
+      const t = tLinear * tLinear * (3.0 - 2.0 * tLinear);
+
+      // Ground: ±1.2 (crisp, high texel density) → Max altitude: ±5.0 (wide coverage)
+      const frustumHalf = 1.2 + t * 3.8;
+      const cam = shadowLight.shadow.camera;
+      cam.left = -frustumHalf;
+      cam.right = frustumHalf;
+      cam.top = frustumHalf;
+      cam.bottom = -frustumHalf;
+      cam.near = 0.1;
+      cam.far = lightOffsetY + 2;
+      cam.updateProjectionMatrix();
+
+      // -- Altitude-based shadow softening (simulates real penumbra spread).
+      // On the ground the shadow is crisp (radius ~1.0).
+      // At max altitude the shadow is diffuse and soft (radius ~5.0).
+      shadowLight.shadow.radius = 1.0 + t * 4.0;
+
+      // Adaptive bias prevents peter-panning at low altitude and
+      // shadow acne at high altitude.
+      shadowLight.shadow.bias = -0.0002 - (t * 0.0004);
+      shadowLight.shadow.normalBias = 0.02 + t * 0.03;
     }
 
     // 5. Update Camera System
     const dronePos = renderState.position;
     const droneQuat = renderState.quaternion;
 
-    // Compute directional vectors from quaternion
-    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(droneQuat).normalize();
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(droneQuat).normalize();
+    // Compute directional vectors from quaternion (reuse pre-allocated scratch vectors)
+    const forward = _camForward.current.set(0, 0, 1).applyQuaternion(droneQuat).normalize();
+    const up = _camUp.current.set(0, 1, 0).applyQuaternion(droneQuat).normalize();
 
-    if (flightCameraView === 'chase') {
+    if (orchestrator.getIsCrashed() || (orchestrator as any).slowMoActive) {
+      // Slow cinematic camera effect focused on the crashed drone
+      const time = state.clock.getElapsedTime();
+      const orbitRadius = 1.3; // close zoom
+      const orbitSpeed = 0.2; // slow rotation
+      const angle = time * orbitSpeed;
+
+      let targetFocus = dronePos;
+      if (orchestrator.lastCrashCollision) {
+        targetFocus = orchestrator.lastCrashCollision.position;
+      }
+
+      const targetCamPos = _camTargetPos.current.set(
+        targetFocus.x + Math.sin(angle) * orbitRadius,
+        targetFocus.y + 0.35, // slightly above the collision point
+        targetFocus.z + Math.cos(angle) * orbitRadius
+      );
+
+      // Prevent camera from going out of environment bounds
+      const bounds = orchestrator.physics.environmentBounds;
+      const margin = 0.1;
+      targetCamPos.x = THREE.MathUtils.clamp(targetCamPos.x, bounds.minX + margin, bounds.maxX - margin);
+      targetCamPos.y = THREE.MathUtils.clamp(targetCamPos.y, bounds.minY + margin, bounds.maxY - margin);
+      targetCamPos.z = THREE.MathUtils.clamp(targetCamPos.z, bounds.minZ + margin, bounds.maxZ - margin);
+
+      const lookAtTarget = _camLookAt.current.set(targetFocus.x, targetFocus.y, targetFocus.z);
+
+      camera.position.copy(targetCamPos);
+      camera.lookAt(lookAtTarget);
+      cameraInitialized.current = true;
+    }
+    else if (flightCameraView === 'chase') {
       // Project drone's forward direction onto the horizontal (XZ) plane to isolate yaw from pitch/roll
-      const levelForward = new THREE.Vector3(forward.x, 0, forward.z);
+      const levelForward = _camLevelFwd.current.set(forward.x, 0, forward.z);
       if (levelForward.lengthSq() < 0.0001) {
-        // Fallback in case drone is oriented vertically
         levelForward.set(0, 0, 1);
       } else {
         levelForward.normalize();
       }
 
-      // Smooth the chase camera yaw angle follow (5Hz LPF) to prevent dizzying rapid camera swings
-      let targetYawAngle = Math.atan2(levelForward.x, levelForward.z);
-      if (smoothYawRef.current === null) {
-        smoothYawRef.current = targetYawAngle;
-      } else {
-        let diff = targetYawAngle - smoothYawRef.current;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        const camAlpha = delta / (delta + 1.0 / (2.0 * Math.PI * 5.0));
-        smoothYawRef.current += camAlpha * diff;
-      }
-      levelForward.set(Math.sin(smoothYawRef.current), 0, Math.cos(smoothYawRef.current)).normalize();
+      // Rigidly follow the drone's horizontal heading instantly (zero lag)
 
-      const levelUp = new THREE.Vector3(0, 1, 0); // Stabilized world up vector
+      // Behind and slightly above drone — all computed in-place, zero allocations
+      const backVec = _camBackVec.current.copy(levelForward).negate();
 
-      // Behind and slightly above drone, locked (no manual mouse offset)
-      const backVec = levelForward.clone().negate();
-      const rotatedBackVec = backVec.clone();
-      const rotatedUpVec = levelUp.clone();
+      // If tutorial is active on a mobile layout, apply a lateral camera offset to the right.
+      // This shifts the drone to the left side of the screen, placing it in the open window
+      // between the left virtual joystick and the central tutorial overlay bubble card.
+      const storeState = useDroneStore.getState();
+      const isTutorialActive = storeState.isTutorialActive;
+      const isMobileLayout = window.innerWidth < 1024;
+      const lateralOffset = (isTutorialActive && isMobileLayout) ? 0.38 : 0.0;
+      const vertOffset = (isTutorialActive && isMobileLayout) ? 0.08 : 0.0;
 
-      const targetCamPos = dronePos.clone()
-        .addScaledVector(rotatedBackVec, 1.4)
-        .addScaledVector(rotatedUpVec, 0.42);
+      const rightVec = _camRightVec.current.set(-backVec.z, 0, backVec.x).normalize();
 
-      // Prevent camera from going out of environment bounds (Senior-level collision avoidance)
+      const targetCamPos = _camTargetPos.current.copy(dronePos)
+        .addScaledVector(backVec, 1.4)
+        .addScaledVector(rightVec, lateralOffset)
+        .add(_camUp.current.set(0, 0.42 + vertOffset, 0));
+
+      // Prevent camera from going out of environment bounds
       const bounds = orchestrator.physics.environmentBounds;
-      const margin = 0.25; // 25cm safety offset from walls/ceilings/floor
+      const margin = 0.25;
 
-      const minX = bounds.minX + margin;
-      const maxX = bounds.maxX - margin;
-      const minY = bounds.minY + margin;
-      const maxY = bounds.maxY - margin;
-      const minZ = bounds.minZ + margin;
-      const maxZ = bounds.maxZ - margin;
+      targetCamPos.x = THREE.MathUtils.clamp(targetCamPos.x, bounds.minX + margin, bounds.maxX - margin);
+      targetCamPos.y = THREE.MathUtils.clamp(targetCamPos.y, bounds.minY + margin, bounds.maxY - margin);
+      targetCamPos.z = THREE.MathUtils.clamp(targetCamPos.z, bounds.minZ + margin, bounds.maxZ - margin);
 
-      targetCamPos.x = THREE.MathUtils.clamp(targetCamPos.x, minX, maxX);
-      targetCamPos.y = THREE.MathUtils.clamp(targetCamPos.y, minY, maxY);
-      targetCamPos.z = THREE.MathUtils.clamp(targetCamPos.z, minZ, maxZ);
+      // Focus point slightly above the drone, offset laterally to shift the drone to the side
+      const lookAtTarget = _camLookAt.current.set(
+        dronePos.x + rightVec.x * lateralOffset,
+        dronePos.y + 0.1 + vertOffset * 0.5,
+        dronePos.z + rightVec.z * lateralOffset
+      );
 
-      // Focus point is offset slightly above the drone's position along the stable world vertical
-      const lookAtTarget = dronePos.clone().addScaledVector(levelUp, 0.1);
-
-      // Rigid follow to eliminate all trailing lag
+      // Rigid follow — zero interpolation lag
       camera.position.copy(targetCamPos);
       camera.lookAt(lookAtTarget);
       cameraInitialized.current = true;
@@ -948,7 +1035,8 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
 
   const fogConfig = getFogConfig();
   const droneGroupRef = useRef<THREE.Group>(null);
-  const shadowMeshRef = useRef<THREE.Mesh>(null);
+  // Legacy shadowMeshRef retained for TS compatibility — no longer renders a circular blob.
+  const dirLightRef = useRef<THREE.DirectionalLight>(null);
 
   // Cache reference meshes to props
   const propellersRef = useRef<THREE.Object3D[]>([]);
@@ -1218,7 +1306,7 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
       </AnimatePresence>
 
       <Canvas
-        shadows={!isMobileDevice}
+        shadows
         camera={{ position: [0, 1.5, -2], fov: 50 }}
         gl={{ antialias: !isMobileDevice, preserveDrawingBuffer: true }}
       >
@@ -1238,12 +1326,20 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
         />
 
         <directionalLight
+          ref={dirLightRef}
           position={[15, 30, 15]}
           intensity={2.8}
           castShadow
-          shadow-mapSize-width={512}
-          shadow-mapSize-height={512}
+          shadow-mapSize-width={isMobileDevice ? 1024 : 2048}
+          shadow-mapSize-height={isMobileDevice ? 1024 : 2048}
           shadow-bias={-0.0002}
+          shadow-normalBias={0.02}
+          shadow-camera-left={-1.5}
+          shadow-camera-right={1.5}
+          shadow-camera-top={1.5}
+          shadow-camera-bottom={-1.5}
+          shadow-camera-near={0.1}
+          shadow-camera-far={40}
         />
 
         <directionalLight
@@ -1270,10 +1366,10 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
         {/* 3D Static Environments & Checkpoints */}
         <EnvironmentManager activeCheckpoints={activeCheckpoints} />
 
-        {/* Circular Floor Shadow Mesh */}
-        <mesh ref={shadowMeshRef} rotation-x={-Math.PI / 2} position={[0, 0.006, 0]}>
-          <circleGeometry args={[0.22, 32]} />
-          <meshBasicMaterial color="#000000" transparent opacity={0.65} depthWrite={false} />
+        {/* Ground shadow receiver — large invisible plane at y=0 catches all drone shadows */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]} receiveShadow>
+          <planeGeometry args={[200, 200]} />
+          <shadowMaterial transparent opacity={0.35} />
         </mesh>
 
         {/* Moving Drone Mesh Wrapper */}
@@ -1296,7 +1392,7 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
           droneGroupRef={droneGroupRef}
           propellersRef={propellersRef}
           propellerGuardsRef={propellerGuardsRef}
-          shadowMeshRef={shadowMeshRef}
+          dirLightRef={dirLightRef}
           onTelemetryFrame={onTelemetryFrame}
         />
 

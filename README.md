@@ -5,8 +5,8 @@
 [![Three.js](https://img.shields.io/badge/Three.js-r164+-black?logo=three.js&logoColor=white)](https://threejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.2+-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4+-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Vercel Status](https://img.shields.io/badge/Vercel-Deployed-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://dronaviation-3d-world-nih9egb8w-suvendukungfus-projects.vercel.app)
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://dronaviation-3d-world-nih9egb8w-suvendukungfus-projects.vercel.app)
+[![Vercel Status](https://img.shields.io/badge/Vercel-Deployed-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://dronaviation-3d-world.vercel.app)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://dronaviation-3d-world.vercel.app)
 
 An interactive, high-fidelity 3D hardware simulation and educational training platform for Drona Aviation's **PlutoX (Primus X2)** nano-drone. This application allows students, engineers, and hobbyists to inspect, diagnose, and learn the physics and assembly of quadcopters in an immersive WebGL environment.
 
