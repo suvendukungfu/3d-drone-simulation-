@@ -51,7 +51,7 @@ export function FlightControlsPanel() {
                 onClick={toggleCollapse}
                 className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full pluto-glass bg-slate-950/40 hover:bg-slate-950/70 border border-white/8 text-white/90 hover:text-white transition-all text-[10px] font-bold uppercase tracking-wider shadow-lg active:scale-95 cursor-pointer"
               >
-                <Keyboard className="w-3.5 h-3.5 text-orange-400" />
+                <Keyboard className="w-3.5 h-3.5" color="black" fill="white" strokeWidth={2.5} />
                 <span>Controls</span>
                 <ChevronDown className="w-3 h-3 opacity-60" />
               </button>
@@ -62,7 +62,7 @@ export function FlightControlsPanel() {
               {/* Header */}
               <div className="flex items-center justify-between pb-1.5">
                 <div className="flex items-center gap-1.5">
-                  <Keyboard className="w-3.5 h-3.5 text-orange-400" />
+                  <Keyboard className="w-3.5 h-3.5" color="black" fill="white" strokeWidth={2.5} />
                   <span className="text-[10px] text-white font-extrabold uppercase tracking-widest leading-none" style={{ WebkitTextStroke: '1.2px black', paintOrder: 'stroke fill' }}>
                     Controls Help
                   </span>
@@ -72,7 +72,7 @@ export function FlightControlsPanel() {
                   className="flex items-center gap-1 text-[8.5px] text-white hover:text-white font-mono font-bold tracking-wider transition-colors cursor-pointer"
                   style={{ WebkitTextStroke: '0.8px black', paintOrder: 'stroke fill' }}
                 >
-                  <EyeOff className="w-3 h-3" />
+                  <EyeOff className="w-3 h-3" color="black" fill="white" strokeWidth={2.5} />
                   <span>HIDE</span>
                 </button>
               </div>
