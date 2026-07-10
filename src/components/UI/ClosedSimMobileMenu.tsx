@@ -804,29 +804,31 @@ export function ClosedSimMobileMenu({
 
         {/* Center Section: Throttle scale and action buttons */}
         <div className="absolute left-1/2 bottom-5 -translate-x-1/2 flex flex-col justify-between h-44 items-center z-25">
-          {/* Throttle Scale Meter */}
-          <div className="relative w-16 h-28">
-            <div className="pluto-throttle-scale">
-              <div className="pluto-throttle-ticks">
-                {Array.from({ length: 9 }).map((_, i) => {
-                  const isMajor = i === 0 || i === 4 || i === 8;
-                  return (
-                    <div
-                      key={i}
-                      className={`pluto-throttle-tick ${isMajor ? 'major' : ''}`}
-                    />
-                  );
-                })}
+          {/* Throttle Scale Meter (Only in FPV mode) */}
+          {flightCameraView === 'fpv' && (
+            <div className="relative w-16 h-28">
+              <div className="pluto-throttle-scale">
+                <div className="pluto-throttle-ticks">
+                  {Array.from({ length: 9 }).map((_, i) => {
+                    const isMajor = i === 0 || i === 4 || i === 8;
+                    return (
+                      <div
+                        key={i}
+                        className={`pluto-throttle-tick ${isMajor ? 'major' : ''}`}
+                      />
+                    );
+                  })}
+                </div>
+                <div
+                  className="pluto-throttle-bracket"
+                  style={{
+                    bottom: `${stickState.throttle * 100}%`,
+                    transform: 'translateY(50%)',
+                  }}
+                />
               </div>
-              <div
-                className="pluto-throttle-bracket"
-                style={{
-                  bottom: `${stickState.throttle * 100}%`,
-                  transform: 'translateY(50%)',
-                }}
-              />
             </div>
-          </div>
+          )}
 
           {/* Bottom Workflow Action Buttons */}
           <div className="pluto-bottom-bar select-none">
