@@ -898,7 +898,7 @@ export function ClosedSimMobileMenu({
           {(() => {
             const isFlipEnabled = telemetry?.isArmed && hasTakenOff && !isLandingActive && !isFlipping;
             return (
-              <div className="relative flex flex-col items-center">
+              <div className="relative flex flex-col items-center lg:hidden">
                 <button
                   onClick={() => {
                     if (isFlipping) {
@@ -1183,19 +1183,21 @@ export function ClosedSimMobileMenu({
                           disabled={!isReady || !hasTakenOff || isLandingActive}
                           variant="warning"
                         />
-                        <ActionBtn
-                          icon={<RefreshCw className="w-3.5 h-3.5 animate-spin-slow" />}
-                          label={isFlipping ? 'Flipping...' : 'Flip Forward'}
-                          onClick={() => {
-                            onFlip?.(); // Trigger flip callback for test assertions
-                            if (orchestrator) {
-                              orchestrator.triggerDirectForwardFlip();
-                            }
-                            close();
-                          }}
-                          disabled={!isReady || !hasTakenOff || isFlipping}
-                          variant="default"
-                        />
+                        <div className="lg:hidden w-full">
+                          <ActionBtn
+                            icon={<RefreshCw className="w-3.5 h-3.5 animate-spin-slow" />}
+                            label={isFlipping ? 'Flipping...' : 'Flip Forward'}
+                            onClick={() => {
+                              onFlip?.(); // Trigger flip callback for test assertions
+                              if (orchestrator) {
+                                orchestrator.triggerDirectForwardFlip();
+                              }
+                              close();
+                            }}
+                            disabled={!isReady || !hasTakenOff || isFlipping}
+                            variant="default"
+                          />
+                        </div>
                       </>
                     )}
                     <ActionBtn
