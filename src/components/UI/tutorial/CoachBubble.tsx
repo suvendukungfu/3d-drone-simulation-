@@ -112,21 +112,16 @@ export function CoachBubble() {
           {/* Header */}
           <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
             <div className="flex items-center gap-2">
-              {isStepCompleted ? (
-                <span className="flex h-2.5 w-2.5 items-center justify-center rounded-full bg-emerald-500 text-white text-[7px] font-black shrink-0">
-                  ✓
-                </span>
-              ) : (
-                <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600" />
-                </span>
+              {isStepCompleted && (
+                <>
+                  <span className="flex h-2.5 w-2.5 items-center justify-center rounded-full bg-emerald-500 text-white text-[7px] font-black shrink-0">
+                    ✓
+                  </span>
+                  <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-500">
+                    Step Completed!
+                  </h4>
+                </>
               )}
-              <h4 className={`text-[10px] font-extrabold uppercase tracking-widest ${
-                isStepCompleted ? 'text-emerald-500' : 'text-blue-600'
-              }`}>
-                {isStepCompleted ? 'Step Completed!' : `Academy Step ${currentStepIndex + 1} of ${steps.length}`}
-              </h4>
             </div>
             <button 
               onClick={stopTutorial} 
