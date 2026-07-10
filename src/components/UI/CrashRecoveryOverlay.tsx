@@ -63,9 +63,9 @@ export function CrashRecoveryOverlay({ onRebuild }: CrashRecoveryOverlayProps) {
         initial={{ opacity: 0, scale: 1.05 }}
         animate={{ opacity: 1, scale: 1.0 }}
         transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="text-6xl sm:text-8xl md:text-9xl font-black select-none text-center px-4 tracking-normal uppercase"
+        className="text-6xl sm:text-8xl md:text-9xl font-black select-none text-center px-4 tracking-[0.08em] uppercase"
         style={{
-          fontFamily: "'Pricedown', 'Inter', sans-serif",
+          fontFamily: "'Orbitron', 'Bebas Neue', 'Inter', sans-serif",
           color: '#ef4444',
           textShadow: `
             0 2px 10px rgba(239, 68, 68, 0.45),
