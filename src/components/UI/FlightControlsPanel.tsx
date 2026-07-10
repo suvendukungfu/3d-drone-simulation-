@@ -101,19 +101,21 @@ interface ControlRowProps {
 
 function ControlRow({ label, keys, description }: ControlRowProps) {
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5 last:border-0 pb-1.5 last:pb-0">
+    <div className="flex items-center justify-between gap-1.5 py-0.5 border-b border-white/3 last:border-0 pb-1.5 last:pb-0">
       <div className="flex flex-col min-w-0 flex-1">
-        <span className="text-white/90 font-bold tracking-wide text-[10px] uppercase leading-none">{label}</span>
+        <span className="text-white/85 font-medium leading-none">{label}</span>
         {description && (
-          <span className="text-[8px] text-white/35 leading-none mt-1 font-mono truncate">{description}</span>
+          <span className="text-[7.5px] text-white/35 leading-none mt-1 font-mono truncate">{description}</span>
         )}
       </div>
-      <div className="flex items-center gap-0.5 shrink-0 font-mono text-[9.5px] font-black text-amber-400 tracking-wider uppercase">
+      <div className="flex items-center gap-0.5 shrink-0 flex-wrap justify-end max-w-[110px]">
         {keys.map((k, i) => (
-          <span key={i} className="flex items-center">
+          <kbd
+            key={i}
+            className="px-1 py-0.5 min-w-[14px] h-[14px] flex items-center justify-center bg-white/6 border border-white/10 rounded font-mono text-[8px] font-black text-white/90 shadow-[0_1px_1px_rgba(0,0,0,0.15)]"
+          >
             {k}
-            {i < keys.length - 1 && <span className="text-white/15 mx-1.5 font-normal">/</span>}
-          </span>
+          </kbd>
         ))}
       </div>
     </div>
