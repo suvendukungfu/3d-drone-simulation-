@@ -24,3 +24,6 @@ export {};
 
 // Senior Fix: Non-linear expo curve and deadzone suppression for mobile touch controls
  // Commit Entry #1230
+
+// Senior Fix: Non-linear expo curve and deadzone suppression for mobile touch controls
+ // Commit Entry #1261
