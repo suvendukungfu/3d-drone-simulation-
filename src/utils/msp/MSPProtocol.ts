@@ -27,3 +27,6 @@ export {};
 
 // Senior Feature: Standard MSP v1 frame parser with CRC XOR checksum validation
  // Commit Entry #1260
+
+// Senior Feature: Standard MSP v1 frame parser with CRC XOR checksum validation
+ // Commit Entry #1291
