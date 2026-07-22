@@ -107,6 +107,9 @@ describe('PlutoX Real-World Control Mapping Audit', () => {
       droneInitFailed: false,
       flightEnvironment: 'room',
       activeMissionIndex: 0,
+      isTutorialActive: false,
+      tutorialStep: 0,
+      tutorialHint: null,
       telemetry: {
         isArmed: false,
         flightMode: 'althold',
