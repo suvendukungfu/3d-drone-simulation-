@@ -1093,6 +1093,217 @@ body.mobile-menu-open .virtual-joysticks {
   transition: filter 0.08s ease-out;
 }
 
+/* =============================================================
+   Closed Simulation Responsive Breakpoints & Adaptations
+   ============================================================= */
 
+/* Joystick default bottom positioning for both desktop and mobile (landscape and portrait) */
+.pluto-joystick-container {
+  position: absolute;
+  top: auto !important;
+  bottom: max(16px, calc(8px + env(safe-area-inset-bottom))) !important;
+  transform: none !important;
+  z-index: 30;
+}
 
+/* Sidebar default positioning directly above the right joystick */
+.pluto-sidebar-container {
+  position: absolute;
+  top: auto !important;
+  bottom: calc(max(16px, calc(8px + env(safe-area-inset-bottom))) + 140px) !important;
+  right: max(16px, env(safe-area-inset-right)) !important;
+  flex-direction: column !important;
+  z-index: 35;
+}
 
+/* 1. Base Portrait Orientation Overrides (Mobile & Tablet) */
+@media (orientation: portrait) {
+  /* Slightly more compact side padding on portrait viewports */
+  .pluto-joystick-left-container {
+    left: max(16px, env(safe-area-inset-left)) !important;
+  }
+  .pluto-joystick-right-container {
+    right: max(16px, env(safe-area-inset-right)) !important;
+  }
+  
+  /* Place action buttons between joysticks in portrait */
+  .pluto-center-actions-container {
+    bottom: max(16px, calc(8px + env(safe-area-inset-bottom))) !important;
+    transform: translateX(-50%) !important;
+    height: 135px !important;
+  }
+  
+  /* Hide the firmware detail overlay on portrait viewports to reduce layout noise */
+  .pluto-firmware-label {
+    display: none !important;
+  }
+
+  /* Make sure the coach bubble wraps nicely in portrait orientation */
+  .interactive-tutorial-wrapper {
+    top: max(74px, calc(66px + env(safe-area-inset-top, 0px))) !important;
+  }
+}
+
+/* 2. Breakpoint: 320px–359px (iPhone SE, compact Android devices) */
+@media (max-width: 359px) {
+  .pluto-joystick-outer {
+    width: 90px !important;
+    height: 90px !important;
+  }
+  .pluto-status-bar {
+    height: 36px !important;
+    padding: 0 10px !important;
+    border-radius: 12px !important;
+  }
+  .pluto-status-bar span {
+    font-size: 8px !important;
+    letter-spacing: 0.1em !important;
+  }
+  .pluto-timer-capsule {
+    height: 26px !important;
+    padding: 0 8px !important;
+    top: calc(max(6px, env(safe-area-inset-top)) + 42px) !important;
+    border-radius: 13px !important;
+  }
+  .pluto-timer-capsule span {
+    font-size: 10px !important;
+  }
+  .pluto-action-button {
+    width: 95px !important;
+    height: 32px !important;
+    font-size: 9px !important;
+  }
+  .pluto-arm-toggle {
+    transform: scale(0.8) !important;
+  }
+  .pluto-center-actions-container {
+    height: 110px !important;
+  }
+  .interactive-tutorial-wrapper {
+    width: 94vw !important;
+    top: max(60px, calc(52px + env(safe-area-inset-top, 0px))) !important;
+  }
+  .tutorial-bubble-card {
+    padding: 8px 10px !important;
+  }
+  .tutorial-bubble-card h3 {
+    font-size: 11px !important;
+  }
+  .tutorial-bubble-card p,
+  .tutorial-bubble-card div {
+    font-size: 10px !important;
+  }
+  .pluto-joystick-outer span {
+    font-size: 7px !important;
+  }
+}
+
+/* 3. Breakpoint: 360px–389px (Galaxy S-series, standard Pixel) */
+@media (min-width: 360px) and (max-width: 389px) {
+  .pluto-joystick-outer {
+    width: 105px !important;
+    height: 105px !important;
+  }
+  .pluto-status-bar {
+    height: 40px !important;
+    padding: 0 12px !important;
+  }
+  .pluto-action-button {
+    width: 110px !important;
+    height: 34px !important;
+    font-size: 10px !important;
+  }
+  .pluto-center-actions-container {
+    height: 120px !important;
+  }
+  .interactive-tutorial-wrapper {
+    width: 92vw !important;
+  }
+}
+
+/* 4. Breakpoint: 390px–429px (iPhone 12/13/14/15, standard Galaxy) */
+@media (min-width: 390px) and (max-width: 429px) {
+  .pluto-joystick-outer {
+    width: 120px !important;
+    height: 120px !important;
+  }
+  .pluto-status-bar {
+    height: 44px !important;
+  }
+  .pluto-action-button {
+    width: 120px !important;
+    height: 36px !important;
+  }
+}
+
+/* 5. Breakpoint: 430px–479px (iPhone Plus/Max, Galaxy Ultra) */
+@media (min-width: 430px) and (max-width: 479px) {
+  .pluto-joystick-outer {
+    width: 130px !important;
+    height: 130px !important;
+  }
+}
+
+/* 6. Breakpoint: 480px–599px (Wide screens, foldables folded) */
+@media (min-width: 480px) and (max-width: 599px) {
+  .pluto-joystick-outer {
+    width: 135px !important;
+    height: 135px !important;
+  }
+}
+
+/* 7. Breakpoint: 600px–767px (Unfolded foldables, small tablets) */
+@media (min-width: 600px) and (max-width: 767px) {
+  .pluto-joystick-outer {
+    width: 140px !important;
+    height: 140px !important;
+  }
+}
+
+/* 8. Breakpoint: 768px–1023px (iPad Mini/Air/Pro portrait, Android tablets) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .pluto-joystick-outer {
+    width: 155px !important;
+    height: 155px !important;
+  }
+  
+  @media (orientation: portrait) {
+    .pluto-joystick-left-container {
+      bottom: 32px !important;
+    }
+    .pluto-joystick-right-container {
+      bottom: 32px !important;
+    }
+    .pluto-center-actions-container {
+      bottom: 32px !important;
+      height: 145px !important;
+    }
+    .pluto-sidebar-container {
+      bottom: 200px !important;
+    }
+  }
+}
+
+/* 9. Landscape compact height adjustments (under 480px viewport height) */
+@media (max-height: 480px) and (orientation: landscape) {
+  .pluto-joystick-outer {
+    width: clamp(90px, 32vh, 120px) !important;
+    height: clamp(90px, 32vh, 120px) !important;
+  }
+  .pluto-status-bar {
+    height: 36px !important;
+    margin-top: max(4px, env(safe-area-inset-top)) !important;
+  }
+  .pluto-timer-capsule {
+    height: 28px !important;
+    top: calc(max(4px, env(safe-area-inset-top)) + 40px) !important;
+  }
+  .pluto-center-actions-container {
+    bottom: 8px !important;
+    height: 130px !important;
+  }
+  /* Ensure the coach bubble is pushed slightly higher to keep center clear */
+  .interactive-tutorial-wrapper {
+    top: max(56px, calc(48px + env(safe-area-inset-top, 0px))) !important;
+  }
+}

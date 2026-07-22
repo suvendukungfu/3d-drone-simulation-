@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { RotateCcw, Play } from 'lucide-react';
 import { sound } from '../../utils/soundController';
@@ -42,13 +43,13 @@ export function CrashRecoveryOverlay({ onRebuild }: CrashRecoveryOverlayProps) {
     };
   }, [onRebuild]);
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/30 backdrop-blur-[2.5px] select-none bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.08)_0%,rgba(0,0,0,0.65)_85%)]"
+      className="fixed inset-0 z-[9999] flex flex-col items-center justify-center select-none bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.08)_0%,rgba(9,9,11,0.38)_100%)] backdrop-blur-[1.5px]"
     >
       {/* Visually hidden container for test assertions */}
       <div style={{ display: 'none' }}>
@@ -58,16 +59,17 @@ export function CrashRecoveryOverlay({ onRebuild }: CrashRecoveryOverlayProps) {
         <span>[B]</span>
       </div>
 
-      {/* Centered CRASHED Title using custom local Pricedown font */}
       <motion.h1
         initial={{ opacity: 0, scale: 0.85, y: -20 }}
         animate={{ opacity: 1, scale: 1.0, y: 0 }}
         transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-        className="text-7xl sm:text-9xl md:text-[10rem] font-extrabold select-none text-center px-4 tracking-[0.18em] uppercase font-sans animate-pulse"
+        className="font-extrabold select-none text-center px-4 uppercase font-sans animate-pulse"
         style={{
           fontFamily: "'Orbitron', 'Bebas Neue', 'Inter', sans-serif",
+          fontSize: 'clamp(2.5rem, 12vw, 10rem)',
+          letterSpacing: 'clamp(0.05em, 1.8vw, 0.18em)',
           color: '#ef4444',
-          WebkitTextStroke: '2px rgba(255, 255, 255, 0.95)',
+          WebkitTextStroke: 'clamp(1px, 0.2vw, 2px) rgba(255, 255, 255, 0.95)',
           textShadow: `
             0 0 15px rgba(255, 255, 255, 0.7),
             0 0 30px rgba(239, 68, 68, 0.9),
@@ -104,6 +106,7 @@ export function CrashRecoveryOverlay({ onRebuild }: CrashRecoveryOverlayProps) {
           <span>Restart / Rebuild</span>
         </button>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }

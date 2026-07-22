@@ -1,6 +1,7 @@
 import { useRef, useMemo, useEffect } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Grid, Billboard, Text } from '@react-three/drei';
+import { Grid, Billboard, Text, useGLTF } from '@react-three/drei';
 import { useDroneStore } from '../store/useDroneStore';
 
 
@@ -52,58 +53,46 @@ function WallGrid({ position, rotation, args, cellColor, sectionColor, fadeDista
   );
 }
 
-// Visual school desk for Classroom environment
-function ClassroomDesk({ position }: { position: [number, number, number] }) {
-  return (
-    <group position={position}>
-      {/* Desk top */}
-      <mesh position={[0, 0.7, 0]} castShadow receiveShadow>
-        <boxGeometry args={[1.1, 0.05, 0.6]} />
-        <meshStandardMaterial color="#b45309" roughness={0.5} metalness={0.1} />
-      </mesh>
-      {/* Desk Drawer shelf */}
-      <mesh position={[0, 0.55, 0]} receiveShadow>
-        <boxGeometry args={[0.9, 0.02, 0.5]} />
-        <meshStandardMaterial color="#451a03" roughness={0.8} />
-      </mesh>
-      {/* Desk Legs */}
-      <mesh position={[-0.48, 0.35, -0.24]} castShadow>
-        <cylinderGeometry args={[0.015, 0.015, 0.7, 8]} />
-        <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.8} />
-      </mesh>
-      <mesh position={[0.48, 0.35, -0.24]} castShadow>
-        <cylinderGeometry args={[0.015, 0.015, 0.7, 8]} />
-        <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.8} />
-      </mesh>
-      <mesh position={[-0.48, 0.35, 0.24]} castShadow>
-        <cylinderGeometry args={[0.015, 0.015, 0.7, 8]} />
-        <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.8} />
-      </mesh>
-      <mesh position={[0.48, 0.35, 0.24]} castShadow>
-        <cylinderGeometry args={[0.015, 0.015, 0.7, 8]} />
-        <meshStandardMaterial color="#334155" roughness={0.4} metalness={0.8} />
-      </mesh>
 
-      {/* Chair */}
-      <group position={[0, 0, -0.45]}>
-        {/* Seat */}
-        <mesh position={[0, 0.4, 0]} castShadow receiveShadow>
-          <boxGeometry args={[0.42, 0.04, 0.42]} />
-          <meshStandardMaterial color="#1e293b" roughness={0.7} />
-        </mesh>
-        {/* Leg support */}
-        <mesh position={[0, 0.2, 0]} castShadow>
-          <cylinderGeometry args={[0.012, 0.012, 0.4, 8]} />
-          <meshStandardMaterial color="#475569" metalness={0.7} />
-        </mesh>
-        {/* Chair Backrest */}
-        <mesh position={[0, 0.68, -0.19]} castShadow>
-          <boxGeometry args={[0.38, 0.28, 0.03]} />
-          <meshStandardMaterial color="#1e293b" roughness={0.7} />
-        </mesh>
-      </group>
-    </group>
-  );
+
+// Visual 3D model for Classroom environment
+function ClassroomModel() {
+  const { scene } = useGLTF('/models/classroom.glb');
+  const clonedScene = useMemo(() => {
+    const cloned = scene.clone();
+    cloned.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const isGodray = child.name.toLowerCase().includes('godray') || 
+                         (child.material && (child.material as any).name === 'godray');
+        
+        if (isGodray) {
+          // Hide godrays entirely to fix the blinding white over-exposure issue
+          child.visible = false;
+          child.castShadow = false;
+          child.receiveShadow = false;
+        } else {
+          // Disable shadow casting on all static room meshes to prevent ceiling shadows blocking the sun
+          // and to drastically reduce shadow map draw calls, resolving rendering lag.
+          child.castShadow = false;
+          
+          // Only let the floor (ground) and desks receive shadows from the drone
+          const name = child.name.toLowerCase();
+          const isShadowReceiver = name.includes('ground') || 
+                                   name.includes('desk') || 
+                                   name.includes('table') || 
+                                   name.includes('floor');
+          child.receiveShadow = isShadowReceiver;
+          
+          // Disable matrix auto-updates for static objects to boost CPU performance (reduces lag)
+          child.matrixAutoUpdate = false;
+          child.updateMatrix();
+        }
+      }
+    });
+    return cloned;
+  }, [scene]);
+
+  return <primitive object={clonedScene} scale={[0.01, 0.01, 0.01]} position={[0, 0, 0]} />;
 }
 
 // Structural Arch for Course environment
@@ -167,6 +156,58 @@ function FlightGate({ position, rotation = [0, 0, 0], radius = 0.65, thickness =
         <sphereGeometry args={[0.04, 8, 8]} />
         <meshBasicMaterial color={activeColor} toneMapped={false} />
       </mesh>
+    </group>
+  );
+}
+
+
+// Dynamic floating waypoint beacon component with pulse R3F loops
+function WaypointBeacon({ index, pos, glowColor }: { index: number; pos: [number, number, number]; glowColor: string }) {
+  const groupRef = useRef<THREE.Group>(null);
+  
+  useFrame((state: any) => {
+    if (groupRef.current) {
+      // Smooth floating wave animation
+      groupRef.current.position.y = pos[1] + Math.sin(state.clock.getElapsedTime() * 2.5) * 0.08;
+      // Rotation animation
+      groupRef.current.rotation.y = state.clock.getElapsedTime() * 0.6;
+    }
+  });
+
+  return (
+    <group>
+      {/* Visual Support Pole */}
+      <mesh position={[pos[0], pos[1]/2, pos[2]]} castShadow>
+        <cylinderGeometry args={[0.015, 0.015, pos[1], 8]} />
+        <meshStandardMaterial color="#334155" roughness={0.7} />
+      </mesh>
+      
+      {/* Floating Animated Target Group */}
+      <group ref={groupRef} position={[pos[0], 0, pos[2]]}>
+        {/* Outer glowing pulsing ring */}
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.22, 0.26, 32]} />
+          <meshBasicMaterial color={glowColor} toneMapped={false} transparent opacity={0.65} side={THREE.DoubleSide} />
+        </mesh>
+        
+        {/* Inner solid core sphere */}
+        <mesh>
+          <sphereGeometry args={[0.07, 16, 16]} />
+          <meshBasicMaterial color={glowColor} toneMapped={false} />
+        </mesh>
+
+        {/* HUD Ring */}
+        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+          <ringGeometry args={[0.12, 0.14, 4]} />
+          <meshBasicMaterial color={glowColor} toneMapped={false} transparent opacity={0.4} />
+        </mesh>
+      </group>
+      
+      <Billboard position={[pos[0], pos[1] + 0.42, pos[2]]} follow={true}>
+        <Text fontSize={0.16} color={glowColor} anchorX="center" anchorY="middle">
+          {`CP ${index + 1}`}
+        </Text>
+      </Billboard>
     </group>
   );
 }
@@ -558,133 +599,7 @@ export function EnvironmentManager({ activeCheckpoints }: { activeCheckpoints?: 
       {/* C. STEM CLASSROOM */}
       {envType === 'classroom' && (
         <group>
-          <Grid 
-            position={[0, 0.001, 0]} 
-            args={[20, 20]} 
-            cellColor={isDark ? "#1e293b" : "#cbd5e1"} 
-            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
-            fadeDistance={15} 
-            infiniteGrid={false} 
-          />
-
-          {/* Classroom Walls */}
-          <mesh position={[0, 3.0, -10]} receiveShadow>
-            <planeGeometry args={[20, 6]} />
-            <meshStandardMaterial color={isDark ? "#0f172a" : "#f8fafc"} roughness={0.9} />
-          </mesh>
-          <mesh position={[0, 3.0, 10]} rotation={[0, Math.PI, 0]} receiveShadow>
-            <planeGeometry args={[20, 6]} />
-            <meshStandardMaterial color={isDark ? "#0f172a" : "#f8fafc"} roughness={0.9} />
-          </mesh>
-          <mesh position={[-10, 3.0, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
-            <planeGeometry args={[20, 6]} />
-            <meshStandardMaterial color={isDark ? "#0b0f19" : "#f1f5f9"} roughness={0.9} />
-          </mesh>
-          <mesh position={[10, 3.0, 0]} rotation={[0, -Math.PI / 2, 0]} receiveShadow>
-            <planeGeometry args={[20, 6]} />
-            <meshStandardMaterial color={isDark ? "#0b0f19" : "#f1f5f9"} roughness={0.9} />
-          </mesh>
-
-          {/* Classroom ceiling */}
-          <mesh position={[0, 6, 0]} rotation={[Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[20, 20]} />
-            <meshStandardMaterial color={isDark ? "#030712" : "#e2e8f0"} roughness={0.95} />
-          </mesh>
-
-          {/* Vertical and Ceiling Blueprint Grids */}
-          <WallGrid 
-            position={[0, 3, -9.99]} 
-            rotation={[Math.PI / 2, 0, 0]} 
-            args={[20, 6]} 
-            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
-            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
-            fadeDistance={15} 
-          />
-          <WallGrid 
-            position={[0, 3, 9.99]} 
-            rotation={[Math.PI / 2, 0, 0]} 
-            args={[20, 6]} 
-            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
-            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
-            fadeDistance={15} 
-          />
-          <WallGrid 
-            position={[-9.99, 3, 0]} 
-            rotation={[0, 0, Math.PI / 2]} 
-            args={[6, 20]} 
-            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
-            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
-            fadeDistance={15} 
-          />
-          <WallGrid 
-            position={[9.99, 3, 0]} 
-            rotation={[0, 0, Math.PI / 2]} 
-            args={[6, 20]} 
-            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
-            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
-            fadeDistance={15} 
-          />
-          <Grid 
-            position={[0, 5.99, 0]} 
-            args={[20, 20]} 
-            cellColor={isDark ? "#1e293b" : "#e2e8f0"} 
-            sectionColor={isDark ? "#4f46e5" : "#4f46e5"} 
-            fadeDistance={15} 
-            infiniteGrid={false} 
-          />
-
-          {/* Whiteboard with STEM equations at the front */}
-          <group position={[0, 1.9, -9.8]}>
-            {/* Board */}
-            <mesh castShadow receiveShadow>
-              <boxGeometry args={[4.5, 2.2, 0.06]} />
-              <meshStandardMaterial color="#f8fafc" roughness={0.25} metalness={0.1} />
-            </mesh>
-            {/* Frame */}
-            <mesh position={[0, 0, 0]}>
-              <boxGeometry args={[4.62, 2.32, 0.04]} />
-              <meshStandardMaterial color="#334155" roughness={0.5} metalness={0.8} />
-            </mesh>
-            {/* Whiteboard content */}
-            <Text
-              position={[0, 0.75, 0.04]}
-              fontSize={0.18}
-              color="#0f172a"
-              anchorX="center"
-              anchorY="middle"
-              font="monospace"
-            >
-              PlutoX Flight Dynamics Lab
-            </Text>
-            <Text
-              position={[-2.1, 0.15, 0.04]}
-              fontSize={0.08}
-              color="#1e293b"
-              anchorX="left"
-              anchorY="middle"
-              font="monospace"
-              maxWidth={4.2}
-            >
-              {"1. Pitch Control: Up = Kp * ep + Ki * S ep dt + Kd * dep/dt\n" +
-               "2. Torque Balance: Tz = d * (F1 - F2 + F3 - F4)\n" +
-               "3. Angular Accel: J * w_dot = Tb - w x (J * w)"}
-            </Text>
-          </group>
-
-          {/* Teacher's Desk */}
-          <CubeObstacle position={[0, 0.45, -6.5]} args={[1.6, 0.9, 0.8]} color="#1e3a8a" label="Teacher's Desk" />
-
-          {/* Students Desks Grid (3x2) */}
-          <ClassroomDesk position={[-2.5, 0, -2.5]} />
-          <ClassroomDesk position={[0, 0, -2.5]} />
-          <ClassroomDesk position={[2.5, 0, -2.5]} />
-          
-          <ClassroomDesk position={[-2.5, 0, 1.5]} />
-          <ClassroomDesk position={[0, 0, 1.5]} />
-          <ClassroomDesk position={[2.5, 0, 1.5]} />
-
-          {/* Storage Cabinet on the side */}
-          <CubeObstacle position={[-7.5, 1.0, 4.0]} args={[1.2, 2.0, 0.8]} color="#475569" label="Bookshelf" />
+          <ClassroomModel />
         </group>
       )}
       
@@ -925,31 +840,17 @@ export function EnvironmentManager({ activeCheckpoints }: { activeCheckpoints?: 
           const glowColor = cp.passed ? '#22c55e' : (isActive ? '#f97316' : '#64748b');
           
           return (
-            <group key={cp.id} position={pos}>
-              <mesh position={[0, -pos[1]/2, 0]} castShadow>
-                <cylinderGeometry args={[0.02, 0.02, pos[1], 8]} />
-                <meshStandardMaterial color="#334155" roughness={0.7} />
-              </mesh>
-              
-              <mesh castShadow>
-                <sphereGeometry args={[0.22, 16, 16]} />
-                <meshBasicMaterial color={glowColor} toneMapped={false} transparent opacity={0.65} />
-              </mesh>
-              
-              <mesh>
-                <sphereGeometry args={[0.08, 8, 8]} />
-                <meshBasicMaterial color={glowColor} toneMapped={false} />
-              </mesh>
-              
-              <Billboard position={[0, 0.42, 0]} follow={true}>
-                <Text fontSize={0.16} color={glowColor} anchorX="center" anchorY="middle">
-                  {`CP ${index + 1}`}
-                </Text>
-              </Billboard>
-            </group>
+            <WaypointBeacon 
+              key={cp.id}
+              index={index}
+              pos={pos}
+              glowColor={glowColor}
+            />
           );
         }
       })}
     </group>
   );
 }
+
+useGLTF.preload('/models/classroom.glb');

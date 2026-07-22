@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useDroneStore } from '../../store/useDroneStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Keyboard, ChevronDown, EyeOff } from 'lucide-react';
@@ -42,43 +42,42 @@ export function FlightControlsPanel() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -10, scale: 0.95 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="fixed top-16 right-4 z-45 w-[250px] pointer-events-none select-none"
+          className="fixed top-16 right-4 z-45 w-[280px] pointer-events-none select-none antialiased"
         >
           {isCollapsed ? (
             /* Collapsed trigger tab */
             <div className="flex justify-end">
               <button
                 onClick={toggleCollapse}
-                className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full pluto-glass bg-slate-950/40 hover:bg-slate-950/70 border border-white/8 text-white/90 hover:text-white transition-all text-[10px] font-bold uppercase tracking-wider shadow-lg active:scale-95 cursor-pointer"
+                className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/75 hover:bg-white text-[#111827] border border-slate-200 shadow-sm transition-all text-[10px] font-extrabold uppercase tracking-widest active:scale-95 cursor-pointer"
               >
-                <Keyboard className="w-3.5 h-3.5" color="black" fill="white" strokeWidth={2.5} />
+                <Keyboard className="w-3.5 h-3.5 text-[#111827] shrink-0" strokeWidth={2} />
                 <span>Controls</span>
-                <ChevronDown className="w-3 h-3 opacity-60" />
+                <ChevronDown className="w-3.5 h-3.5 text-[#111827] opacity-60 shrink-0" />
               </button>
             </div>
           ) : (
-            /* Ultra-Compact Expanded Panel */
-            <div className="p-3 flex flex-col gap-2 font-sans text-xs pointer-events-auto">
+            /* Redesigned Floating HUD Overlay (No card background, Dark slate text on light backgrounds) */
+            <div className="p-2 flex flex-col gap-3 font-sans pointer-events-auto w-[280px]">
               {/* Header */}
-              <div className="flex items-center justify-between pb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Keyboard className="w-3.5 h-3.5" color="black" fill="white" strokeWidth={2.5} />
-                  <span className="text-[10px] text-white font-extrabold uppercase tracking-widest leading-none" style={{ WebkitTextStroke: '1.2px black', paintOrder: 'stroke fill' }}>
+              <div className="flex items-center justify-between pb-2 border-b border-black/5 select-none">
+                <div className="flex items-center gap-1.5 bg-white/75 px-1.5 py-0.5 rounded shadow-sm border border-slate-100">
+                  <Keyboard className="w-3.5 h-3.5 text-[#111827] shrink-0" strokeWidth={2} />
+                  <span className="text-[11px] text-[#111827] font-extrabold uppercase tracking-widest leading-none">
                     Controls Help
                   </span>
                 </div>
                 <button
                   onClick={toggleCollapse}
-                  className="flex items-center gap-1 text-[8.5px] text-white hover:text-white font-mono font-bold tracking-wider transition-colors cursor-pointer"
-                  style={{ WebkitTextStroke: '0.8px black', paintOrder: 'stroke fill' }}
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/60 hover:bg-white/95 text-[9px] text-[#6B7280] hover:text-[#111827] font-bold tracking-widest transition-all cursor-pointer uppercase shadow-sm border border-slate-150"
                 >
-                  <EyeOff className="w-3 h-3" color="black" fill="white" strokeWidth={2.5} />
+                  <EyeOff className="w-3 h-3 text-[#6B7280] shrink-0" strokeWidth={2} />
                   <span>HIDE</span>
                 </button>
               </div>
 
-              {/* Compact Rows */}
-              <div className="flex flex-col gap-1.5">
+              {/* Spaced Control Rows */}
+              <div className="flex flex-col">
                 <ControlRow label="Arm / Land" keys={['Space', 'L']} />
                 <ControlRow label="Throttle / Yaw" keys={['W', 'S', 'A', 'D']} description="W/S: Alt, A/D: Turn" />
                 <ControlRow label="Pitch / Roll" keys={['↑', '↓', '←', '→']} description="Arrows: Lean/Tilt" />
@@ -102,23 +101,48 @@ interface ControlRowProps {
 
 function ControlRow({ label, keys, description }: ControlRowProps) {
   return (
-    <div className="flex items-center justify-between gap-1.5 py-0.5 pb-1.5 last:pb-0">
-      <div className="flex flex-col min-w-0 flex-1">
-        <span className="text-white font-bold leading-none" style={{ WebkitTextStroke: '1px black', paintOrder: 'stroke fill' }}>{label}</span>
+    <div className="flex items-center justify-between gap-4 py-2 border-b border-black/5 last:border-0 last:pb-0 first:pt-0">
+      <div className="flex flex-col min-w-0 flex-1 items-start">
+        <span className="px-1.5 py-0.5 rounded bg-white/75 text-[#111827] text-[12px] font-bold tracking-wide leading-none select-none border border-slate-100/50">
+          {label}
+        </span>
         {description && (
-          <span className="text-[7.5px] text-white leading-none mt-1 font-mono font-bold truncate" style={{ WebkitTextStroke: '0.6px black', paintOrder: 'stroke fill' }}>{description}</span>
+          <span className="px-1.5 py-0.5 rounded bg-white/60 text-[#4B5563] text-[9.5px] font-medium leading-none mt-1 select-none border border-slate-100/30">
+            {description}
+          </span>
         )}
       </div>
-      <div className="flex items-center gap-0.5 shrink-0 flex-wrap justify-end max-w-[110px]">
+      <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end max-w-[130px]">
         {keys.map((k, i) => (
-          <kbd
-            key={i}
-            className="px-1 py-0.5 min-w-[14px] h-[14px] flex items-center justify-center bg-white border-2 border-black rounded font-mono text-[8px] font-black text-black"
-          >
-            {k}
-          </kbd>
+          <Keycap key={i} keyStr={k} />
         ))}
       </div>
     </div>
+  );
+}
+
+function Keycap({ keyStr }: { keyStr: string }) {
+  // If it's a combined keystroke group like Shift+F
+  if (keyStr.includes('+')) {
+    const parts = keyStr.split('+');
+    return (
+      <div className="flex items-center gap-1 bg-slate-200/60 px-1 py-0.5 rounded border border-slate-300 shadow-inner shrink-0">
+        {parts.map((part, index) => (
+          <React.Fragment key={index}>
+            {index > 0 && <span className="text-[9px] text-[#4B5563] font-bold font-sans">+</span>}
+            <kbd className="px-1.5 py-0.5 min-w-[20px] h-[20px] flex items-center justify-center bg-white border border-slate-200 border-b-[2.5px] border-b-slate-400 rounded font-mono text-[9px] font-extrabold text-[#111827] shadow-[0_1px_1px_rgba(0,0,0,0.15)] shrink-0">
+              {part}
+            </kbd>
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  }
+
+  const isLargeKey = keyStr.toLowerCase() === 'space';
+  return (
+    <kbd className={`px-1.5 py-0.5 ${isLargeKey ? 'min-w-[44px]' : 'min-w-[20px]'} h-[20px] flex items-center justify-center bg-white border border-slate-200 border-b-[2.5px] border-b-slate-400 rounded font-mono text-[9px] font-extrabold text-[#111827] shadow-[0_1px_1px_rgba(0,0,0,0.15)] shrink-0`}>
+      {keyStr}
+    </kbd>
   );
 }

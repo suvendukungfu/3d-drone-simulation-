@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import { useEffect, useState, useRef } from 'react';
 import { useTutorial } from './TutorialContext';
 
@@ -104,26 +105,33 @@ export function TutorialOverlay() {
         style={{ top: rect.top, height: rect.height, left: rightLeft, width: rightWidth }}
       />
 
-      {/* ── SPOTLIGHT HIGHLIGHT DECORATION (pointer-events-none to click through) ── */}
-      <div 
-        className="fixed z-40 pointer-events-none rounded-xl border-2 border-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.2)] transition-all duration-300 ease-out"
+      {/* ── SPOTLIGHT HIGHLIGHT DECORATION WITH FRAMER-MOTION BREATHING EFFECT ── */}
+      <motion.div 
+        animate={{ 
+          scale: [1, 1.015, 1],
+          borderColor: ['rgba(59, 130, 246, 0.7)', 'rgba(59, 130, 246, 0.95)', 'rgba(59, 130, 246, 0.7)'],
+          boxShadow: [
+            '0 0 15px rgba(59, 130, 246, 0.25), inset 0 0 8px rgba(59, 130, 246, 0.1)',
+            '0 0 25px rgba(59, 130, 246, 0.4), inset 0 0 12px rgba(59, 130, 246, 0.2)',
+            '0 0 15px rgba(59, 130, 246, 0.25), inset 0 0 8px rgba(59, 130, 246, 0.1)'
+          ]
+        }}
+        transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+        className="fixed z-40 pointer-events-none rounded-xl border-2 transition-all duration-300 ease-out"
         style={{
-          top: rect.top - 4,
-          left: rect.left - 4,
-          width: rect.width + 8,
-          height: rect.height + 8,
+          top: rect.top - 5,
+          left: rect.left - 5,
+          width: rect.width + 10,
+          height: rect.height + 10,
         }}
       >
-        {/* Pulsing glow ring */}
-        <span className="absolute inset-0 rounded-xl border border-blue-400 animate-ping opacity-50" style={{ animationDuration: '2s' }} />
-
         {/* Pointer Arrow Indicators */}
         <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce">
-          <svg className="w-5 h-5 text-blue-600 drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-5 h-5 text-blue-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 13l-7 7-7-7m14-6l-7 7-7-7" />
           </svg>
         </div>
-      </div>
+      </motion.div>
     </>
   );
 }

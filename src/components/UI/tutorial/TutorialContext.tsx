@@ -5,20 +5,10 @@ import * as THREE from 'three';
 export type StepId =
   | 'WELCOME'
   | 'MISSION_ARM'
-  | 'MISSION_THROTTLE_DOWN'
-  | 'MISSION_THROTTLE_UP'
-  | 'MISSION_HOVER'
-  | 'MISSION_YAW_LEFT'
-  | 'MISSION_YAW_RIGHT'
-  | 'MISSION_ROLL_LEFT'
-  | 'MISSION_ROLL_RIGHT'
-  | 'MISSION_PITCH_FWD'
-  | 'MISSION_PITCH_BWD'
-  | 'MISSION_FLIP_FWD'
-  | 'MISSION_FLIP_BWD'
+  | 'MISSION_TAKE_OFF'
+  | 'MISSION_LEARN_CONTROLS'
   | 'MISSION_FLY_WAYPOINT'
-  | 'MISSION_LAND'
-  | 'MISSION_DISARM';
+  | 'MISSION_LAND_DISARM';
 
 export interface TutorialStep {
   id: StepId;
@@ -66,6 +56,7 @@ interface TutorialContextType {
   hoverProgress: number; // 0 to 1 for the 2s hover
   isStepCompleted: boolean;
   continueStep: () => void;
+  stepStartValue: any;
 }
 
 const TutorialContext = createContext<TutorialContextType | undefined>(undefined);
@@ -77,214 +68,76 @@ const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'WELCOME',
     title: 'Welcome Pilot!',
-    description: 'Welcome to the Drona Academy. In this guided checklist training, you will master the flight controls of the PlutoX nano-drone.',
+    description: 'Welcome to the Drona Academy. In this guided training, you will master the basic and advanced controls of the PlutoX nano-drone.',
     whyMatters: 'Completing the flight checklist builds core muscle memory for stable and safe operation.',
-    expectedOutcome: 'Press Enter or click Begin to open the controls.',
+    expectedOutcome: 'Press Enter or click Begin to start.',
     targetSelector: '',
     validationType: 'manual',
     illustration: 'welcome'
   },
   {
     id: 'MISSION_ARM',
-    title: 'Step 1: Arm Drone',
-    description: 'Press the SPACEBAR (or tap the ARM button) to arm the flight system.',
-    whyMatters: 'Arming activates the motors and prepares them for throttle lift commands. Keep disarmed when not flying.',
-    expectedOutcome: 'Telemetry updates status to ARMED.',
+    title: 'Step 1: Arm & Motor Start',
+    description: 'Press the SPACEBAR (or tap the ARM button) to arm, then move throttle fully down (S key or left joystick down) once to spin up propellers.',
+    whyMatters: 'Arming prepares the flight system, and spinning up propellers to idle prepares for safe takeoff.',
+    expectedOutcome: 'Drone is ARMED and propellers spin at idle speed.',
     targetSelector: '#tutorial-arm-btn',
-    validationType: 'state',
-    validate: ({ telemetry }) => telemetry?.isArmed === true,
-    illustration: 'arm'
-  },
-  {
-    id: 'MISSION_THROTTLE_DOWN',
-    title: 'Step 2: Start Propellers',
-    description: 'Hold Throttle Down (S key or left joystick down) to spin up the motors to idle speed.',
-    whyMatters: 'Safe takeoff starts from zero applied throttle. Applying throttle immediately after arming can cause sudden climbs.',
-    expectedOutcome: 'Motors start spinning at idle speed.',
-    targetSelector: '#tutorial-left-joystick',
     validationType: 'state',
     validate: ({ telemetry, orchestrator }) =>
       telemetry?.isArmed === true && orchestrator?.motorsStarted === true,
-    illustration: 'left_stick'
+    illustration: 'arm'
   },
   {
-    id: 'MISSION_THROTTLE_UP',
-    title: 'Step 3: Takeoff',
-    description: 'Push Throttle Up (W key or left joystick up) to take off and climb into the air.',
-    whyMatters: 'Ascending safely requires a smooth application of throttle.',
-    expectedOutcome: 'Climb above 0.45 meters.',
+    id: 'MISSION_TAKE_OFF',
+    title: 'Step 2: Take Off & Hover',
+    description: 'Hold Throttle Down (S key) once to start propellers, then push Throttle Up (W key) to climb and hold a stable hover for 2 seconds.',
+    whyMatters: 'Smooth takeoff and stable hovering are the core baselines for flight control.',
+    expectedOutcome: 'Climb and hold stable hover for 2 seconds.',
     targetSelector: '#tutorial-left-joystick',
     validationType: 'state',
-    validate: ({ telemetry }) =>
-      telemetry?.isArmed === true && (telemetry?.altitude ?? 0) > 0.45,
-    illustration: 'left_stick'
-  },
-  {
-    id: 'MISSION_HOVER',
-    title: 'Step 4: Hover for 2 Seconds',
-    description: 'Maintain a stable hover between 0.5m and 2.5m for 2 consecutive seconds.',
-    whyMatters: 'Stable hovering is the core flight baseline for translation maneuvers.',
-    expectedOutcome: 'Maintain steady altitude for 2 seconds.',
-    targetSelector: '#tutorial-left-joystick',
-    validationType: 'state',
-    validate: ({ hoverTime }) => hoverTime >= 2.0,
+    validate: ({ telemetry, hoverTime }) =>
+      telemetry?.isArmed === true && (telemetry?.altitude ?? 0) > 0.45 && hoverTime >= 2.0,
     illustration: 'hover'
   },
   {
-    id: 'MISSION_YAW_LEFT',
-    title: 'Step 5: Yaw Left',
-    description: 'Rotate the drone left (A key or left joystick left) by at least 15 degrees.',
-    whyMatters: 'Yaw controls the heading direction of the drone.',
-    expectedOutcome: 'Rotate left by 15 degrees.',
-    targetSelector: '#tutorial-left-joystick',
-    validationType: 'state',
-    validate: ({ telemetry, stickState, stepStartValue, setStepStartValue }) => {
-      if (telemetry?.heading === undefined) return false;
-      if (stepStartValue === null) {
-        setStepStartValue(telemetry.heading);
-        return false;
-      }
-      let diff = telemetry.heading - stepStartValue;
-      while (diff > 180) diff -= 360;
-      while (diff < -180) diff += 360;
-      return stickState.yaw < -0.15 && Math.abs(diff) >= 15;
-    },
-    illustration: 'left_stick'
-  },
-  {
-    id: 'MISSION_YAW_RIGHT',
-    title: 'Step 6: Yaw Right',
-    description: 'Rotate the drone right (D key or left joystick right) by at least 15 degrees.',
-    whyMatters: 'Yaw rotation changes the direction of the camera and sensors.',
-    expectedOutcome: 'Rotate right by 15 degrees.',
-    targetSelector: '#tutorial-left-joystick',
-    validationType: 'state',
-    validate: ({ telemetry, stickState, stepStartValue, setStepStartValue }) => {
-      if (telemetry?.heading === undefined) return false;
-      if (stepStartValue === null) {
-        setStepStartValue(telemetry.heading);
-        return false;
-      }
-      let diff = telemetry.heading - stepStartValue;
-      while (diff > 180) diff -= 360;
-      while (diff < -180) diff += 360;
-      return stickState.yaw > 0.15 && Math.abs(diff) >= 15;
-    },
-    illustration: 'left_stick'
-  },
-  {
-    id: 'MISSION_ROLL_LEFT',
-    title: 'Step 7: Roll Left',
-    description: 'Tilt the drone left (ArrowLeft or right joystick left) to translate left by 0.3 meters.',
-    whyMatters: 'Roll controls lateral side-to-side translation.',
-    expectedOutcome: 'Move left by 0.3 meters.',
+    id: 'MISSION_LEARN_CONTROLS',
+    title: 'Step 3: Test Flight Controls',
+    description: 'Use W/S/A/D and Arrow keys (or virtual joysticks) to test all four control axes: Throttle, Yaw, Pitch, and Roll.',
+    whyMatters: 'Familiarity with all control dimensions is vital before navigating the environment.',
+    expectedOutcome: 'Test all four control directions once.',
     targetSelector: '#tutorial-right-joystick',
     validationType: 'state',
-    validate: ({ position, stickState, stepStartValue, setStepStartValue }) => {
-      if (!position) return false;
+    validate: ({ stickState, stepStartValue, setStepStartValue }) => {
       if (stepStartValue === null) {
-        setStepStartValue(position.clone());
+        setStepStartValue({ throttle: false, yaw: false, pitch: false, roll: false });
         return false;
       }
-      const startPos = stepStartValue as THREE.Vector3;
-      return stickState.roll < -0.15 && position.x < startPos.x - 0.3;
-    },
-    illustration: 'right_stick'
-  },
-  {
-    id: 'MISSION_ROLL_RIGHT',
-    title: 'Step 8: Roll Right',
-    description: 'Tilt the drone right (ArrowRight or right joystick right) to translate right by 0.3 meters.',
-    whyMatters: 'Roll translation is useful for side maneuvers.',
-    expectedOutcome: 'Move right by 0.3 meters.',
-    targetSelector: '#tutorial-right-joystick',
-    validationType: 'state',
-    validate: ({ position, stickState, stepStartValue, setStepStartValue }) => {
-      if (!position) return false;
-      if (stepStartValue === null) {
-        setStepStartValue(position.clone());
-        return false;
+      const nextVal = { ...stepStartValue };
+      let changed = false;
+      if (stickState && Math.abs(stickState.throttle - 0.5) > 0.15) {
+        if (!nextVal.throttle) { nextVal.throttle = true; changed = true; }
       }
-      const startPos = stepStartValue as THREE.Vector3;
-      return stickState.roll > 0.15 && position.x > startPos.x + 0.3;
-    },
-    illustration: 'right_stick'
-  },
-  {
-    id: 'MISSION_PITCH_FWD',
-    title: 'Step 9: Pitch Forward',
-    description: 'Tilt the drone forward (ArrowUp or right joystick up) to translate forward by 0.3 meters.',
-    whyMatters: 'Pitch controls forward and backward translation.',
-    expectedOutcome: 'Move forward by 0.3 meters.',
-    targetSelector: '#tutorial-right-joystick',
-    validationType: 'state',
-    validate: ({ position, stickState, stepStartValue, setStepStartValue }) => {
-      if (!position) return false;
-      if (stepStartValue === null) {
-        setStepStartValue(position.clone());
-        return false;
+      if (stickState && Math.abs(stickState.yaw) > 0.15) {
+        if (!nextVal.yaw) { nextVal.yaw = true; changed = true; }
       }
-      const startPos = stepStartValue as THREE.Vector3;
-      return stickState.pitch > 0.15 && position.z > startPos.z + 0.3;
-    },
-    illustration: 'right_stick'
-  },
-  {
-    id: 'MISSION_PITCH_BWD',
-    title: 'Step 10: Pitch Backward',
-    description: 'Tilt the drone backward (ArrowDown or right joystick down) to translate backward by 0.3 meters.',
-    whyMatters: 'Pitch control is vital for backing away from obstacles.',
-    expectedOutcome: 'Move backward by 0.3 meters.',
-    targetSelector: '#tutorial-right-joystick',
-    validationType: 'state',
-    validate: ({ position, stickState, stepStartValue, setStepStartValue }) => {
-      if (!position) return false;
-      if (stepStartValue === null) {
-        setStepStartValue(position.clone());
-        return false;
+      if (stickState && Math.abs(stickState.pitch) > 0.15) {
+        if (!nextVal.pitch) { nextVal.pitch = true; changed = true; }
       }
-      const startPos = stepStartValue as THREE.Vector3;
-      return stickState.pitch < -0.15 && position.z < startPos.z - 0.3;
-    },
-    illustration: 'right_stick'
-  },
-  {
-    id: 'MISSION_FLIP_FWD',
-    title: 'Step 11: Flip Forward',
-    description: 'Arm the flip modifier (press F or tap Flip button) and tilt Forward (ArrowUp or right joystick up) to execute a Forward Flip.',
-    whyMatters: 'Flips show the aerobatic maneuverability of the Pluto drone.',
-    expectedOutcome: 'Complete a Forward Flip.',
-    targetSelector: '#tutorial-flip-btn',
-    validationType: 'state',
-    validate: ({ orchestrator, hasStartedFlipRef }) => {
-      if (orchestrator?.isFlipping && orchestrator?.flipDir === 'forward') {
-        hasStartedFlipRef.current = true;
+      if (stickState && Math.abs(stickState.roll) > 0.15) {
+        if (!nextVal.roll) { nextVal.roll = true; changed = true; }
       }
-      return hasStartedFlipRef.current && !orchestrator?.isFlipping;
-    },
-    illustration: 'right_stick'
-  },
-  {
-    id: 'MISSION_FLIP_BWD',
-    title: 'Step 12: Flip Backward',
-    description: 'Arm the flip modifier (press F or tap Flip button) and tilt Backward (ArrowDown or right joystick down) to execute a Backward Flip.',
-    whyMatters: 'Aerobatics require pitch precision and altitude recovery space.',
-    expectedOutcome: 'Complete a Backward Flip.',
-    targetSelector: '#tutorial-flip-btn',
-    validationType: 'state',
-    validate: ({ orchestrator, hasStartedFlipRef }) => {
-      if (orchestrator?.isFlipping && orchestrator?.flipDir === 'backward') {
-        hasStartedFlipRef.current = true;
+      if (changed) {
+        setStepStartValue(nextVal);
       }
-      return hasStartedFlipRef.current && !orchestrator?.isFlipping;
+      return nextVal.throttle && nextVal.yaw && nextVal.pitch && nextVal.roll;
     },
     illustration: 'right_stick'
   },
   {
     id: 'MISSION_FLY_WAYPOINT',
-    title: 'Step 13: Checkpoint',
-    description: 'A blue floating checkpoint has spawned 3 meters ahead. Fly through it using your controls.',
-    whyMatters: 'Teaches simultaneous 3D coordinate translation and orientation alignment.',
+    title: 'Step 4: Navigate to Checkpoint',
+    description: 'A blue floating target ring has spawned ahead. Fly through it using your controls.',
+    whyMatters: 'Checkpoint navigation tests spatial orientation and alignment skills.',
     expectedOutcome: 'Fly through the blue checkpoint target ring.',
     targetSelector: '#tutorial-right-joystick',
     validationType: 'state',
@@ -296,31 +149,20 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     illustration: 'waypoint'
   },
   {
-    id: 'MISSION_LAND',
-    title: 'Step 14: Manual Landing',
-    description: 'Fly back near the center and land the drone safely (press L or hold Throttle Down). Keep the drone armed.',
-    whyMatters: 'Touchdowns must be smooth and controlled. Propellers continue spinning at idle on touchdown.',
-    expectedOutcome: 'Landed safely on ground while remaining ARMED.',
-    targetSelector: '#tutorial-land-btn',
+    id: 'MISSION_LAND_DISARM',
+    title: 'Step 5: Land & Disarm',
+    description: 'Fly back near the takeoff point, lower throttle (S key) to land, and press SPACEBAR to disarm.',
+    whyMatters: 'Safe termination of flight requires landing and securing the motors.',
+    expectedOutcome: 'Drone is safely landed and disarmed.',
+    targetSelector: '#tutorial-arm-btn',
     validationType: 'state',
     validate: ({ telemetry, orchestrator }) => {
       const altitude = telemetry?.altitude ?? 0;
-      return orchestrator?.hasTakenOff === false && altitude < 0.08 && telemetry?.isArmed === true;
+      const isLanded = altitude < 0.08 || orchestrator?.hasTakenOff === false;
+      return isLanded && telemetry?.isArmed === false;
     },
-    illustration: 'land'
-  },
-  {
-    id: 'MISSION_DISARM',
-    title: 'Step 15: Disarm Drone',
-    description: 'Now that the drone has landed, press SPACEBAR (or tap the ARM button) to disarm the ESCs and stop the propellers.',
-    whyMatters: 'Safe landing procedure always ends with disarming to safe the motors.',
-    expectedOutcome: 'Motors stopped and drone disarmed.',
-    targetSelector: '#tutorial-arm-btn',
-    validationType: 'state',
-    validate: ({ telemetry }) => telemetry?.isArmed === false,
     illustration: 'arm'
-  }
-];
+  }];
 
 export function TutorialProvider({ 
   children, 
@@ -448,7 +290,7 @@ export function TutorialProvider({
       // Manage 2s hover timer inside validation loop
       const stepId = step.id;
       let currentHoverTime = hoverTime;
-      if (stepId === 'MISSION_HOVER') {
+      if (stepId === 'MISSION_TAKE_OFF') {
         const altitude = telemetry?.altitude ?? 0;
         const speed = telemetry?.speed ?? 0;
         const inHoverWindow = altitude >= 0.5 && altitude <= 2.5 && speed < 1.5;
@@ -536,9 +378,8 @@ export function TutorialProvider({
   };
 
   const skipTutorial = () => {
-    setHasSkipped(true);
-    localStorage.setItem(LOCAL_STORAGE_SKIPPED, 'true');
-    stopTutorial();
+    setIsStepCompleted(false);
+    nextStep();
   };
 
   const restartTutorial = () => {
@@ -584,7 +425,8 @@ export function TutorialProvider({
         hasSkipped,
         hoverProgress,
         isStepCompleted,
-        continueStep
+        continueStep,
+        stepStartValue
       }}
     >
       {children}

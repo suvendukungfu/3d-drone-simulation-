@@ -368,7 +368,7 @@ function App() {
   };
 
   return (
-    <div className="w-full h-full relative overflow-hidden bg-[#F8FAFC] dark:bg-[#070a13] font-sans antialiased text-slate-800 dark:text-white select-none flex app-shell" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}>
+    <div className="w-full h-full relative overflow-hidden bg-[#F8FAFC] dark:bg-[#070a13] font-sans antialiased text-slate-800 dark:text-white select-none flex app-shell" style={currentMode === 'flight' ? undefined : { paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)', paddingLeft: 'env(safe-area-inset-left, 0px)', paddingRight: 'env(safe-area-inset-right, 0px)' }}>
       {isARActive && (
         <Suspense fallback={null}>
           <ARSimulator />
@@ -859,6 +859,7 @@ function App() {
               orchestrator={orchestratorRef.current!} 
               activeCheckpoints={activeCheckpoints}
               onTelemetryFrame={handleTelemetryFrame}
+              stickState={stickState}
             />
           ) : (
             // CORE AVIONICS EXPLORER VIEWPORT (including split-screen VR SBS)

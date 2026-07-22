@@ -531,7 +531,7 @@ function SimulationLoop({
     } else if (envType === 'lab') {
       orchestrator.physics.setBounds(-10, 10, -10, 10, 7);
     } else if (envType === 'classroom') {
-      orchestrator.physics.setBounds(-10, 10, -10, 10, 6);
+      orchestrator.physics.setBounds(-4.09, 4.02, -5.01, 5.02, 3.40);
     } else { // room
       orchestrator.physics.setBounds(-8, 8, -8, 8, 6);
     }
@@ -622,7 +622,15 @@ function SimulationLoop({
 
     // 3. Sync visual drone model position & orientation (using interpolated state for smoothness)
     if (droneGroupRef.current) {
-      droneGroupRef.current.position.copy(renderState.position);
+      const bounds = orchestrator.physics.environmentBounds;
+      const visualRadius = 0.155; // visual radius to outer edge of guard/propeller
+      
+      const visualPos = renderState.position.clone();
+      visualPos.x = THREE.MathUtils.clamp(visualPos.x, bounds.minX + visualRadius, bounds.maxX - visualRadius);
+      visualPos.z = THREE.MathUtils.clamp(visualPos.z, bounds.minZ + visualRadius, bounds.maxZ - visualRadius);
+      visualPos.y = Math.max(bounds.minY, visualPos.y);
+
+      droneGroupRef.current.position.copy(visualPos);
       droneGroupRef.current.quaternion.copy(renderState.quaternion);
     }
 
@@ -839,14 +847,25 @@ function SimulationLoop({
       scorchMarksRef.current = aliveMarks;
     }
 
-    // 4. Spin propeller meshes in real-time
+    // 4. Spin and damage propeller meshes in real-time
+    const isCrashed = orchestrator.getIsCrashed() || (orchestrator as any).slowMoActive;
     if (propellersRef.current.length > 0) {
       propellersRef.current.forEach((mesh, index) => {
         if (mesh) {
+          if (isCrashed) {
+            // Apply visual damage: bend each propeller shaft differently
+            mesh.rotation.x = 0.35 * Math.sin(index * 1.9 + 0.8);
+            mesh.rotation.y = 0.25 * Math.cos(index * 1.9);
+          } else {
+            // Reset bend when repaired/rearmed
+            mesh.rotation.x = mesh.userData.originalRotation ? mesh.userData.originalRotation.x : 0;
+            mesh.rotation.y = mesh.userData.originalRotation ? mesh.userData.originalRotation.y : 0;
+          }
+
           const direction = (index === 0 || index === 3) ? -1 : 1;
           
           let targetSpeed = 0;
-          if (telemetry.isArmed && orchestrator.motorsStarted && !orchestrator.getIsCrashed() && !(orchestrator as any).slowMoActive) {
+          if (telemetry.isArmed && orchestrator.motorsStarted && !isCrashed) {
             targetSpeed = 15000 + motorCmds[index] * 33000;
           }
           
@@ -857,6 +876,33 @@ function SimulationLoop({
             const angleDelta = (propVelocitiesRef.current[index] / 60) * Math.PI * 2 * delta * 0.012;
             propAngles.current[index] += direction * angleDelta;
             mesh.rotation.z = propAngles.current[index];
+          }
+        }
+      });
+    }
+
+    // 4a. Propeller guards physical damage / deformation on crash
+    if (propellerGuardsRef.current.length > 0) {
+      propellerGuardsRef.current.forEach((mesh, index) => {
+        if (mesh) {
+          if (isCrashed) {
+            // Visual damage: bend and crumple guards
+            mesh.rotation.x = 0.25 * Math.sin(index * 1.5 + 1.2);
+            mesh.rotation.y = 0.15 * Math.cos(index * 1.5);
+            mesh.scale.set(1.15, 0.75, 0.95);
+          } else {
+            // Reset guards when repaired/rearmed
+            if (mesh.userData.originalRotation) {
+              mesh.rotation.copy(mesh.userData.originalRotation);
+            } else {
+              mesh.rotation.x = 0;
+              mesh.rotation.y = 0;
+            }
+            if (mesh.userData.originalScale) {
+              mesh.scale.copy(mesh.userData.originalScale);
+            } else {
+              mesh.scale.set(1, 1, 1);
+            }
           }
         }
       });
@@ -1082,9 +1128,10 @@ interface FlightSceneProps {
   orchestrator: SimulatorOrchestrator;
   activeCheckpoints: any[];
   onTelemetryFrame?: (telemetry: TelemetryData) => void;
+  stickState?: { throttle: number; yaw: number; pitch: number; roll: number };
 }
 
-export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame }: FlightSceneProps) {
+export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame, stickState }: FlightSceneProps) {
   const flightCameraView = useDroneStore((state) => state.flightCameraView);
   const modelLoadStatus = useDroneStore((state) => state.modelLoadStatus);
   const theme = useDroneStore((state) => state.theme);
@@ -1286,6 +1333,16 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
       });
 
       propellersRef.current = props;
+      
+      // Cache original parent & local transforms for all propellers
+      props.forEach((prop) => {
+        if (!prop.userData.originalParent) {
+          prop.userData.originalParent = prop.parent;
+          prop.userData.originalPosition = prop.position.clone();
+          prop.userData.originalRotation = prop.rotation.clone();
+          prop.userData.originalScale = prop.scale.clone();
+        }
+      });
 
       // ---- PROPELLER GUARD COLLECTION ----
       const guardList: THREE.Object3D[] = [];
@@ -1309,6 +1366,16 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
       });
 
       propellerGuardsRef.current = topGuards;
+
+      // Cache original parent & local transforms for all guards
+      topGuards.forEach((guard) => {
+        if (!guard.userData.originalParent) {
+          guard.userData.originalParent = guard.parent;
+          guard.userData.originalPosition = guard.position.clone();
+          guard.userData.originalRotation = guard.rotation.clone();
+          guard.userData.originalScale = guard.scale.clone();
+        }
+      });
     } catch (err: any) {
       useDroneStore.getState().setModelLoadStatus('failed', err.message || 'Error processing PlutoX model');
     }
@@ -1354,6 +1421,42 @@ export function FlightScene({ orchestrator, activeCheckpoints, onTelemetryFrame 
 
   return (
     <div className={`w-full h-full relative select-none ${isDark ? 'bg-[#02040a]' : 'bg-[#F8FAFC]'}`}>
+      {/* FPV HUD Overlay: Center-aligned crosshair and Throttle scale */}
+      {flightCameraView === 'fpv' && !isCrashed && (
+        <div className="absolute inset-0 pointer-events-none z-30 flex items-center justify-center">
+          {/* Central HUD Crosshair */}
+          <div className="absolute w-8 h-8 flex items-center justify-center opacity-40">
+            <div className="absolute w-4 h-0.5 bg-cyan-400 rounded-full" />
+            <div className="absolute h-4 w-0.5 bg-cyan-400 rounded-full" />
+            <div className="w-1.5 h-1.5 rounded-full border border-cyan-400" />
+          </div>
+
+          {/* Throttle scale aligned relative to center */}
+          <div className="absolute top-1/2 -translate-y-1/2 left-[calc(50%-75px)] w-16 h-28">
+            <div className="pluto-throttle-scale !left-1/2 !top-1/2 !transform !-translate-x-1/2 !-translate-y-1/2">
+              <div className="pluto-throttle-ticks">
+                {Array.from({ length: 9 }).map((_, i) => {
+                  const isMajor = i === 0 || i === 4 || i === 8;
+                  return (
+                    <div
+                      key={i}
+                      className={`pluto-throttle-tick ${isMajor ? 'major' : ''}`}
+                    />
+                  );
+                })}
+              </div>
+              <div
+                className="pluto-throttle-bracket"
+                style={{
+                  bottom: `${(stickState?.throttle ?? 0) * 100}%`,
+                  transform: 'translateY(50%)',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* FPV Video Loss Glitch Overlay */}
       <AnimatePresence>
         {flightCameraView === 'fpv' && isCrashed && (
