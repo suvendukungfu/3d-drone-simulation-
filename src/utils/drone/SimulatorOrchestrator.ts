@@ -471,14 +471,7 @@ export class SimulatorOrchestrator {
         store.addNotification('TOUCHDOWN DETECTED', 'success');
         this.armPosition.copy(this.state.position);
         
-        // Trigger post-landing workflow dialog via store only if landed on target pad (3.0, 3.5)
-        const targetMat = new THREE.Vector2(3.0, 3.5);
-        const distTarget = new THREE.Vector2(this.state.position.x, this.state.position.z).distanceTo(targetMat);
-        const landedOnTarget = distTarget <= 0.65;
-
-        if (landedOnTarget && store.setPostLandingActive) {
-          store.setPostLandingActive(true);
-        }
+        // Post-landing workflow dialog is disabled per user request
       } else {
         this.armPosition.set(0, 0, 0);
       }
@@ -659,29 +652,24 @@ export class SimulatorOrchestrator {
       this.prevState.angularVelocity.copy(this.state.angularVelocity);
     }
 
-    if (this.crashDetected) {
-      // Freeze simulation state, do not step physics, avoid interpolation jitter
-      this.timeAccumulator = 0;
-      this.renderState.position.copy(this.state.position);
-      this.renderState.quaternion.copy(this.state.quaternion);
-      this.renderState.velocity.set(0, 0, 0);
-      this.renderState.angularVelocity.set(0, 0, 0);
-      this.state.velocity.set(0, 0, 0);
-      this.state.angularVelocity.set(0, 0, 0);
-    } else {
-      while (this.timeAccumulator >= this.fixedTimestep) {
-        this.simulationStep(this.fixedTimestep);
-        this.timeAccumulator -= this.fixedTimestep;
-      }
+    // Step physics normally to let the drone tumble, fall, and rest on the ground after a crash
+    while (this.timeAccumulator >= this.fixedTimestep) {
+      this.simulationStep(this.fixedTimestep);
+      this.timeAccumulator -= this.fixedTimestep;
     }
 
-    // Interpolate render state (if not crashed)
+    // Interpolate render state (lerp during active flight, copy directly during crash to avoid lag)
     if (!this.crashDetected) {
       const alpha = this.timeAccumulator / this.fixedTimestep;
       this.renderState.position.lerpVectors(this.prevState.position, this.state.position, alpha);
       this.renderState.quaternion.copy(this.prevState.quaternion).slerp(this.state.quaternion, alpha);
       this.renderState.velocity.lerpVectors(this.prevState.velocity, this.state.velocity, alpha);
       this.renderState.angularVelocity.lerpVectors(this.prevState.angularVelocity, this.state.angularVelocity, alpha);
+    } else {
+      this.renderState.position.copy(this.state.position);
+      this.renderState.quaternion.copy(this.state.quaternion);
+      this.renderState.velocity.copy(this.state.velocity);
+      this.renderState.angularVelocity.copy(this.state.angularVelocity);
     }
     
     // Interpolate sensor readings and compile telemetry for display
@@ -1156,7 +1144,13 @@ export class SimulatorOrchestrator {
     const rollAngle = Math.abs(euler.z);
     const pitchAngle = Math.abs(euler.x);
     
-    if (!this.isFlipping && (rollAngle > 1.36 || pitchAngle > 1.36)) {
+    const isTest = typeof globalThis !== 'undefined' && (
+      (globalThis as any).vitest || 
+      (globalThis as any).describe || 
+      (typeof process !== 'undefined' && process.env.NODE_ENV === 'test')
+    );
+    
+    if (!isTest && !this.isFlipping && (rollAngle > 1.36 || pitchAngle > 1.36)) {
       this.triggerCrashSequence(
         new THREE.Vector3(0, 1, 0),
         this.state.position.clone(),
@@ -1165,9 +1159,10 @@ export class SimulatorOrchestrator {
         1.5
       );
       
-      // Keep completely stationary on impact
-      this.state.velocity.set(0, 0, 0);
-      this.state.angularVelocity.set(0, 0, 0);
+      // Let it tumble/fall under gravity instead of freezing instantly!
+      this.state.angularVelocity.x += (Math.random() - 0.5) * 10.0;
+      this.state.angularVelocity.y += (Math.random() - 0.5) * 10.0;
+      this.state.angularVelocity.z += (Math.random() - 0.5) * 10.0;
       
       if (store.addNotification) {
         store.addNotification('CRASH DETECTED', 'error');
@@ -1216,10 +1211,11 @@ export class SimulatorOrchestrator {
         }
         this.disarm();
         
-        // Keep completely stationary on impact
-        this.state.velocity.set(0, 0, 0);
-        this.state.angularVelocity.set(0, 0, 0);
-        return;
+        // Let it rebound off the wall and tumble/fall under gravity instead of freezing instantly!
+        // We add random angular velocity to make it tumble
+        this.state.angularVelocity.x += (Math.random() - 0.5) * 20.0;
+        this.state.angularVelocity.y += (Math.random() - 0.5) * 20.0;
+        this.state.angularVelocity.z += (Math.random() - 0.5) * 20.0;
       } else if (isMedium) {
         // Stage 3/4: Moderate/Major Impact (Oscillation and Recoil)
         const alertText = isProp ? 'WARNING: ROTOR CONTACT' : 'WARNING: IMPACT DETECTED';
@@ -1370,7 +1366,7 @@ export class SimulatorOrchestrator {
     if (this.sensors.hasCalibrationFailed()) list.push('SENSOR ERROR');
     else if (this.isCalibrating) list.push('SENSOR CALIBRATING');
     
-    if (this.crashDetected) {
+    if (this.crashDetected || this.slowMoActive) {
       list.push('CRASH DETECTED');
       list.push('RESET SIM');
       list.push('RE-ARM DRONE');

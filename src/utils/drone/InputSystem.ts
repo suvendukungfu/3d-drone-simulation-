@@ -17,6 +17,15 @@ import { useDroneStore } from '../../store/useDroneStore';
  *   • Frame-rate independent      — uses 1 - e^(-dt/τ) instead of dt*k, stable at any FPS.
  */
 export class InputSystem {
+  private static readonly TUTORIAL_STEP_IDS = [
+    'WELCOME',
+    'MISSION_ARM',
+    'MISSION_TAKE_OFF',
+    'MISSION_LEARN_CONTROLS',
+    'MISSION_FLY_WAYPOINT',
+    'MISSION_LAND_DISARM'
+  ];
+
   private keys: Record<string, boolean> = {};
   
   // Virtual Stick Values
@@ -267,42 +276,23 @@ export class InputSystem {
   }
   
   private isKeyAllowedInTutorial(key: string, tutorialStep: number): boolean {
-    switch (tutorialStep) {
-      case 0: // WELCOME
-        return key === 'enter';
-      case 1: // MISSION_ARM
-        return key === ' ';
-      case 2: // MISSION_THROTTLE_DOWN
-        return key === 's';
-      case 3: // MISSION_THROTTLE_UP
-        return key === 'w';
-      case 4: // MISSION_HOVER
-        return key === 'w' || key === 's';
-      case 5: // MISSION_YAW_LEFT
-        return key === 'a' || key === 'w' || key === 's';
-      case 6: // MISSION_YAW_RIGHT
-        return key === 'd' || key === 'w' || key === 's';
-      case 7: // MISSION_ROLL_LEFT
-        return key === 'arrowleft' || key === 'w' || key === 's';
-      case 8: // MISSION_ROLL_RIGHT
-        return key === 'arrowright' || key === 'w' || key === 's';
-      case 9: // MISSION_PITCH_FWD
-        return key === 'arrowup' || key === 'w' || key === 's';
-      case 10: // MISSION_PITCH_BWD
-        return key === 'arrowdown' || key === 'w' || key === 's';
-      case 11: // MISSION_FLIP_FWD
-        return key === 'f' || key === 'arrowup' || key === 'w' || key === 's';
-      case 12: // MISSION_FLIP_BWD
-        return key === 'f' || key === 'arrowdown' || key === 'w' || key === 's';
-      case 13: // MISSION_FLY_WAYPOINT
-        return ['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key);
-      case 14: // MISSION_LAND
-        return key === 'l' || key === 's';
-      case 15: // MISSION_DISARM
-        return key === ' ';
-      default:
-        return true;
+    const stepId = InputSystem.TUTORIAL_STEP_IDS[tutorialStep];
+    if (stepId === 'WELCOME') {
+      return key === 'enter';
     }
+    if (stepId === 'MISSION_ARM') {
+      return key === ' ' || key === 's';
+    }
+    if (stepId === 'MISSION_TAKE_OFF') {
+      const storeState = useDroneStore.getState();
+      const isAirborne = (storeState.telemetry?.altitude ?? 0) > 0.08;
+      if (isAirborne) {
+        return true;
+      }
+      return key === 'w' || key === 's' || key === ' ';
+    }
+    // Allow all standard flight controls for all other steps
+    return ['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'f', 'l', ' '].includes(key);
   }
   
   private handleKeyDown(e: KeyboardEvent): void {
@@ -316,8 +306,49 @@ export class InputSystem {
     const storeState = useDroneStore.getState();
     if (storeState.isTutorialActive) {
       if (!this.isKeyAllowedInTutorial(key, storeState.tutorialStep)) {
+        // Set dynamic hint
+        let hintText = "";
+        const stepId = InputSystem.TUTORIAL_STEP_IDS[storeState.tutorialStep];
+        switch (stepId) {
+          case 'WELCOME':
+            hintText = "Press Enter (or click Begin) to start.";
+            break;
+          case 'MISSION_ARM':
+            if (storeState.telemetry?.isArmed) {
+              hintText = "Press S (throttle down) to start the motors.";
+            } else {
+              hintText = "Press SPACEBAR (or tap the ARM button) to arm the drone first.";
+            }
+            break;
+          case 'MISSION_TAKE_OFF':
+            hintText = "Press W (throttle up) or S (throttle down) to take off. Other controls are disabled.";
+            break;
+          case 'MISSION_LEARN_CONTROLS':
+            hintText = "Use W/S/A/D or Arrow keys to test all flight axes.";
+            break;
+          case 'MISSION_FLY_WAYPOINT':
+            hintText = "Fly through the blue ring using W/S/A/D and Arrow keys.";
+            break;
+          case 'MISSION_LAND_DISARM': {
+            const isLanded = (storeState.telemetry?.altitude ?? 0) < 0.08;
+            if (!isLanded) {
+              hintText = "Use W/S or Arrow keys to land the drone safely.";
+            } else {
+              hintText = "Drone has landed. Press SPACEBAR to disarm.";
+            }
+            break;
+          }
+        }
+        if (hintText && (storeState as any).setTutorialHint) {
+          (storeState as any).setTutorialHint(hintText);
+        }
         // Suppress key press
         return;
+      } else {
+        // Clear hint on allowed keyboard inputs
+        if ((storeState as any).setTutorialHint) {
+          (storeState as any).setTutorialHint(null);
+        }
       }
     }
     
@@ -597,82 +628,31 @@ export class InputSystem {
     
     // Tutorial control locking filter
     if (isTutorialActive) {
-      switch (tutorialStep) {
-        case 1: // MISSION_ARM
+      const stepId = InputSystem.TUTORIAL_STEP_IDS[tutorialStep];
+      switch (stepId) {
+        case 'WELCOME':
           this.stick.throttle = 0.0;
           this.stick.yaw = 0.0;
           this.stick.pitch = 0.0;
           this.stick.roll = 0.0;
           break;
-        case 2: // MISSION_THROTTLE_DOWN
-          // Only allow throttle down (throttle < 0.15)
-          if (this.stick.throttle > 0.15) {
-            this.stick.throttle = 0.0;
+        case 'MISSION_ARM':
+          this.stick.yaw = 0.0;
+          this.stick.pitch = 0.0;
+          this.stick.roll = 0.0;
+          break;
+        case 'MISSION_TAKE_OFF':
+          {
+            const storeState = useDroneStore.getState();
+            const isAirborne = (storeState.telemetry?.altitude ?? 0) > 0.08;
+            if (!isAirborne) {
+              this.stick.yaw = 0.0;
+              this.stick.pitch = 0.0;
+              this.stick.roll = 0.0;
+            }
           }
-          this.stick.yaw = 0.0;
-          this.stick.pitch = 0.0;
-          this.stick.roll = 0.0;
           break;
-        case 3: // MISSION_THROTTLE_UP
-          this.stick.yaw = 0.0;
-          this.stick.pitch = 0.0;
-          this.stick.roll = 0.0;
-          break;
-        case 4: // MISSION_HOVER
-          this.stick.yaw = 0.0;
-          this.stick.pitch = 0.0;
-          this.stick.roll = 0.0;
-          break;
-        case 5: // MISSION_YAW_LEFT
-          if (this.stick.yaw > 0.0) this.stick.yaw = 0.0;
-          this.stick.pitch = 0.0;
-          this.stick.roll = 0.0;
-          break;
-        case 6: // MISSION_YAW_RIGHT
-          if (this.stick.yaw < 0.0) this.stick.yaw = 0.0;
-          this.stick.pitch = 0.0;
-          this.stick.roll = 0.0;
-          break;
-        case 7: // MISSION_ROLL_LEFT
-          if (this.stick.roll > 0.0) this.stick.roll = 0.0;
-          this.stick.pitch = 0.0;
-          this.stick.yaw = 0.0;
-          break;
-        case 8: // MISSION_ROLL_RIGHT
-          if (this.stick.roll < 0.0) this.stick.roll = 0.0;
-          this.stick.pitch = 0.0;
-          this.stick.yaw = 0.0;
-          break;
-        case 9: // MISSION_PITCH_FWD
-          if (this.stick.pitch < 0.0) this.stick.pitch = 0.0;
-          this.stick.roll = 0.0;
-          this.stick.yaw = 0.0;
-          break;
-        case 10: // MISSION_PITCH_BWD
-          if (this.stick.pitch > 0.0) this.stick.pitch = 0.0;
-          this.stick.roll = 0.0;
-          this.stick.yaw = 0.0;
-          break;
-        case 11: // MISSION_FLIP_FWD
-        case 12: // MISSION_FLIP_BWD
-          this.stick.yaw = 0.0;
-          this.stick.pitch = 0.0;
-          this.stick.roll = 0.0;
-          break;
-        case 14: // MISSION_LAND
-          if (this.stick.throttle > 0.55) {
-            this.stick.throttle = 0.55;
-          }
-          this.stick.yaw = 0.0;
-          this.stick.pitch = 0.0;
-          this.stick.roll = 0.0;
-          break;
-        case 15: // MISSION_DISARM
-          this.stick.throttle = 0.0;
-          this.stick.yaw = 0.0;
-          this.stick.pitch = 0.0;
-          this.stick.roll = 0.0;
-          break;
+        // All other steps (MISSION_LEARN_CONTROLS, MISSION_FLY_WAYPOINT, MISSION_LAND_DISARM) allow full control authority!
       }
     }
 

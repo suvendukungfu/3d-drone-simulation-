@@ -860,27 +860,23 @@ export class PhysicsEngine {
         ];
       } else if (envType === 'classroom') {
         boxObstacles = [
-          { c: [0, 0.45, -6.5], s: [1.6, 0.9, 0.8], label: "Teacher's Desk" },
+          { c: [0.02, 0.395, 3.43], s: [1.77, 0.79, 1.06], label: "Teacher's Desk" },
+          { c: [-2.23, 0.74, -4.70], s: [1.91, 1.47, 0.55], label: "Bookshelf" },
+          { c: [2.81, 1.17, -4.75], s: [1.24, 2.32, 0.54], label: "Storage Locker" },
           
-          { c: [-2.5, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 1' },
-          { c: [-2.5, 0.41, -2.95], s: [0.42, 0.82, 0.42], label: 'Student Chair 1' },
-          
-          { c: [0, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 2' },
-          { c: [0, 0.41, -2.95], s: [0.42, 0.82, 0.42], label: 'Student Chair 2' },
-          
-          { c: [2.5, 0.375, -2.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 3' },
-          { c: [2.5, 0.41, -2.95], s: [0.42, 0.82, 0.42], label: 'Student Chair 3' },
-          
-          { c: [-2.5, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 4' },
-          { c: [-2.5, 0.41, 1.05], s: [0.42, 0.82, 0.42], label: 'Student Chair 4' },
-          
-          { c: [0, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 5' },
-          { c: [0, 0.41, 1.05], s: [0.42, 0.82, 0.42], label: 'Student Chair 5' },
-          
-          { c: [2.5, 0.375, 1.5], s: [1.1, 0.75, 0.6], label: 'Student Desk 6' },
-          { c: [2.5, 0.41, 1.05], s: [0.42, 0.82, 0.42], label: 'Student Chair 6' },
-          
-          { c: [-7.5, 1.0, 4.0], s: [1.2, 2.0, 0.8], label: 'Bookshelf' }
+          // Student Double Desks (Left Row)
+          { c: [-1.75, 0.375, -3.15], s: [2.2, 0.79, 0.6], label: "Student Desk L1" },
+          { c: [-1.75, 0.375, -1.78], s: [2.2, 0.79, 0.6], label: "Student Desk L2" },
+          { c: [-1.75, 0.375, -0.41], s: [2.2, 0.79, 0.6], label: "Student Desk L3" },
+          { c: [-1.75, 0.375, 0.95], s: [2.2, 0.79, 0.6], label: "Student Desk L4" },
+          { c: [-1.75, 0.375, 2.32], s: [2.2, 0.79, 0.6], label: "Student Desk L5" },
+
+          // Student Double Desks (Right Row)
+          { c: [1.95, 0.375, -3.15], s: [2.2, 0.79, 0.6], label: "Student Desk R1" },
+          { c: [1.95, 0.375, -1.78], s: [2.2, 0.79, 0.6], label: "Student Desk R2" },
+          { c: [1.95, 0.375, -0.41], s: [2.2, 0.79, 0.6], label: "Student Desk R3" },
+          { c: [1.95, 0.375, 0.95], s: [2.2, 0.79, 0.6], label: "Student Desk R4" },
+          { c: [1.95, 0.375, 2.32], s: [2.2, 0.79, 0.6], label: "Student Desk R5" }
         ];
       } else if (envType === 'warehouse') {
         boxObstacles = [

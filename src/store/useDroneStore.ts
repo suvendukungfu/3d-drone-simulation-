@@ -333,6 +333,8 @@ interface DroneState {
   // --- INTERACTIVE TUTORIAL STATES & ACTIONS ---
   isTutorialActive: boolean;
   tutorialStep: number;
+  tutorialHint: string | null;
+  setTutorialHint: (hint: string | null) => void;
   startTutorial: () => void;
   stopTutorial: () => void;
   nextTutorialStep: () => void;
@@ -355,6 +357,8 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   theme: getSafeTheme(),
   isTutorialActive: false,
   tutorialStep: 0,
+  tutorialHint: null,
+  setTutorialHint: (hint) => set({ tutorialHint: hint }),
   
   cameraView: 'orbit',
   autoRotate: true,
@@ -1002,11 +1006,11 @@ export const useDroneStore = create<DroneState>((set, get) => ({
   },
 
   // --- INTERACTIVE TUTORIAL ACTIONS ---
-  startTutorial: () => set({ isTutorialActive: true, tutorialStep: 1 }),
-  stopTutorial: () => set({ isTutorialActive: false, tutorialStep: 0 }),
-  nextTutorialStep: () => set((state) => ({ tutorialStep: state.tutorialStep + 1 })),
-  prevTutorialStep: () => set((state) => ({ tutorialStep: Math.max(1, state.tutorialStep - 1) })),
-  setTutorialStep: (step) => set({ tutorialStep: step })
+  startTutorial: () => set({ isTutorialActive: true, tutorialStep: 1, tutorialHint: null }),
+  stopTutorial: () => set({ isTutorialActive: false, tutorialStep: 0, tutorialHint: null }),
+  nextTutorialStep: () => set((state) => ({ tutorialStep: state.tutorialStep + 1, tutorialHint: null })),
+  prevTutorialStep: () => set((state) => ({ tutorialStep: Math.max(1, state.tutorialStep - 1), tutorialHint: null })),
+  setTutorialStep: (step) => set({ tutorialStep: step, tutorialHint: null })
 }));
 
 // Apply initial theme from localStorage on load
