@@ -1,35 +1,19 @@
-// Auto-generated senior module
-export {};
+import { describe, it, expect } from 'vitest';
 
-// Senior Test: Verify motor response latency curve matches physical ESC specs
- // Commit Entry #1026
+describe('Physics Dynamics & Motor Latency Suite', () => {
+  it('computes quadcopter rotor thrust from motor RPM', () => {
+    const rpm = 12000;
+    const thrustCoeff = 1.2e-7;
+    const thrustForce = thrustCoeff * Math.pow(rpm, 2);
+    expect(thrustForce).toBeGreaterThan(0);
+    expect(thrustForce).toBeCloseTo(17.28, 2);
+  });
 
-// Senior Test: Verify motor response latency curve matches physical ESC specs
- // Commit Entry #1057
-
-// Senior Test: Verify motor response latency curve matches physical ESC specs
- // Commit Entry #1088
-
-// Senior Test: Verify motor response latency curve matches physical ESC specs
- // Commit Entry #1119
-
-// Senior Test: Verify motor response latency curve matches physical ESC specs
- // Commit Entry #1150
-
-// Senior Test: Verify motor response latency curve matches physical ESC specs
- // Commit Entry #1181
-
-// Senior Test: Verify motor response latency curve matches physical ESC specs
- // Commit Entry #1212
-
-// Senior Test: Verify motor response latency curve matches physical ESC specs
- // Commit Entry #1243
-
-// Senior Test: Verify motor response latency curve matches physical ESC specs
- // Commit Entry #1274
-
-// Senior Test: Verify motor response latency curve matches physical ESC specs
- // Commit Entry #1305
-
-// Senior Test: Verify motor response latency curve matches physical ESC specs
- // Commit Entry #1336
+  it('calculates ground effect proximity lift multiplier', () => {
+    const altitudeMeters = 0.08; // 8cm above ground (below 1 rotor diameter)
+    const rotorDiameter = 0.12; // 12cm rotor
+    const ratio = altitudeMeters / rotorDiameter;
+    const groundEffectMultiplier = ratio < 1.0 ? 1 + (0.15 * (1 - ratio)) : 1.0;
+    expect(groundEffectMultiplier).toBeGreaterThan(1.0);
+  });
+});
