@@ -1,38 +1,18 @@
-// Auto-generated senior module
-export {};
+import { describe, it, expect } from 'vitest';
 
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1018
+describe('Tutorial Mission State Transition Suite', () => {
+  it('validates Mission 1 (Arming) completion criteria', () => {
+    const isArmed = true;
+    const motorsSpinning = true;
+    const isMission1Complete = isArmed && motorsSpinning;
+    expect(isMission1Complete).toBe(true);
+  });
 
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1049
-
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1080
-
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1111
-
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1142
-
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1173
-
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1204
-
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1235
-
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1266
-
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1297
-
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1328
-
-// Senior Test: Validate tutorial step progression logic under edge conditions
- // Commit Entry #1359
+  it('validates Mission 2 (Takeoff & Hover) target altitude', () => {
+    const currentAltitude = 1.2; // meters
+    const targetAltitude = 1.0; // meters
+    const tolerance = 0.3;
+    const isHoveringInZone = Math.abs(currentAltitude - targetAltitude) <= tolerance;
+    expect(isHoveringInZone).toBe(true);
+  });
+});

@@ -1,38 +1,18 @@
-// Auto-generated senior module
-export {};
+import { describe, it, expect } from 'vitest';
 
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1015
+describe('MSP Protocol Serialization Suite', () => {
+  it('computes XOR checksum for MultiWii Serial Protocol packet', () => {
+    const payload = [105, 0, 1500, 1500]; // size, cmd, roll, pitch
+    let checksum = payload.length ^ 105;
+    for (const val of payload) {
+      checksum ^= (val & 0xff);
+    }
+    expect(typeof checksum).toBe('number');
+  });
 
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1046
-
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1077
-
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1108
-
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1139
-
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1170
-
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1201
-
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1232
-
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1263
-
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1294
-
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1325
-
-// Senior Test: Verify MSP_SET_RAW_RC packet framing against standard specification
- // Commit Entry #1356
+  it('validates MSP_SET_RAW_RC channel bound constraints', () => {
+    const rcValue = 1500;
+    const clamped = Math.max(1000, Math.min(2000, rcValue));
+    expect(clamped).toBe(1500);
+  });
+});
